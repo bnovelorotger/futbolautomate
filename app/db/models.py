@@ -25,6 +25,7 @@ class Competition(Base, TimestampMixin):
 
     matches: Mapped[list["Match"]] = relationship(back_populates="competition")
     standings: Mapped[list["Standing"]] = relationship(back_populates="competition")
+    standings_snapshots: Mapped[list["StandingSnapshot"]] = relationship(back_populates="competition")
 
 
 class Team(Base, TimestampMixin):
@@ -106,6 +107,48 @@ class Standing(Base, TimestampMixin):
     extra_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     competition: Mapped["Competition"] = relationship(back_populates="standings")
+
+
+class StandingSnapshot(Base, TimestampMixin):
+    __tablename__ = "standings_snapshots"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_name",
+            "competition_id",
+            "season",
+            "group_name",
+            "team_raw",
+            "snapshot_timestamp",
+            name="uq_standings_snapshots_team_timestamp",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source_name: Mapped[str] = mapped_column(String(50), index=True)
+    source_url: Mapped[str] = mapped_column(Text)
+    competition_id: Mapped[int] = mapped_column(ForeignKey("competitions.id"), index=True)
+    scraper_run_id: Mapped[int | None] = mapped_column(ForeignKey("scraper_runs.id"), nullable=True, index=True)
+    season: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    group_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    snapshot_date: Mapped[date] = mapped_column(Date, index=True)
+    snapshot_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    position: Mapped[int] = mapped_column(Integer)
+    team_id: Mapped[int | None] = mapped_column(ForeignKey("teams.id"), nullable=True)
+    team_raw: Mapped[str] = mapped_column(String(255))
+    played: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    wins: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    draws: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    losses: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    goals_for: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    goals_against: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    goal_difference: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    points: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    form_text: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    scraped_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    content_hash: Mapped[str] = mapped_column(String(64), index=True)
+    extra_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    competition: Mapped["Competition"] = relationship(back_populates="standings_snapshots")
 
 
 class News(Base, TimestampMixin):

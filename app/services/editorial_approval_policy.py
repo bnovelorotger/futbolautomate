@@ -24,6 +24,11 @@ AUTOAPPROVABLE_CONTENT_TYPES = (
     ContentType.RANKING,
 )
 MANUAL_REVIEW_CONTENT_TYPES = (
+    ContentType.STANDINGS_EVENT,
+    ContentType.FORM_RANKING,
+    ContentType.FORM_EVENT,
+    ContentType.FEATURED_MATCH_PREVIEW,
+    ContentType.FEATURED_MATCH_EVENT,
     ContentType.STAT_NARRATIVE,
     ContentType.METRIC_NARRATIVE,
     ContentType.VIRAL_STORY,

@@ -91,8 +91,13 @@ class CompetitionReferenceRole(StrEnum):
 class ContentType(StrEnum):
     MATCH_RESULT = "match_result"
     STANDINGS = "standings"
+    STANDINGS_EVENT = "standings_event"
     PREVIEW = "preview"
     RANKING = "ranking"
+    FORM_RANKING = "form_ranking"
+    FORM_EVENT = "form_event"
+    FEATURED_MATCH_PREVIEW = "featured_match_preview"
+    FEATURED_MATCH_EVENT = "featured_match_event"
     STAT_NARRATIVE = "stat_narrative"
     METRIC_NARRATIVE = "metric_narrative"
     VIRAL_STORY = "viral_story"
@@ -134,3 +139,20 @@ class ContentCandidateStatus(StrEnum):
     APPROVED = "approved"
     REJECTED = "rejected"
     PUBLISHED = "published"
+
+
+class StandingsEventType(StrEnum):
+    NEW_LEADER = "new_leader"
+    ENTERED_PLAYOFF = "entered_playoff"
+    LEFT_PLAYOFF = "left_playoff"
+    ENTERED_RELEGATION = "entered_relegation"
+    LEFT_RELEGATION = "left_relegation"
+    BIGGEST_POSITION_RISE = "biggest_position_rise"
+    BIGGEST_POSITION_DROP = "biggest_position_drop"
+
+
+class FormEventType(StrEnum):
+    BEST_FORM_TEAM = "best_form_team"
+    WORST_FORM_TEAM = "worst_form_team"
+    LONGEST_WIN_STREAK_RECENT = "longest_win_streak_recent"
+    LONGEST_LOSS_STREAK_RECENT = "longest_loss_streak_recent"

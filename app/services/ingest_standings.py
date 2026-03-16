@@ -6,6 +6,7 @@ from app.core.catalog import load_competition_catalog
 from app.core.exceptions import ConfigurationError
 from app.db.repositories.competitions import CompetitionRepository
 from app.db.repositories.standings import StandingRepository
+from app.db.repositories.standings_snapshots import StandingSnapshotRepository
 from app.db.repositories.teams import TeamRepository
 from app.normalizers.competitions import CompetitionNormalizer
 from app.normalizers.teams import TeamNameNormalizer
@@ -45,12 +46,15 @@ def ingest_standings(
     session: Session,
     records: list[StandingRecord],
     dry_run: bool = False,
+    scraper_run_id: int | None = None,
 ) -> IngestStats:
     stats = IngestStats(found=len(records))
+    snapshot_timestamp = max((record.scraped_at for record in records), default=None)
     team_normalizer = TeamNameNormalizer()
     competition_normalizer = CompetitionNormalizer()
     team_repo = TeamRepository(session)
     standings_repo = StandingRepository(session)
+    snapshots_repo = StandingSnapshotRepository(session)
 
     for record in records:
         competition_match = competition_normalizer.resolve(record.competition_name, record.competition_code)
@@ -96,4 +100,11 @@ def ingest_standings(
         _, inserted, updated = standings_repo.upsert(payload)
         stats.inserted += int(inserted)
         stats.updated += int(updated)
+        snapshot_payload = {
+            **payload,
+            "scraper_run_id": scraper_run_id,
+            "snapshot_date": snapshot_timestamp.date() if snapshot_timestamp is not None else record.scraped_at.date(),
+            "snapshot_timestamp": snapshot_timestamp or record.scraped_at,
+        }
+        snapshots_repo.insert(snapshot_payload)
     return stats

@@ -1,0 +1,14 @@
+{
+  "tercera_rfef_g11": {
+    "playoff_positions": [2, 3, 4, 5],
+    "relegation_positions": [14, 15, 16, 17, 18]
+  },
+  "segunda_rfef_g3_baleares": {
+    "playoff_positions": [2, 3, 4, 5],
+    "relegation_positions": [14, 15, 16, 17, 18]
+  },
+  "division_honor_mallorca": {
+    "playoff_positions": [],
+    "relegation_positions": []
+  }
+}

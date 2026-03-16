@@ -50,6 +50,26 @@ TYPE_SPECIFIC_GUIDANCE = {
         "Prioriza claridad y lectura rapida de posiciones y puntos. "
         "No alteres ranking, orden, equipos ni puntos."
     ),
+    ContentType.STANDINGS_EVENT: (
+        "Escribe el cambio de tabla de forma directa y verificable. "
+        "No alteres posiciones, equipos ni el tipo de evento detectado."
+    ),
+    ContentType.FORM_RANKING: (
+        "Prioriza lectura rapida de secuencias y puntos recientes. "
+        "No alteres el orden, las rachas ni los puntos del ranking."
+    ),
+    ContentType.FORM_EVENT: (
+        "Resume la dinamica reciente del equipo con claridad y sin exageracion. "
+        "No alteres secuencias, puntos ni la ventana temporal analizada."
+    ),
+    ContentType.FEATURED_MATCH_PREVIEW: (
+        "Presenta el partido destacado con tono de previa breve y editorial. "
+        "No inventes contexto ni cambies posiciones, equipos o etiquetas del analisis."
+    ),
+    ContentType.FEATURED_MATCH_EVENT: (
+        "Resume el angulo principal del partido destacado de forma limpia y concreta. "
+        "No anadas hype ni razones no soportadas por el scoring."
+    ),
     ContentType.PREVIEW: (
         "Escribe en tono de previa, ordenado y concreto. "
         "No inventes claves del partido ni contexto adicional."

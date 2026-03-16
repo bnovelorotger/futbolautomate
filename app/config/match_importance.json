@@ -1,0 +1,36 @@
+{
+  "default": {
+    "top_zone_positions": [1, 2, 3, 4, 5],
+    "playoff_positions": [2, 3, 4, 5],
+    "bottom_zone_positions": [14, 15, 16, 17, 18],
+    "direct_rival_gap_max": 3,
+    "near_playoff_margin": 1,
+    "near_bottom_margin": 1,
+    "hot_form_points_threshold": 10,
+    "cold_form_points_threshold": 4,
+    "weights": {
+      "title_race": 28,
+      "top_table_match": 18,
+      "playoff_clash": 18,
+      "relegation_clash": 18,
+      "direct_rivalry": 14,
+      "hot_form_match": 14,
+      "cold_form_match": 8
+    }
+  },
+  "tercera_rfef_g11": {
+    "top_zone_positions": [1, 2, 3, 4, 5],
+    "playoff_positions": [2, 3, 4, 5],
+    "bottom_zone_positions": [14, 15, 16, 17, 18]
+  },
+  "segunda_rfef_g3_baleares": {
+    "top_zone_positions": [1, 2, 3, 4, 5],
+    "playoff_positions": [2, 3, 4, 5],
+    "bottom_zone_positions": [14, 15, 16, 17, 18]
+  },
+  "division_honor_mallorca": {
+    "top_zone_positions": [1, 2, 3, 4],
+    "playoff_positions": [],
+    "bottom_zone_positions": [15, 16, 17, 18]
+  }
+}

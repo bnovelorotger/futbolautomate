@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.enums import MatchStatus, SourceName
 from app.db.base import Base
-from app.db.models import Match, Standing
+from app.db.models import Match, Standing, StandingSnapshot
 from app.schemas.match import MatchRecord
 from app.schemas.standing import StandingRecord
 from app.services.ingest_matches import ingest_matches
@@ -96,5 +96,141 @@ def test_ingest_standings_updates_existing_row_when_team_name_parsing_improves()
         assert stats_2.updated == 1
         assert len(standings) == 1
         assert standings[0].team_raw == "RCD Mallorca B"
+    finally:
+        session.close()
+
+
+def test_ingest_standings_persists_historical_snapshots_without_overwriting_previous_runs() -> None:
+    session = build_session()
+    try:
+        first_scraped_at = utcnow()
+        second_scraped_at = first_scraped_at.replace(hour=(first_scraped_at.hour + 1) % 24)
+        first = StandingRecord(
+            source_name=SourceName.FUTBOLME,
+            source_url="https://example.com/standings",
+            competition_code="tercera_rfef_g11",
+            competition_name="3a RFEF Grupo 11",
+            season="2025-26",
+            position=1,
+            team_name="RCD Mallorca B",
+            points=63,
+            played=25,
+            wins=20,
+            draws=3,
+            losses=2,
+            goals_for=73,
+            goals_against=16,
+            goal_difference=57,
+            scraped_at=first_scraped_at,
+        )
+        second = first.model_copy(
+            update={
+                "points": 66,
+                "played": 26,
+                "wins": 21,
+                "goals_for": 75,
+                "goal_difference": 59,
+                "scraped_at": second_scraped_at,
+            }
+        )
+
+        ingest_standings(session, [first], dry_run=False, scraper_run_id=11)
+        session.commit()
+        ingest_standings(session, [second], dry_run=False, scraper_run_id=12)
+        session.commit()
+
+        snapshots = session.scalars(
+            select(StandingSnapshot).order_by(StandingSnapshot.snapshot_timestamp.asc())
+        ).all()
+        assert len(snapshots) == 2
+        assert snapshots[0].scraper_run_id == 11
+        assert snapshots[0].points == 63
+        assert snapshots[1].scraper_run_id == 12
+        assert snapshots[1].points == 66
+        assert snapshots[0].snapshot_timestamp < snapshots[1].snapshot_timestamp
+    finally:
+        session.close()
+
+
+def test_ingest_standings_snapshots_do_not_mix_competitions() -> None:
+    session = build_session()
+    try:
+        first = StandingRecord(
+            source_name=SourceName.FUTBOLME,
+            source_url="https://example.com/tercera/standings",
+            competition_code="tercera_rfef_g11",
+            competition_name="3a RFEF Grupo 11",
+            season="2025-26",
+            position=1,
+            team_name="RCD Mallorca B",
+            points=63,
+            scraped_at=utcnow(),
+        )
+        second = StandingRecord(
+            source_name=SourceName.FUTBOLME,
+            source_url="https://example.com/segunda/standings",
+            competition_code="segunda_rfef_g3_baleares",
+            competition_name="2a RFEF Grupo 3",
+            season="2025-26",
+            position=1,
+            team_name="UE Sant Andreu",
+            points=54,
+            scraped_at=utcnow(),
+        )
+
+        ingest_standings(session, [first, second], dry_run=False, scraper_run_id=21)
+        session.commit()
+
+        snapshots = session.scalars(select(StandingSnapshot).order_by(StandingSnapshot.id.asc())).all()
+        assert len(snapshots) == 2
+        assert {snapshot.source_url for snapshot in snapshots} == {
+            "https://example.com/tercera/standings",
+            "https://example.com/segunda/standings",
+        }
+        assert snapshots[0].competition_id != snapshots[1].competition_id
+    finally:
+        session.close()
+
+
+def test_ingest_standings_uses_single_snapshot_timestamp_per_run() -> None:
+    session = build_session()
+    try:
+        first_scraped_at = utcnow()
+        second_scraped_at = first_scraped_at.replace(microsecond=min(first_scraped_at.microsecond + 500, 999999))
+        rows = [
+            StandingRecord(
+                source_name=SourceName.FUTBOLME,
+                source_url="https://example.com/tercera/standings",
+                competition_code="tercera_rfef_g11",
+                competition_name="3a RFEF Grupo 11",
+                season="2025-26",
+                position=1,
+                team_name="RCD Mallorca B",
+                points=63,
+                scraped_at=first_scraped_at,
+            ),
+            StandingRecord(
+                source_name=SourceName.FUTBOLME,
+                source_url="https://example.com/tercera/standings",
+                competition_code="tercera_rfef_g11",
+                competition_name="3a RFEF Grupo 11",
+                season="2025-26",
+                position=2,
+                team_name="CE Mercadal",
+                points=58,
+                scraped_at=second_scraped_at,
+            ),
+        ]
+
+        ingest_standings(session, rows, dry_run=False, scraper_run_id=99)
+        session.commit()
+
+        snapshots = session.scalars(
+            select(StandingSnapshot).order_by(StandingSnapshot.position.asc())
+        ).all()
+        expected_timestamp = second_scraped_at.replace(tzinfo=None)
+        assert len(snapshots) == 2
+        assert {snapshot.snapshot_timestamp for snapshot in snapshots} == {expected_timestamp}
+        assert {snapshot.snapshot_date for snapshot in snapshots} == {second_scraped_at.date()}
     finally:
         session.close()

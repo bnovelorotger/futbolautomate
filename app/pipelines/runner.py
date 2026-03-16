@@ -72,7 +72,12 @@ def run_source_pipeline(
             if target == TargetType.MATCHES:
                 stats = ingest_matches(session, result.records, dry_run=dry_run)
             elif target == TargetType.STANDINGS:
-                stats = ingest_standings(session, result.records, dry_run=dry_run)
+                stats = ingest_standings(
+                    session,
+                    result.records,
+                    dry_run=dry_run,
+                    scraper_run_id=run.id if not dry_run else None,
+                )
             else:
                 stats = ingest_news(session, result.records, dry_run=dry_run)
 
