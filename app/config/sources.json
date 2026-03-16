@@ -1,0 +1,58 @@
+[
+  {
+    "name": "soccerway",
+    "base_url": "https://www.soccerway.com",
+    "supports": ["matches", "standings"],
+    "requires_playwright": true,
+    "rate_limit_seconds": 2.0,
+    "headers": {
+      "Accept-Language": "es-ES,es;q=0.9"
+    },
+    "notes": "Las rutas historicas de competicion han cambiado y deben validarse periodicamente."
+  },
+  {
+    "name": "futbolme",
+    "base_url": "https://futbolme.com",
+    "supports": ["matches", "standings"],
+    "requires_playwright": false,
+    "rate_limit_seconds": 2.0,
+    "headers": {
+      "Accept-Language": "es-ES,es;q=0.9"
+    },
+    "notes": "La integracion productiva vigente usa Division Honor Mallorca (ID 4018). Regional Preferente Mallorca no tiene ruta usable en Futbolme a 14 de marzo de 2026."
+  },
+  {
+    "name": "ffib",
+    "base_url": "https://www.ffib.es",
+    "supports": ["news"],
+    "requires_playwright": false,
+    "rate_limit_seconds": 2.0,
+    "headers": {
+      "Accept-Language": "ca-ES,ca;q=0.9,es-ES;q=0.8"
+    },
+    "notes": "La web puede devolver respuestas vacias; el cliente debe tolerar sesiones inestables."
+  },
+  {
+    "name": "diario_mallorca",
+    "base_url": "https://www.diariodemallorca.es",
+    "supports": ["news"],
+    "requires_playwright": false,
+    "rate_limit_seconds": 1.0,
+    "notes": "El feed historico https://www.diariodemallorca.es/rss/section/15000 devuelve 404 a fecha de 14 de marzo de 2026. El feed publico vigente de Deportes es https://www.diariodemallorca.es/rss/section/2554."
+  },
+  {
+    "name": "ultima_hora",
+    "base_url": "https://www.ultimahora.es",
+    "supports": ["news"],
+    "requires_playwright": false,
+    "rate_limit_seconds": 1.0,
+    "notes": "El feed historico https://www.ultimahora.es/rss/deportes.xml devuelve 404 a fecha de 14 de marzo de 2026. El feed publico vigente de Deportes es https://www.ultimahora.es/deportes.rss."
+  },
+  {
+    "name": "ib3",
+    "base_url": "https://ib3.org",
+    "supports": ["news"],
+    "requires_playwright": false,
+    "rate_limit_seconds": 1.0
+  }
+]

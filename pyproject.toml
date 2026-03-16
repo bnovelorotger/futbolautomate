@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "futbol-balear-scraper"
+version = "0.1.0"
+description = "Scraping y normalización modular de fútbol balear."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "alembic>=1.15,<2.0",
+  "beautifulsoup4>=4.12,<5.0",
+  "playwright>=1.52,<2.0",
+  "psycopg[binary]>=3.2,<4.0",
+  "pydantic>=2.11,<3.0",
+  "pydantic-settings>=2.9,<3.0",
+  "python-dateutil>=2.9,<3.0",
+  "python-dotenv>=1.0,<2.0",
+  "requests>=2.32,<3.0",
+  "SQLAlchemy>=2.0,<3.0",
+  "typer>=0.16,<1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3,<9.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+pythonpath = ["."]
+testpaths = ["tests"]

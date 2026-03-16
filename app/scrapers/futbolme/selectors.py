@@ -1,0 +1,13 @@
+CENTRAL_CONTENT_SELECTOR = "#contenedorCentral"
+TOURNAMENT_HEADER_SELECTOR = "#cabeceraTorneo"
+CALENDAR_HEADING_SELECTOR = ".contenedorTitularTorneoCalendario"
+MATCH_CARD_SELECTOR = ".cajaPartido"
+STANDINGS_TABLE_SELECTOR = "#latabla"
+STANDINGS_ROW_SELECTOR = "#latabla tr"
+
+MATCH_HOME_SELECTOR = ".equipoPartidoLocal"
+MATCH_AWAY_SELECTOR = ".equipoPartidoVisitante"
+MATCH_SCORE_SELECTOR = ".resultadoPartido"
+MATCH_TIME_SELECTOR = ".horaPartido"
+MATCH_PLANNED_TIME_SELECTOR = ".horaPrevistaPartido"
+MATCH_DETAIL_LINK_SELECTOR = "a[href*='/resultados-directo/partido/']"

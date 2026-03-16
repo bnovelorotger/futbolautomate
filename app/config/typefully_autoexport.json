@@ -1,0 +1,71 @@
+{
+  "enabled": true,
+  "phase": 1,
+  "default_limit": 10,
+  "use_rewrite_by_default": true,
+  "max_text_length": 280,
+  "duplicate_window_hours": 72,
+  "max_line_breaks": 6,
+  "max_exports_per_run": 5,
+  "max_exports_per_day": null,
+  "stop_on_capacity_limit": true,
+  "capacity_error_codes": [
+    "MONETIZATION_ERROR"
+  ],
+  "allowed_content_types": [
+    "match_result",
+    "standings",
+    "preview",
+    "ranking",
+    "stat_narrative",
+    "metric_narrative",
+    "viral_story"
+  ],
+  "manual_review_content_types": [],
+  "validation_required_content_types": [
+    "stat_narrative",
+    "metric_narrative",
+    "viral_story"
+  ],
+  "phases": {
+    "1": {
+      "allowed_content_types": [
+        "match_result",
+        "standings",
+        "preview",
+        "ranking"
+      ],
+      "validation_required_content_types": []
+    },
+    "2": {
+      "allowed_content_types": [
+        "match_result",
+        "standings",
+        "preview",
+        "ranking",
+        "stat_narrative",
+        "metric_narrative"
+      ],
+      "validation_required_content_types": [
+        "stat_narrative",
+        "metric_narrative"
+      ]
+    },
+    "3": {
+      "allowed_content_types": [
+        "match_result",
+        "standings",
+        "preview",
+        "ranking",
+        "stat_narrative",
+        "metric_narrative",
+        "viral_story"
+      ],
+      "validation_required_content_types": [
+        "stat_narrative",
+        "metric_narrative",
+        "viral_story"
+      ]
+    }
+  }
+}

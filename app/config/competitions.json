@@ -1,0 +1,422 @@
+[
+  {
+    "code": "tercera_rfef_g11",
+    "name": "3a RFEF Grupo 11",
+    "editorial_name": "3a RFEF Baleares",
+    "aliases": [
+      "Tercera Federacion Grupo 11",
+      "Tercera Federacion - Grupo 11",
+      "Tercera RFEF Baleares",
+      "3a RFEF Baleares",
+      "TERCERA FEDERACION - Grupo 11"
+    ],
+    "historical_backlog_names": [
+      "3a RFEF Baleares / Grupo 11"
+    ],
+    "category_level": 5,
+    "gender": "male",
+    "region": "Baleares",
+    "country": "Spain",
+    "federation": "RFEF",
+    "priority": 1,
+    "status": "integrated",
+    "primary_source": "futbolme",
+    "coverage_scope": "Cobertura completa del grupo balear actual.",
+    "integration_notes": "Integracion productiva real sobre Futbolme. Soccerway queda solo como referencia manual por restricciones de robots en standings.",
+    "group_name": "Grupo 11",
+    "references": [
+      {
+        "source_name": "futbolme",
+        "role": "primary",
+        "urls": [
+          "https://futbolme.com/resultados-directo/torneo/tercera-federacion-grupo-11/3065/",
+          "https://futbolme.com/resultados-directo/torneo/tercera-federacion-grupo-11/3065/calendario"
+        ],
+        "notes": "Fuente viva, publica y reutilizable con la misma estructura HTML del piloto."
+      },
+      {
+        "source_name": "resultados_futbol",
+        "role": "secondary",
+        "urls": [
+          "https://www.resultados-futbol.com/competicion/tercera_division_rfef/2026/grupo11/clasificacion"
+        ],
+        "notes": "Buena fuente secundaria de validacion, no integrada aun."
+      },
+      {
+        "source_name": "soccerway",
+        "role": "discarded",
+        "urls": [
+          "https://www.soccerway.com/spain/tercera-rfef-group-11/",
+          "https://www.soccerway.com/spain/tercera-rfef-group-11/standings/"
+        ],
+        "notes": "Publica y viva, pero no recomendable como base automatica por robots.txt en /standings/."
+      }
+    ],
+    "sources": {
+      "futbolme": {
+        "competition_id": "3065",
+        "enabled": true,
+        "urls": {
+          "matches": "https://futbolme.com/resultados-directo/torneo/tercera-federacion-grupo-11/3065/calendario",
+          "standings": "https://futbolme.com/resultados-directo/torneo/tercera-federacion-grupo-11/3065/"
+        },
+        "notes": "Ruta viva validada el 14 de marzo de 2026."
+      }
+    }
+  },
+  {
+    "code": "division_honor_mallorca",
+    "name": "Division Honor Mallorca",
+    "editorial_name": "Division Honor Mallorca",
+    "aliases": [
+      "Division Honor-Mallorca",
+      "Division Honor Mallorca",
+      "División Honor Mallorca",
+      "División Honor-Mallorca"
+    ],
+    "historical_backlog_names": [
+      "Division Honor Mallorca"
+    ],
+    "category_level": 6,
+    "gender": "male",
+    "region": "Mallorca",
+    "country": "Spain",
+    "federation": "FFIB",
+    "priority": 1,
+    "status": "integrated",
+    "primary_source": "futbolme",
+    "coverage_scope": "Competicion piloto real ya integrada.",
+    "integration_notes": "Integracion productiva real sobre Futbolme para temporada 2025-26.",
+    "references": [
+      {
+        "source_name": "futbolme",
+        "role": "primary",
+        "urls": [
+          "https://futbolme.com/resultados-directo/torneo/division-honor-mallorca/4018/",
+          "https://futbolme.com/resultados-directo/torneo/division-honor-mallorca/4018/calendario"
+        ],
+        "notes": "Fuente del piloto actual en produccion."
+      }
+    ],
+    "sources": {
+      "futbolme": {
+        "competition_id": "4018",
+        "enabled": true,
+        "urls": {
+          "matches": "https://futbolme.com/resultados-directo/torneo/division-honor-mallorca/4018/calendario",
+          "standings": "https://futbolme.com/resultados-directo/torneo/division-honor-mallorca/4018/"
+        },
+        "notes": "Ruta real validada el 14 de marzo de 2026. Futbolme expone el calendario completo y la clasificacion general en #latabla."
+      }
+    }
+  },
+  {
+    "code": "segunda_rfef_g3_baleares",
+    "name": "2a RFEF Grupo 3",
+    "editorial_name": "2a RFEF con equipos baleares",
+    "aliases": [
+      "Segunda Federacion Grupo 3",
+      "Segunda Federacion - Grupo 3",
+      "2a Federacion Grupo 3",
+      "2a RFEF Baleares",
+      "SEGUNDA FEDERACION - Grupo 3"
+    ],
+    "historical_backlog_names": [
+      "2a RFEF con equipos baleares"
+    ],
+    "category_level": 4,
+    "gender": "male",
+    "region": "Spain",
+    "country": "Spain",
+    "federation": "RFEF",
+    "priority": 2,
+    "status": "integrated",
+    "primary_source": "futbolme",
+    "coverage_scope": "Seguir editorialmente solo los equipos baleares presentes en el grupo tecnico actual.",
+    "integration_notes": "Integracion productiva real sobre Futbolme. La competicion tecnica actual es el Grupo 3 y la capa editorial filtra solo los equipos baleares configurados.",
+    "group_name": "Grupo 3",
+    "tracked_teams": [
+      "UD Poblense",
+      "Atletico Baleares",
+      "CD Ibiza Islas Pitiusas",
+      "CE Andratx",
+      "UE Porreres"
+    ],
+    "references": [
+      {
+        "source_name": "futbolme",
+        "role": "primary",
+        "urls": [
+          "https://futbolme.com/resultados-directo/torneo/segunda-federacion-grupo-3/3059/",
+          "https://futbolme.com/resultados-directo/torneo/segunda-federacion-grupo-3/3059/calendario"
+        ],
+        "notes": "Misma estructura HTML estable que el piloto."
+      },
+      {
+        "source_name": "resultados_futbol",
+        "role": "secondary",
+        "urls": [
+          "https://www.resultados-futbol.com/competicion/segunda_division_rfef/2026/grupo3/clasificacion"
+        ],
+        "notes": "Fuente secundaria de contraste."
+      },
+      {
+        "source_name": "rfef",
+        "role": "official",
+        "urls": [
+          "https://rfef.es/es/competiciones/segunda-federacion"
+        ],
+        "notes": "Oficial, pero hoy responde challenge 403 y no es razonable como base automatica."
+      }
+    ],
+    "sources": {
+      "futbolme": {
+        "competition_id": "3059",
+        "enabled": true,
+        "urls": {
+          "matches": "https://futbolme.com/resultados-directo/torneo/segunda-federacion-grupo-3/3059/calendario",
+          "standings": "https://futbolme.com/resultados-directo/torneo/segunda-federacion-grupo-3/3059/"
+        },
+        "notes": "Ruta real validada el 14 de marzo de 2026. Se integra el grupo completo y se explota editorialmente solo la capa balear."
+      }
+    }
+  },
+  {
+    "code": "tercera_federacion_femenina_g11",
+    "name": "Tercera Federacion Femenina Grupo 11",
+    "editorial_name": "Primera Nacional femenina con equipos baleares",
+    "aliases": [
+      "Tercera Federacion Femenina - Grupo 11",
+      "TERCERA FEDERACION FEMENINA - Grupo 11",
+      "Futbol femenino balear nacional"
+    ],
+    "historical_backlog_names": [
+      "Primera Nacional femenina con equipos baleares",
+      "Primera Nacional femenina"
+    ],
+    "category_level": 3,
+    "gender": "female",
+    "region": "Baleares",
+    "country": "Spain",
+    "federation": "RFEF",
+    "priority": 2,
+    "status": "ready_to_integrate",
+    "primary_source": "futbolme",
+    "coverage_scope": "Sustituto tecnico actual del backlog historico de Primera Nacional femenina balear.",
+    "integration_notes": "La realidad competitiva vigente en Futbolme para equipos baleares es Tercera Federacion Femenina Grupo 11.",
+    "group_name": "Grupo 11",
+    "references": [
+      {
+        "source_name": "futbolme",
+        "role": "primary",
+        "urls": [
+          "https://futbolme.com/resultados-directo/torneo/tercera-federacion-femenina-grupo-11/3246/",
+          "https://futbolme.com/resultados-directo/torneo/tercera-federacion-femenina-grupo-11/3246/calendario"
+        ],
+        "notes": "Fuente viva con clubes baleares detectados."
+      },
+      {
+        "source_name": "resultados_futbol",
+        "role": "secondary",
+        "urls": [
+          "https://www.resultados-futbol.com/competicion/segunda_division_femenina/2026/grupo11/clasificacion"
+        ],
+        "notes": "Secundaria de validacion. Usa naming historico en la URL pero muestra la competicion actual."
+      }
+    ],
+    "sources": {
+      "futbolme": {
+        "competition_id": "3246",
+        "enabled": true,
+        "urls": {
+          "matches": "https://futbolme.com/resultados-directo/torneo/tercera-federacion-femenina-grupo-11/3246/calendario",
+          "standings": "https://futbolme.com/resultados-directo/torneo/tercera-federacion-femenina-grupo-11/3246/"
+        },
+        "notes": "Lista para integrar con bajo coste."
+      }
+    }
+  },
+  {
+    "code": "division_honor_ibiza_form",
+    "name": "Division Honor-Ibiza/Form",
+    "editorial_name": "Preferente Ibiza",
+    "aliases": [
+      "Division Honor Ibiza Form",
+      "División Honor-Ibiza/Form",
+      "División Honor Ibiza/Form",
+      "Division Honor Ibiza/Form"
+    ],
+    "historical_backlog_names": [
+      "Regional Preferente Ibiza",
+      "Preferente Ibiza",
+      "Regional Preferente Ibiza y Formentera"
+    ],
+    "category_level": 6,
+    "gender": "male",
+    "region": "Ibiza y Formentera",
+    "country": "Spain",
+    "federation": "FFIB",
+    "priority": 3,
+    "status": "ready_to_integrate",
+    "primary_source": "futbolme",
+    "coverage_scope": "Sustituto tecnico actual del backlog editorial Preferente Ibiza.",
+    "integration_notes": "Futbolme no expone hoy una liga viva bajo el nombre Preferente Ibiza, sino Division Honor-Ibiza/Form.",
+    "references": [
+      {
+        "source_name": "futbolme",
+        "role": "primary",
+        "urls": [
+          "https://futbolme.com/resultados-directo/torneo/division-honor-ibiza-form/4020/",
+          "https://futbolme.com/resultados-directo/torneo/division-honor-ibiza-form/4020/calendario"
+        ],
+        "notes": "Competicion viva actual."
+      }
+    ],
+    "sources": {
+      "futbolme": {
+        "competition_id": "4020",
+        "enabled": true,
+        "urls": {
+          "matches": "https://futbolme.com/resultados-directo/torneo/division-honor-ibiza-form/4020/calendario",
+          "standings": "https://futbolme.com/resultados-directo/torneo/division-honor-ibiza-form/4020/"
+        },
+        "notes": "Lista para integrar cuando toque la expansion insular."
+      }
+    }
+  },
+  {
+    "code": "division_honor_menorca",
+    "name": "Division Honor-Menorca",
+    "editorial_name": "Preferente Menorca",
+    "aliases": [
+      "Division Honor Menorca",
+      "División Honor-Menorca",
+      "División Honor Menorca"
+    ],
+    "historical_backlog_names": [
+      "Regional Preferente Menorca",
+      "Preferente Menorca"
+    ],
+    "category_level": 6,
+    "gender": "male",
+    "region": "Menorca",
+    "country": "Spain",
+    "federation": "FFIB",
+    "priority": 3,
+    "status": "ready_to_integrate",
+    "primary_source": "futbolme",
+    "coverage_scope": "Sustituto tecnico actual del backlog editorial Preferente Menorca.",
+    "integration_notes": "Futbolme no expone hoy la liga viva bajo el nombre Preferente Menorca, sino Division Honor-Menorca.",
+    "references": [
+      {
+        "source_name": "futbolme",
+        "role": "primary",
+        "urls": [
+          "https://futbolme.com/resultados-directo/torneo/division-honor-menorca/4019/",
+          "https://futbolme.com/resultados-directo/torneo/division-honor-menorca/4019/calendario"
+        ],
+        "notes": "Competicion viva actual."
+      }
+    ],
+    "sources": {
+      "futbolme": {
+        "competition_id": "4019",
+        "enabled": true,
+        "urls": {
+          "matches": "https://futbolme.com/resultados-directo/torneo/division-honor-menorca/4019/calendario",
+          "standings": "https://futbolme.com/resultados-directo/torneo/division-honor-menorca/4019/"
+        },
+        "notes": "Lista para integrar cuando toque Menorca."
+      }
+    }
+  },
+  {
+    "code": "juvenil_division_honor_g3",
+    "name": "Division de Honor Juvenil Grupo 3",
+    "editorial_name": "Juvenil Division de Honor con equipos baleares",
+    "aliases": [
+      "Division de Honor Juvenil",
+      "Juvenil Division de Honor",
+      "Division de Honor Juvenil Grupo 3",
+      "Juvenil Division de Honor Grupo 3"
+    ],
+    "historical_backlog_names": [
+      "Juvenil Division de Honor"
+    ],
+    "category_level": 3,
+    "gender": "male",
+    "region": "Spain",
+    "country": "Spain",
+    "federation": "RFEF",
+    "priority": 3,
+    "status": "deferred",
+    "primary_source": "resultados_futbol",
+    "coverage_scope": "Cobertura nacional con foco editorial en clubes baleares del grupo.",
+    "integration_notes": "RFEF es oficial pero responde 403; Resultados-Futbol parece utilizable, aunque con mayor fragilidad tecnica que Futbolme.",
+    "group_name": "Grupo 3",
+    "references": [
+      {
+        "source_name": "resultados_futbol",
+        "role": "primary",
+        "urls": [
+          "https://www.resultados-futbol.com/competicion/division_honor_juvenil/2026/grupo3/clasificacion",
+          "https://www.resultados-futbol.com/competicion/division_honor_juvenil/2026/grupo3/calendario"
+        ],
+        "notes": "Fuente viable, pero no integrada aun."
+      },
+      {
+        "source_name": "rfef",
+        "role": "official",
+        "urls": [
+          "https://rfef.es/es/competiciones/division-de-honor-juvenil"
+        ],
+        "notes": "Oficial, pero challenge 403 actualmente."
+      }
+    ],
+    "sources": {}
+  },
+  {
+    "code": "preferente_mallorca",
+    "name": "Regional Preferente Mallorca",
+    "editorial_name": "Regional Preferente Mallorca",
+    "aliases": [
+      "Preferente Mallorca",
+      "Regional Preferente",
+      "Preferente Regional Mallorca"
+    ],
+    "historical_backlog_names": [
+      "Regional Preferente Mallorca exacta"
+    ],
+    "category_level": 7,
+    "gender": "male",
+    "region": "Mallorca",
+    "country": "Spain",
+    "federation": "FFIB",
+    "priority": 4,
+    "status": "manual_only",
+    "primary_source": "ffib",
+    "coverage_scope": "Solo seguimiento manual u oficial no automatizado por compliance.",
+    "integration_notes": "La FFIB expone la competicion, pero robots.txt bloquea scraping automatico para user-agent generico. Futbolme no tiene hoy una ruta viva para esta liga exacta.",
+    "references": [
+      {
+        "source_name": "ffib",
+        "role": "official",
+        "urls": [
+          "https://www.ffib.es/Fed/NPcd/NFG_VisClasificacion?cod_primaria=1000110&codcompeticion=22536411&codgrupo=22536412&codjornada=18",
+          "https://www.ffib.es/Fed/NPcd/NFG_VisCalendario_Vis?cod_primaria=1000110&codcompeticion=22536411&codgrupo=22536412&codtemporada=21"
+        ],
+        "notes": "Oficial, pero no apta para automatizacion por robots.txt."
+      },
+      {
+        "source_name": "futbolme",
+        "role": "discarded",
+        "urls": [
+          "https://futbolme.com/resultados-directo/torneo/preferente-regional-mallorca/19/",
+          "https://futbolme.com/resultados-directo/torneo/preferente-regional-mallorca/36/"
+        ],
+        "notes": "IDs historicos muertos; redirigen a la home."
+      }
+    ],
+    "sources": {}
+  }
+]

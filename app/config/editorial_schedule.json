@@ -1,0 +1,93 @@
+{
+  "timezone": "Europe/Madrid",
+  "weekly_plan": {
+    "lunes": [
+      {
+        "competition_slug": "tercera_rfef_g11",
+        "content_type": "latest_results",
+        "priority": 100
+      },
+      {
+        "competition_slug": "tercera_rfef_g11",
+        "content_type": "standings",
+        "priority": 80
+      },
+      {
+        "competition_slug": "segunda_rfef_g3_baleares",
+        "content_type": "latest_results",
+        "priority": 100
+      },
+      {
+        "competition_slug": "segunda_rfef_g3_baleares",
+        "content_type": "standings",
+        "priority": 80
+      },
+      {
+        "competition_slug": "division_honor_mallorca",
+        "content_type": "latest_results",
+        "priority": 95
+      },
+      {
+        "competition_slug": "division_honor_mallorca",
+        "content_type": "standings",
+        "priority": 75
+      }
+    ],
+    "miercoles": [
+      {
+        "competition_slug": "tercera_rfef_g11",
+        "content_type": "ranking",
+        "priority": 70
+      },
+      {
+        "competition_slug": "tercera_rfef_g11",
+        "content_type": "viral_story",
+        "priority": 69
+      },
+      {
+        "competition_slug": "tercera_rfef_g11",
+        "content_type": "metric_narrative",
+        "priority": 68
+      },
+      {
+        "competition_slug": "segunda_rfef_g3_baleares",
+        "content_type": "stat_narrative",
+        "priority": 65
+      },
+      {
+        "competition_slug": "segunda_rfef_g3_baleares",
+        "content_type": "viral_story",
+        "priority": 69
+      },
+      {
+        "competition_slug": "segunda_rfef_g3_baleares",
+        "content_type": "metric_narrative",
+        "priority": 68
+      }
+    ],
+    "viernes": [
+      {
+        "competition_slug": "tercera_rfef_g11",
+        "content_type": "preview",
+        "priority": 90
+      },
+      {
+        "competition_slug": "segunda_rfef_g3_baleares",
+        "content_type": "preview",
+        "priority": 90
+      }
+    ],
+    "domingo": [
+      {
+        "competition_slug": "tercera_rfef_g11",
+        "content_type": "latest_results",
+        "priority": 100
+      },
+      {
+        "competition_slug": "segunda_rfef_g3_baleares",
+        "content_type": "latest_results",
+        "priority": 100
+      }
+    ]
+  }
+}

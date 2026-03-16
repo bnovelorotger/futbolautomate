@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Ultima Hora: Deportes</title>
+  <entry>
+    <title>Horario y dónde ver el Real Mallorca - RCD Espanyol</title>
+    <link rel="alternate" href="https://www.ultimahora.es/deportes/real-mallorca/2026/03/13/horario-donde-ver-real-mallorca-rcd-espanyol.html" />
+    <updated>2026-03-13T15:38:00Z</updated>
+    <summary type="text">La previa del partido en Son Moix.</summary>
+    <category term="Deportes" />
+    <category term="Real Mallorca" />
+  </entry>
+  <entry>
+    <title>El Palma Futsal retoma la liga</title>
+    <link rel="alternate" href="https://www.ultimahora.es/deportes/palma-futsal/2026/03/13/palma-futsal-retoma-liga.html" />
+    <updated>2026-03-13T16:02:18Z</updated>
+    <summary type="html"><![CDATA[<p>Resumen previo a la jornada del <strong>Palma Futsal</strong>.</p>]]></summary>
+    <category term="Deportes" />
+    <category term="Palma Futsal" />
+  </entry>
+</feed>

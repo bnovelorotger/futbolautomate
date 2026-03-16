@@ -1,0 +1,251 @@
+{
+  "football_terms": [
+    "futbol",
+    "gol",
+    "goles",
+    "laliga",
+    "rfef",
+    "derbi",
+    "son moix",
+    "son bibiloni",
+    "espanyol",
+    "segunda rfef",
+    "tercera rfef",
+    "division honor",
+    "preferente"
+  ],
+  "sport_terms": {
+    "football": [
+      "futbol",
+      "laliga",
+      "rfef",
+      "son moix",
+      "son bibiloni",
+      "espanyol",
+      "real mallorca",
+      "mallorca b",
+      "atletico baleares",
+      "poblense",
+      "ud poblense",
+      "ud ibiza",
+      "ibiza islas pitiusas",
+      "andratx",
+      "pena deportiva",
+      "ue porreres"
+    ],
+    "basketball": [
+      "baloncesto",
+      "basket",
+      "acb",
+      "euroleague",
+      "nba",
+      "palau"
+    ],
+    "tennis": [
+      "tenis",
+      "atp",
+      "wta",
+      "rafa nadal",
+      "roland garros"
+    ],
+    "motorsport": [
+      "formula 1",
+      "f1",
+      "motogp",
+      "gp de",
+      "sainz",
+      "alonso",
+      "shanghai"
+    ],
+    "swimming": [
+      "natacion",
+      "natación",
+      "piscina",
+      "sabadell"
+    ],
+    "volleyball": [
+      "voleibol",
+      "voley",
+      "conectabalear",
+      "cv manacor"
+    ],
+    "futsal": [
+      "futsal",
+      "futbol sala",
+      "fútbol sala",
+      "palma futsal",
+      "lnfs",
+      "uefa futsal"
+    ],
+    "combat_sports": [
+      "lucha",
+      "boxeo",
+      "taekwondo"
+    ]
+  },
+  "non_football_penalty_terms": [
+    "formula 1",
+    "motogp",
+    "tenis",
+    "natacion",
+    "natación",
+    "voley",
+    "voleibol",
+    "futsal",
+    "futbol sala",
+    "fútbol sala",
+    "baloncesto",
+    "basket",
+    "lucha"
+  ],
+  "balearic_terms": [
+    "mallorca",
+    "mallorquin",
+    "mallorquín",
+    "balear",
+    "baleares",
+    "ffib",
+    "ibiza",
+    "eivissa",
+    "menorca",
+    "mao",
+    "mahon",
+    "palma",
+    "son moix",
+    "son bibiloni",
+    "manacor",
+    "andratx",
+    "alcudia",
+    "alaro",
+    "alaró",
+    "esporles",
+    "soller",
+    "sóller",
+    "sineu",
+    "rafal",
+    "lloseta",
+    "sa pobla",
+    "porreres"
+  ],
+  "target_clubs": {
+    "Real Mallorca": [
+      "real mallorca",
+      "rcd mallorca",
+      "el mallorca",
+      "bermellon",
+      "bermellón"
+    ],
+    "Mallorca B": [
+      "mallorca b",
+      "rcd mallorca b"
+    ],
+    "Atletico Baleares": [
+      "atletico baleares",
+      "atl baleares",
+      "at baleares",
+      "atco baleares",
+      "atletic baleares"
+    ],
+    "CE Andratx": [
+      "ce andratx",
+      "andratx"
+    ],
+    "SCR Pena Deportiva": [
+      "pena deportiva",
+      "peña deportiva",
+      "scr pena deportiva"
+    ],
+    "UD Ibiza": [
+      "ud ibiza",
+      "ibiza ud",
+      "union deportiva ibiza",
+      "unión deportiva ibiza"
+    ],
+    "UD Poblense": [
+      "ud poblense",
+      "poblense"
+    ],
+    "CD Ibiza Islas Pitiusas": [
+      "cd ibiza islas pitiusas",
+      "ibiza islas pitiusas"
+    ],
+    "CD Constancia": [
+      "constancia",
+      "cd constancia"
+    ],
+    "UE Porreres": [
+      "porreres",
+      "ue porreres"
+    ],
+    "CE Mercadal": [
+      "mercadal",
+      "ce mercadal"
+    ],
+    "SD Formentera": [
+      "formentera",
+      "sd formentera"
+    ]
+  },
+  "target_competitions": {
+    "3a RFEF Grupo 11": [
+      "3a rfef grupo 11",
+      "tercera rfef baleares",
+      "tercera federacion grupo 11",
+      "grupo 11",
+      "de tercera",
+      "tercera division"
+    ],
+    "2a RFEF Grupo 3": [
+      "2a rfef",
+      "segunda rfef",
+      "segunda federacion",
+      "2a rfef con equipos baleares"
+    ],
+    "Regional Preferente Mallorca": [
+      "regional preferente mallorca",
+      "preferente mallorca",
+      "preferente regional mallorca"
+    ],
+    "Division Honor-Ibiza/Form": [
+      "division honor ibiza",
+      "division honor ibiza form",
+      "division honor-ibiza/form",
+      "regional preferente ibiza",
+      "preferente ibiza"
+    ],
+    "Division Honor-Menorca": [
+      "division honor menorca",
+      "division honor-menorca",
+      "regional preferente menorca",
+      "preferente menorca"
+    ],
+    "Division de Honor Juvenil Grupo 3": [
+      "juvenil division de honor",
+      "division de honor juvenil",
+      "grupo 3 juvenil"
+    ],
+    "Tercera Federacion Femenina Grupo 11": [
+      "tercera federacion femenina",
+      "tercera federacion femenina grupo 11",
+      "grupo 11 femenino",
+      "primera nacional femenina",
+      "primera nacional women"
+    ],
+    "Division Honor Mallorca": [
+      "division honor mallorca",
+      "division honor mallorca",
+      "division honor-mallorca"
+    ]
+  },
+  "score_weights": {
+    "football_detected": 6,
+    "football_terms": 4,
+    "club_detected": 8,
+    "competition_detected": 6,
+    "balearic_terms": 3,
+    "non_football_sport": -8,
+    "non_football_terms": -4,
+    "no_balearic_signal": -6
+  },
+  "relevance_threshold": 10
+}

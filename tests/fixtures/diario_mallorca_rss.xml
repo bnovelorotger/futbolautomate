@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Diario de Mallorca - Deportes</title>
+    <item>
+      <title><![CDATA[Atlético Baleares vuelve al liderato]]></title>
+      <link>https://www.diariodemallorca.es/deportes/2026/03/14/atletico-baleares-vuelve-liderato.html</link>
+      <description><![CDATA[Crónica de la victoria del Atlético Baleares.]]></description>
+      <pubDate>Sat, 14 Mar 2026 08:00:00 +0000</pubDate>
+      <category>Deportes</category>
+    </item>
+    <item>
+      <title><![CDATA[Horario y dónde ver el RCD Mallorca - Espanyol]]></title>
+      <link>https://www.diariodemallorca.es/rcd-mallorca/2026/03/14/horario-donde-ver-mallorca-espanyol.html</link>
+      <description><![CDATA[Previa del encuentro en Son Moix.]]></description>
+      <pubDate>Sat, 14 Mar 2026 09:15:00 +0000</pubDate>
+    </item>
+  </channel>
+</rss>
