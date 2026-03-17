@@ -7,10 +7,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.catalog import load_competition_catalog
+from app.core.config import Settings, get_settings
 from app.core.enums import ContentType
 from app.db.models import ContentCandidate, TeamMention
 from app.normalizers.text import normalize_token
 from app.schemas.editorial_content import ContentCandidateDraft
+from app.services.social_enricher import SocialEnricherService
+from app.services.social_identity_service import SocialIdentityService
 
 MAX_FORMATTED_CHARACTERS = 240
 MAX_RESULTS_MATCHES = 8
@@ -65,11 +68,20 @@ class EditorialFormatterService:
         self,
         session: Session,
         *,
+        settings: Settings | None = None,
         max_characters: int = MAX_FORMATTED_CHARACTERS,
     ) -> None:
         self.session = session
+        self.settings = settings or get_settings()
         self.max_characters = max_characters
         self.catalog = load_competition_catalog()
+        self.identity_service = SocialIdentityService(session)
+        self.social_enricher = SocialEnricherService(
+            session,
+            settings=self.settings,
+            identity_service=self.identity_service,
+            max_characters=max_characters,
+        )
         self._mentions_cache: list[TeamMention] | None = None
 
     def apply_to_drafts(self, candidates: list[ContentCandidateDraft]) -> list[ContentCandidateDraft]:
@@ -79,19 +91,50 @@ class EditorialFormatterService:
         return candidate.model_copy(update={"formatted_text": self.format_draft(candidate)})
 
     def format_draft(self, candidate: ContentCandidateDraft) -> str | None:
-        return self._format_content(
+        text = self._format_content(
             competition_slug=candidate.competition_slug,
             content_type=ContentType(candidate.content_type),
             text_draft=candidate.text_draft,
             payload_json=candidate.payload_json,
         )
+        if text is None and ContentType(candidate.content_type) == ContentType.RANKING:
+            text = candidate.text_draft
+        return self._enrich_text(
+            competition_slug=candidate.competition_slug,
+            content_type=ContentType(candidate.content_type),
+            text=text,
+            payload_json=candidate.payload_json,
+        )
 
     def format_candidate(self, candidate: ContentCandidate) -> str | None:
-        return self._format_content(
+        text = self._format_content(
             competition_slug=candidate.competition_slug,
             content_type=ContentType(candidate.content_type),
             text_draft=candidate.text_draft,
             payload_json=candidate.payload_json or {},
+        )
+        if text is None and ContentType(candidate.content_type) == ContentType.RANKING:
+            text = candidate.text_draft
+        return self._enrich_text(
+            competition_slug=candidate.competition_slug,
+            content_type=ContentType(candidate.content_type),
+            text=text,
+            payload_json=candidate.payload_json or {},
+        )
+
+    def enrich_text(
+        self,
+        *,
+        competition_slug: str,
+        content_type: ContentType,
+        text: str | None,
+        payload_json: dict[str, Any],
+    ) -> str | None:
+        return self._enrich_text(
+            competition_slug=competition_slug,
+            content_type=content_type,
+            text=text,
+            payload_json=payload_json,
         )
 
     def _format_content(
@@ -436,21 +479,27 @@ class EditorialFormatterService:
     def resolve_team_mention(self, team_name: str | None, competition_slug: str | None) -> str:
         if not team_name:
             return ""
-        normalized_target = normalize_token(team_name)
-        normalized_identity = normalize_team_identity_value(team_name)
-        for row in self._mentions():
-            if row.competition_slug not in {competition_slug, None}:
-                continue
-            row_normalized = normalize_token(row.team_name)
-            row_identity = normalize_team_identity_value(row.team_name)
-            if row.twitter_handle.strip() and (
-                row_normalized == normalized_target or row_identity == normalized_identity
-            ):
-                handle = row.twitter_handle.strip()
-                if not handle.startswith("@"):
-                    handle = f"@{handle}"
-                return f" {handle}"
+        handle = self.identity_service.get_team_handle(team_name, competition_slug)
+        if handle:
+            return f" {handle}"
         return ""
+
+    def _enrich_text(
+        self,
+        *,
+        competition_slug: str,
+        content_type: ContentType,
+        text: str | None,
+        payload_json: dict[str, Any],
+    ) -> str | None:
+        if text is None:
+            return None
+        return self.social_enricher.enrich_text_with_mentions(
+            text,
+            payload_json,
+            str(content_type),
+            competition_slug=competition_slug,
+        )
 
     def resolve_hashtag(self, competition_slug: str, content_type: ContentType) -> str | None:
         if content_type in {

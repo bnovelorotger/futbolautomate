@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, JSON, String, Text, Time, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, JSON, String, Text, Time, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin
@@ -51,6 +51,24 @@ class TeamMention(Base, TimestampMixin):
     team_name: Mapped[str] = mapped_column(String(255), index=True)
     twitter_handle: Mapped[str] = mapped_column(String(120))
     competition_slug: Mapped[str | None] = mapped_column(ForeignKey("competitions.code"), nullable=True, index=True)
+
+
+class TeamSocial(Base, TimestampMixin):
+    __tablename__ = "team_socials"
+    __table_args__ = (
+        UniqueConstraint("team_name", "competition_slug", name="uq_team_socials_team_competition"),
+        Index("ix_team_socials_team_name_competition", "team_name", "competition_slug"),
+        Index("ix_team_socials_x_handle", "x_handle"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    team_name: Mapped[str] = mapped_column(String(255), index=True)
+    competition_slug: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    x_handle: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    followers_approx: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    activity_level: Mapped[str] = mapped_column(String(20), default="media", index=True)
+    is_shared_handle: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
 
 
 class Match(Base, TimestampMixin):

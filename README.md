@@ -16,6 +16,7 @@ Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolida
 - scoring de `match_importance` para partidos destacados
 - agregados editoriales `results_roundup` y `standings_roundup`
 - `editorial_formatter` como capa determinista previa a exportacion
+- `team_socials` + `social_enricher` para insertar menciones de clubes sin duplicados
 - `story_importance` para ordenar prioridad dentro del autoexport seguro
 - scope automatico v1 acotado a piezas seguras y reversibles
 
@@ -389,8 +390,9 @@ Flujo actualizado:
 
 Prioridad final de texto en export:
 1. `rewritten_text`
-2. `formatted_text`
-3. `text_draft`
+2. `enriched_text`
+3. `formatted_text`
+4. `text_draft`
 
 Que formatea:
 - `results_roundup`
@@ -411,19 +413,33 @@ Reglas:
 - si un texto se pasa, reduce secciones opcionales; no corta cadenas arbitrariamente
 
 Menciones y hashtags:
-- menciones opcionales via tabla `team_mentions`
+- `team_socials` es la fuente principal de handles
+- `team_mentions` queda como fallback legacy cuando aun no existe identidad social curada
+- `social_enricher` solo inserta menciones si caben en longitud, no duplica handles y respeta `MAX_MENTIONS_PER_POST`
+- `editorial_quality_checks` falla si el texto final repite handles o supera el maximo configurado
 - hashtags permitidos:
   - `#TerceraRFEF`
   - `#SegundaRFEF`
   - `#FutbolBalear`
 - maximo un hashtag y siempre al final
 
-CLI util para poblar menciones:
+Configuracion relevante:
+
+- `ENABLE_TEAM_MENTIONS=true`
+- `MAX_MENTIONS_PER_POST=3`
+
+Bootstrap inicial de identidades sociales:
 
 ```bash
-python -m app.pipelines.team_mentions list
+alembic upgrade head
+python scripts/seed_team_socials.py
 python -m app.pipelines.team_mentions upsert --competition tercera_rfef_g11 --team "CD Manacor" --handle cdmanacor
 ```
+
+Notas:
+- `scripts/seed_team_socials.py` carga primero un dataset opcional `scripts/team_socials_dataset.json` si existe
+- despues reutiliza `team_mentions` como bootstrap para no perder handles ya cargados
+- `social_identity_service` resuelve por competicion, actividad, seguidores aproximados e identidad normalizada del club
 
 Ejemplo antes vs despues:
 
@@ -458,6 +474,31 @@ python -m app.pipelines.standings_roundup generate --competition tercera_rfef_g1
 python -m app.pipelines.typefully_export dry-run --id 68
 python -m app.pipelines.editorial_rewrite dry-run --id 68
 ```
+
+## Team Socials y Social Enricher
+
+La iteracion actual introduce una tabla nueva `team_socials` como fuente primaria de identidad social de clubes.
+
+Cada fila puede guardar:
+- `team_name`
+- `competition_slug`
+- `x_handle`
+- `followers_approx`
+- `activity_level`
+- `is_shared_handle`
+- `is_active`
+
+Resolucion de identidad:
+- primero intenta coincidencia exacta de `team_name + competition_slug` en `team_socials`
+- si no existe, busca otra fila activa del mismo equipo
+- despues prueba coincidencia por identidad normalizada del club
+- si sigue sin encontrar nada, cae al sistema legacy `team_mentions`
+
+Uso operativo:
+- `editorial_formatter` puede producir texto formateado y luego enriquecerlo con handles
+- `typefully_export` prioriza `enriched_text` cuando no hay `rewritten_text`
+- el enriquecimiento esta pensado para `results_roundup`, `standings`, `standings_roundup`, `preview`, `ranking` y piezas con equipos identificables en `source_payload`
+- el limite de menciones por post es configurable y se valida otra vez en `quality_checks`
 
 ## Story Importance
 
@@ -534,8 +575,9 @@ Flujo automatico v1:
 
 Flujo final de texto:
 1. `rewritten_text`
-2. `formatted_text`
-3. `text_draft`
+2. `enriched_text`
+3. `formatted_text`
+4. `text_draft`
 
 Comandos de validacion manual recomendados:
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from datetime import date, datetime, time, timedelta, timezone
+import re
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -30,6 +31,7 @@ from app.utils.time import utcnow
 _TEAM_KEYS = {"team", "teams", "home_team", "away_team", "runner_up_team"}
 _METRIC_VALUE_KEYS = {"metric_value", "recent_points", "recent_goals_for", "delta"}
 _MIN_STAT_NARRATIVE_MATCHES = 4
+_HANDLE_PATTERN = re.compile(r"(?<!\w)@[A-Za-z0-9_]{1,15}")
 
 
 def _excerpt(text: str, limit: int = 110) -> str:
@@ -262,6 +264,13 @@ class EditorialQualityChecksService:
             max_line_breaks = max(max_line_breaks, 8)
         if selected_text.count("\n") > max_line_breaks:
             errors.append(f"text_excessive_line_breaks>{max_line_breaks}")
+
+        handles = _HANDLE_PATTERN.findall(selected_text)
+        if len(handles) > self.settings.max_mentions_per_post:
+            errors.append(f"text_mentions_exceed_max>{self.settings.max_mentions_per_post}")
+        normalized_handles = [handle.lower() for handle in handles]
+        if len(set(normalized_handles)) != len(normalized_handles):
+            errors.append("text_mentions_duplicated")
 
         competition = self.session.scalar(
             select(Competition).where(Competition.code == candidate.competition_slug)

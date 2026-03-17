@@ -14,7 +14,7 @@ from app.channels.typefully.schemas import TypefullyDraftResponse
 from app.core.config import Settings
 from app.core.exceptions import InvalidStateTransitionError
 from app.db.base import Base
-from app.db.models import Competition, ContentCandidate
+from app.db.models import Competition, ContentCandidate, TeamSocial
 from app.pipelines import typefully_export as typefully_export_pipeline
 from app.services.typefully_export_service import (
     TypefullyExportService,
@@ -265,6 +265,32 @@ def seed_candidates(session: Session) -> None:
     session.commit()
 
 
+def seed_team_socials(session: Session) -> None:
+    session.add_all(
+        [
+            TeamSocial(
+                team_name="Atletico Baleares",
+                competition_slug="segunda_rfef_g3_baleares",
+                x_handle="@atleticbalears",
+                followers_approx=25000,
+                activity_level="alta",
+                is_shared_handle=False,
+                is_active=True,
+            ),
+            TeamSocial(
+                team_name="Torrent CF",
+                competition_slug="segunda_rfef_g3_baleares",
+                x_handle="@torrentcf",
+                followers_approx=8000,
+                activity_level="media",
+                is_shared_handle=False,
+                is_active=True,
+            ),
+        ]
+    )
+    session.commit()
+
+
 def test_typefully_export_service_eligibility_filter() -> None:
     session = build_session()
     try:
@@ -416,6 +442,47 @@ def test_typefully_export_service_prefers_formatted_text_when_rewrite_missing() 
             "📋 RESULTADOS\n\n2a RFEF Grupo 3\n\nAtletico Baleares 2-0 Torrent CF\n\n#SegundaRFEF",
             dry_run=False,
         )
+    finally:
+        session.close()
+
+
+def test_typefully_export_service_prefers_enriched_text_over_plain_formatted_text() -> None:
+    session = build_session()
+    try:
+        seed_candidates(session)
+        seed_team_socials(session)
+        candidate = session.get(ContentCandidate, 7)
+        assert candidate is not None
+        candidate.payload_json = {
+            "source_payload": {
+                "matches": [
+                    {
+                        "home_team": "Atletico Baleares",
+                        "away_team": "Torrent CF",
+                    }
+                ]
+            }
+        }
+        session.add(candidate)
+        session.commit()
+
+        publisher = Mock()
+        publisher.export_text.return_value = TypefullyDraftResponse(
+            draft_id="draft-7-enriched",
+            social_set_id="social-set-1",
+            exported_at=datetime(2026, 3, 15, 10, 5, tzinfo=timezone.utc),
+            raw_response={"id": "draft-7-enriched"},
+            dry_run=False,
+        )
+        service = TypefullyExportService(session, publisher=publisher, settings=build_settings())
+
+        result = service.export_candidate(7, dry_run=False)
+
+        assert result.candidate.text_source == "enriched_text"
+        exported_text = publisher.export_text.call_args.args[0]
+        assert "Atletico Baleares @atleticbalears 2-0 Torrent CF @torrentcf" in exported_text
+        assert exported_text.endswith("#SegundaRFEF")
+        assert publisher.export_text.call_args.kwargs["dry_run"] is False
     finally:
         session.close()
 

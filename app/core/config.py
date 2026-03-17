@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     editorial_rewrite_api_url: str = "https://api.openai.com/v1/responses"
     editorial_rewrite_model: str | None = None
     editorial_rewrite_max_chars: int = 280
+    enable_team_mentions: bool = True
+    max_mentions_per_post: int = 3
     app_root: Path = Field(default_factory=lambda: Path(__file__).resolve().parents[2])
 
     @property
