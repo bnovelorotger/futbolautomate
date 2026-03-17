@@ -18,6 +18,7 @@ try {
         "editorial-readiness"
     )
 
+    Sync-DraftTempSnapshot
     Complete-Script
     exit 0
 }

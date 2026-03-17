@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from datetime import date as date_type
 
 import typer
@@ -14,6 +15,9 @@ from app.presenters.editorial_quality_checks import (
 from app.services.editorial_quality_checks import EditorialQualityChecksService
 
 app = typer.Typer(add_completion=False, help="Checks editoriales deterministas previos a la autoexportacion.")
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
 
 
 def _dump_json(payload) -> None:

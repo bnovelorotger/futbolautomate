@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from datetime import date as date_type
 
 import typer
@@ -10,6 +11,9 @@ from app.presenters.editorial_release import render_release_result
 from app.services.editorial_release_pipeline import EditorialReleasePipelineService
 
 app = typer.Typer(add_completion=False, help="Release automatizado de piezas seguras hasta Typefully.")
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
 
 
 def _dump_json(payload) -> None:

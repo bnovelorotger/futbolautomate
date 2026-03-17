@@ -136,6 +136,7 @@ class SystemCheckService:
             return ["competition_seed"]
         if content_type in {
             EditorialPlanningContent.LATEST_RESULTS,
+            EditorialPlanningContent.RESULTS_ROUNDUP,
             EditorialPlanningContent.STAT_NARRATIVE,
             EditorialPlanningContent.METRIC_NARRATIVE,
             EditorialPlanningContent.VIRAL_STORY,
@@ -143,8 +144,14 @@ class SystemCheckService:
             missing_dependencies.append("finished_matches")
         if content_type == EditorialPlanningContent.PREVIEW and catalog_row.scheduled_matches_count == 0:
             missing_dependencies.append("scheduled_matches")
+        if content_type == EditorialPlanningContent.FEATURED_MATCH_PREVIEW:
+            if catalog_row.scheduled_matches_count == 0:
+                missing_dependencies.append("scheduled_matches")
+            if catalog_row.standings_count == 0:
+                missing_dependencies.append("standings")
         if content_type in {
             EditorialPlanningContent.STANDINGS,
+            EditorialPlanningContent.STANDINGS_ROUNDUP,
             EditorialPlanningContent.RANKING,
             EditorialPlanningContent.METRIC_NARRATIVE,
         } and catalog_row.standings_count == 0:

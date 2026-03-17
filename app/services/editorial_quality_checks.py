@@ -21,8 +21,10 @@ from app.schemas.editorial_quality_checks import (
 )
 from app.schemas.typefully_autoexport import TypefullyAutoexportPolicy
 from app.services.editorial_narratives import METRIC_NARRATIVE_THRESHOLDS
+from app.services.editorial_formatter import normalize_team_identity_value
 from app.services.editorial_viral_stories import VIRAL_STORY_THRESHOLDS
 from app.services.typefully_export_service import TypefullyExportService
+from app.normalizers.text import normalize_token
 from app.utils.time import utcnow
 
 _TEAM_KEYS = {"team", "teams", "home_team", "away_team", "runner_up_team"}
@@ -167,7 +169,7 @@ class EditorialQualityChecksService:
         prefer_rewrite: bool,
         persist: bool,
     ) -> EditorialQualityCheckCandidateDetail:
-        selected_text, text_source, _ = self.export_service._selected_text(
+        selected_text, text_source, _, _ = self.export_service._selected_text(
             candidate,
             prefer_rewrite=prefer_rewrite,
         )
@@ -225,6 +227,7 @@ class EditorialQualityChecksService:
         warnings: list[str] = []
         payload_json = candidate.payload_json or {}
         source_payload = payload_json.get("source_payload", {}) if isinstance(payload_json, dict) else {}
+        content_type = ContentType(candidate.content_type)
 
         if not selected_text.strip():
             errors.append("selected_text_empty")
@@ -239,8 +242,26 @@ class EditorialQualityChecksService:
             errors.append("text_contains_null_byte")
         if "\n\n\n" in selected_text:
             errors.append("text_excessive_blank_lines")
-        if selected_text.count("\n") > self.policy.max_line_breaks:
-            errors.append(f"text_excessive_line_breaks>{self.policy.max_line_breaks}")
+        max_line_breaks = self.policy.max_line_breaks
+        if content_type == ContentType.RESULTS_ROUNDUP:
+            selected_matches_count = source_payload.get("selected_matches_count") if isinstance(source_payload, dict) else None
+            if isinstance(selected_matches_count, int) and selected_matches_count > 0:
+                max_line_breaks = max(max_line_breaks, selected_matches_count + 9)
+        if content_type in {ContentType.STANDINGS, ContentType.STANDINGS_ROUNDUP}:
+            rows = source_payload.get("rows") if isinstance(source_payload, dict) else None
+            if isinstance(rows, list) and rows:
+                max_line_breaks = max(max_line_breaks, len(rows) + 6)
+        if content_type in {
+            ContentType.STAT_NARRATIVE,
+            ContentType.METRIC_NARRATIVE,
+            ContentType.VIRAL_STORY,
+            ContentType.FORM_EVENT,
+            ContentType.STANDINGS_EVENT,
+            ContentType.FEATURED_MATCH_EVENT,
+        }:
+            max_line_breaks = max(max_line_breaks, 8)
+        if selected_text.count("\n") > max_line_breaks:
+            errors.append(f"text_excessive_line_breaks>{max_line_breaks}")
 
         competition = self.session.scalar(
             select(Competition).where(Competition.code == candidate.competition_slug)
@@ -269,9 +290,17 @@ class EditorialQualityChecksService:
         source_payload: dict[str, Any],
     ) -> list[str]:
         errors: list[str] = []
+        content_type = ContentType(candidate.content_type)
         team_names = self._extract_team_names(source_payload)
         competition_teams = self._competition_team_names(candidate.competition_slug)
-        missing_teams = sorted(team for team in team_names if team not in competition_teams)
+        normalized_competition_teams = {normalize_token(team) for team in competition_teams if team}
+        normalized_identity_teams = {normalize_team_identity_value(team) for team in competition_teams if team}
+        missing_teams = sorted(
+            team
+            for team in team_names
+            if normalize_token(team) not in normalized_competition_teams
+            and normalize_team_identity_value(team) not in normalized_identity_teams
+        )
         if missing_teams:
             errors.append(f"teams_missing_in_competition:{','.join(missing_teams)}")
 
@@ -283,10 +312,21 @@ class EditorialQualityChecksService:
         if numeric_errors:
             errors.append(f"metric_values_invalid:{','.join(sorted(numeric_errors))}")
 
-        content_type = ContentType(candidate.content_type)
         if content_type == ContentType.STAT_NARRATIVE:
             if "played_matches" not in source_payload or "average_goals_per_played_match" not in source_payload:
                 errors.append("stat_narrative_payload_incomplete")
+        if content_type == ContentType.RESULTS_ROUNDUP:
+            matches = source_payload.get("matches")
+            if not isinstance(matches, list) or not matches:
+                errors.append("results_roundup_matches_missing")
+            if source_payload.get("selected_matches_count") is None:
+                errors.append("results_roundup_selected_matches_count_missing")
+        if content_type == ContentType.STANDINGS_ROUNDUP:
+            rows = source_payload.get("rows")
+            if not isinstance(rows, list) or not rows:
+                errors.append("standings_roundup_rows_missing")
+            if source_payload.get("selected_rows_count") is None:
+                errors.append("standings_roundup_selected_rows_count_missing")
         if content_type == ContentType.METRIC_NARRATIVE and "narrative_type" not in source_payload:
             errors.append("metric_narrative_type_missing")
         if content_type == ContentType.VIRAL_STORY and "story_type" not in source_payload:
@@ -300,26 +340,33 @@ class EditorialQualityChecksService:
         *,
         prefer_rewrite: bool,
     ) -> list[str]:
-        if candidate.published_at is None:
-            return []
-        cutoff = utcnow() - timedelta(hours=self.policy.duplicate_window_hours)
+        candidate_timestamp = self._candidate_timestamp(candidate)
+        cutoff = candidate_timestamp - timedelta(hours=self.policy.duplicate_window_hours)
         recent_rows = self.session.execute(
             select(ContentCandidate)
             .where(
                 ContentCandidate.id != candidate.id,
-                ContentCandidate.status == str(ContentCandidateStatus.PUBLISHED),
                 ContentCandidate.competition_slug == candidate.competition_slug,
                 ContentCandidate.content_type == candidate.content_type,
-                ContentCandidate.published_at.is_not(None),
-                ContentCandidate.published_at >= cutoff,
+                ContentCandidate.status != str(ContentCandidateStatus.REJECTED),
             )
-            .order_by(ContentCandidate.published_at.desc())
+            .order_by(ContentCandidate.created_at.asc(), ContentCandidate.id.asc())
         ).scalars().all()
 
         candidate_marker = self._candidate_marker(candidate)
         normalized_candidate_text = _normalized_text(selected_text)
         for row in recent_rows:
-            other_text, _, _ = self.export_service._selected_text(row, prefer_rewrite=prefer_rewrite)
+            row_timestamp = self._candidate_timestamp(row)
+            if row_timestamp < cutoff:
+                continue
+            if row_timestamp > candidate_timestamp:
+                continue
+            if row_timestamp == candidate_timestamp and row.id > candidate.id:
+                continue
+            try:
+                other_text, _, _, _ = self.export_service._selected_text(row, prefer_rewrite=prefer_rewrite)
+            except InvalidStateTransitionError:
+                continue
             if row.source_summary_hash == candidate.source_summary_hash:
                 return ["duplicate_recent_source_summary_hash"]
             if _normalized_text(other_text) == normalized_candidate_text:
@@ -338,6 +385,18 @@ class EditorialQualityChecksService:
             ):
                 return [f"duplicate_recent_kind:{candidate_marker['kind']}"]
         return []
+
+    def _candidate_timestamp(self, candidate: ContentCandidate) -> datetime:
+        value = (
+            candidate.created_at
+            or candidate.published_at
+            or candidate.approved_at
+            or candidate.reviewed_at
+            or utcnow()
+        )
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
 
     def _significance_errors(
         self,

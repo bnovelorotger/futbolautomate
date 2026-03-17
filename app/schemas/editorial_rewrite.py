@@ -29,6 +29,7 @@ class EditorialRewriteCandidateDetail(BaseModel):
     priority: int
     status: ContentCandidateStatus
     text_draft: str
+    formatted_text: str | None = None
     rewritten_text: str | None = None
     payload_json: dict[str, Any] = Field(default_factory=dict)
     rewrite_status: str | None = None

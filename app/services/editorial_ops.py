@@ -17,6 +17,9 @@ from app.schemas.editorial_planner import EditorialCampaignTask
 from app.services.editorial_narratives import EditorialNarrativesService
 from app.services.editorial_planner import EditorialPlannerService
 from app.services.editorial_viral_stories import EditorialViralStoriesService
+from app.services.match_importance import MatchImportanceService
+from app.services.results_roundup import ResultsRoundupService
+from app.services.standings_roundup import StandingsRoundupService
 from app.services.system_check import SystemCheckService
 
 
@@ -31,8 +34,11 @@ class EditorialOperationsService:
     def __init__(self, session: Session) -> None:
         self.session = session
         self.planner = EditorialPlannerService(session)
+        self.results_roundup = ResultsRoundupService(session)
+        self.standings_roundup = StandingsRoundupService(session)
         self.narratives = EditorialNarrativesService(session)
         self.viral_stories = EditorialViralStoriesService(session)
+        self.match_importance = MatchImportanceService(session)
         self.system_check = SystemCheckService(session)
 
     def preview_day(self, target_date: date) -> EditorialOpsPreviewResult:
@@ -123,11 +129,30 @@ class EditorialOperationsService:
             readiness_row = readiness.get(task.competition_slug)
             missing = self._task_missing_dependencies(task, readiness_row)
             key = (task.competition_slug, str(task.planning_type))
-            if task.planning_type == EditorialPlanningContent.METRIC_NARRATIVE:
+            if task.planning_type == EditorialPlanningContent.RESULTS_ROUNDUP:
+                if not missing:
+                    candidate_cache[key] = self.results_roundup.build_candidate_drafts(
+                        task.competition_slug,
+                        reference_date=target_date,
+                    )
+            elif task.planning_type == EditorialPlanningContent.STANDINGS_ROUNDUP:
+                if not missing:
+                    candidate_cache[key] = self.standings_roundup.build_candidate_drafts(
+                        task.competition_slug,
+                        reference_date=target_date,
+                    )
+            elif task.planning_type == EditorialPlanningContent.METRIC_NARRATIVE:
                 if not missing:
                     candidate_cache[key] = self.narratives.build_candidate_drafts(
                         task.competition_slug,
                         reference_date=target_date,
+                    )
+            elif task.planning_type == EditorialPlanningContent.FEATURED_MATCH_PREVIEW:
+                if not missing:
+                    candidate_cache[key] = self.match_importance.build_candidate_drafts(
+                        task.competition_slug,
+                        reference_date=target_date,
+                        limit=1,
                     )
             elif task.planning_type == EditorialPlanningContent.VIRAL_STORY:
                 if not missing:
@@ -171,16 +196,22 @@ class EditorialOperationsService:
             return ["competition_seed"]
         if task.planning_type in {
             EditorialPlanningContent.LATEST_RESULTS,
+            EditorialPlanningContent.RESULTS_ROUNDUP,
             EditorialPlanningContent.STAT_NARRATIVE,
             EditorialPlanningContent.METRIC_NARRATIVE,
             EditorialPlanningContent.VIRAL_STORY,
         } and readiness_row.finished_matches_count == 0:
             return ["finished_matches"]
-        if task.planning_type == EditorialPlanningContent.PREVIEW and readiness_row.scheduled_matches_count == 0:
+        if task.planning_type in {
+            EditorialPlanningContent.PREVIEW,
+            EditorialPlanningContent.FEATURED_MATCH_PREVIEW,
+        } and readiness_row.scheduled_matches_count == 0:
             return ["scheduled_matches"]
         if task.planning_type in {
             EditorialPlanningContent.STANDINGS,
+            EditorialPlanningContent.STANDINGS_ROUNDUP,
             EditorialPlanningContent.RANKING,
+            EditorialPlanningContent.FEATURED_MATCH_PREVIEW,
         } and readiness_row.standings_count == 0:
             return ["standings"]
         return ["no_candidates_available"]
@@ -194,16 +225,22 @@ class EditorialOperationsService:
             return ["competition_seed"]
         if task.planning_type in {
             EditorialPlanningContent.LATEST_RESULTS,
+            EditorialPlanningContent.RESULTS_ROUNDUP,
             EditorialPlanningContent.STAT_NARRATIVE,
             EditorialPlanningContent.METRIC_NARRATIVE,
             EditorialPlanningContent.VIRAL_STORY,
         } and readiness_row.finished_matches_count == 0:
             return ["finished_matches"]
-        if task.planning_type == EditorialPlanningContent.PREVIEW and readiness_row.scheduled_matches_count == 0:
+        if task.planning_type in {
+            EditorialPlanningContent.PREVIEW,
+            EditorialPlanningContent.FEATURED_MATCH_PREVIEW,
+        } and readiness_row.scheduled_matches_count == 0:
             return ["scheduled_matches"]
         if task.planning_type in {
             EditorialPlanningContent.STANDINGS,
+            EditorialPlanningContent.STANDINGS_ROUNDUP,
             EditorialPlanningContent.RANKING,
+            EditorialPlanningContent.FEATURED_MATCH_PREVIEW,
         } and readiness_row.standings_count == 0:
             return ["standings"]
         return []
@@ -211,8 +248,11 @@ class EditorialOperationsService:
     def _target_content_type(self, planning_type: EditorialPlanningContent) -> ContentType:
         return {
             EditorialPlanningContent.LATEST_RESULTS: ContentType.MATCH_RESULT,
+            EditorialPlanningContent.RESULTS_ROUNDUP: ContentType.RESULTS_ROUNDUP,
             EditorialPlanningContent.STANDINGS: ContentType.STANDINGS,
+            EditorialPlanningContent.STANDINGS_ROUNDUP: ContentType.STANDINGS_ROUNDUP,
             EditorialPlanningContent.PREVIEW: ContentType.PREVIEW,
+            EditorialPlanningContent.FEATURED_MATCH_PREVIEW: ContentType.FEATURED_MATCH_PREVIEW,
             EditorialPlanningContent.RANKING: ContentType.RANKING,
             EditorialPlanningContent.STAT_NARRATIVE: ContentType.STAT_NARRATIVE,
             EditorialPlanningContent.METRIC_NARRATIVE: ContentType.METRIC_NARRATIVE,

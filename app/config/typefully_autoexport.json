@@ -13,25 +13,29 @@
     "MONETIZATION_ERROR"
   ],
   "allowed_content_types": [
+    "results_roundup",
+    "standings_roundup",
+    "preview",
+    "ranking"
+  ],
+  "manual_review_content_types": [
     "match_result",
     "standings",
-    "preview",
-    "ranking",
+    "featured_match_preview",
+    "featured_match_event",
+    "standings_event",
+    "form_event",
+    "form_ranking",
     "stat_narrative",
     "metric_narrative",
     "viral_story"
   ],
-  "manual_review_content_types": [],
-  "validation_required_content_types": [
-    "stat_narrative",
-    "metric_narrative",
-    "viral_story"
-  ],
+  "validation_required_content_types": [],
   "phases": {
     "1": {
       "allowed_content_types": [
-        "match_result",
-        "standings",
+        "results_roundup",
+        "standings_roundup",
         "preview",
         "ranking"
       ],
@@ -39,33 +43,21 @@
     },
     "2": {
       "allowed_content_types": [
-        "match_result",
-        "standings",
+        "results_roundup",
+        "standings_roundup",
         "preview",
-        "ranking",
-        "stat_narrative",
-        "metric_narrative"
+        "ranking"
       ],
-      "validation_required_content_types": [
-        "stat_narrative",
-        "metric_narrative"
-      ]
+      "validation_required_content_types": []
     },
     "3": {
       "allowed_content_types": [
-        "match_result",
-        "standings",
+        "results_roundup",
+        "standings_roundup",
         "preview",
-        "ranking",
-        "stat_narrative",
-        "metric_narrative",
-        "viral_story"
+        "ranking"
       ],
-      "validation_required_content_types": [
-        "stat_narrative",
-        "metric_narrative",
-        "viral_story"
-      ]
+      "validation_required_content_types": []
     }
   }
 }

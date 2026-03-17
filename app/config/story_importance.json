@@ -1,0 +1,101 @@
+{
+  "content_type_weights": {
+    "standings_event": 90,
+    "viral_story": 78,
+    "featured_match_preview": 68,
+    "featured_match_event": 72,
+    "results_roundup": 60,
+    "standings": 58,
+    "form_event": 56,
+    "form_ranking": 52,
+    "stat_narrative": 50,
+    "metric_narrative": 54,
+    "preview": 48,
+    "ranking": 44,
+    "match_result": 36
+  },
+  "competition_weights": {
+    "default": 1.0,
+    "segunda_rfef_g3_baleares": 1.08,
+    "tercera_rfef_g11": 1.0,
+    "division_honor_mallorca": 0.92
+  },
+  "intensity": {
+    "standings_event_weights": {
+      "new_leader": 30,
+      "entered_playoff": 20,
+      "left_playoff": 18,
+      "entered_relegation": 22,
+      "left_relegation": 20,
+      "biggest_position_rise": 14,
+      "biggest_position_drop": 12
+    },
+    "viral_story_base_weights": {
+      "win_streak": 10,
+      "unbeaten_streak": 8,
+      "losing_streak": 8,
+      "hot_form": 10,
+      "cold_form": 8,
+      "recent_top_scorer": 9,
+      "best_attack": 7,
+      "best_defense": 7,
+      "goals_trend": 9
+    },
+    "viral_story_per_unit_weights": {
+      "win_streak": 4.0,
+      "unbeaten_streak": 3.0,
+      "losing_streak": 3.0,
+      "hot_form": 1.5,
+      "cold_form": 1.0,
+      "recent_top_scorer": 3.0,
+      "best_attack": 4.0,
+      "best_defense": 4.0,
+      "goals_trend": 15.0
+    },
+    "form_event_weights": {
+      "best_form_team": 12,
+      "worst_form_team": 8,
+      "longest_win_streak_recent": 14,
+      "longest_loss_streak_recent": 10
+    },
+    "featured_match_importance_multiplier": 0.45,
+    "featured_match_tag_weights": {
+      "title_race": 16,
+      "playoff_clash": 12,
+      "relegation_clash": 12,
+      "top_table_match": 10,
+      "direct_rivalry": 6,
+      "hot_form_match": 8,
+      "cold_form_match": 4
+    },
+    "results_roundup_per_match": 3,
+    "results_roundup_complete_bonus": 6,
+    "results_roundup_omitted_penalty": 2,
+    "results_roundup_max_match_bonus": 24
+  },
+  "table_context": {
+    "leader": 18,
+    "playoff": 12,
+    "relegation": 12
+  },
+  "team_form": {
+    "strong_recent_points_threshold": 10,
+    "strong_recent_points_bonus": 6,
+    "elite_recent_points_threshold": 13,
+    "elite_recent_points_bonus": 10,
+    "streak_3_plus_bonus": 4,
+    "streak_5_plus_bonus": 8
+  },
+  "repetition": {
+    "window_hours": 72,
+    "same_content_key_penalty": 45,
+    "same_kind_penalty": 20,
+    "same_team_penalty": 12,
+    "same_content_type_penalty": 8
+  },
+  "buckets": {
+    "critical": 110,
+    "high": 80,
+    "medium": 50
+  }
+}

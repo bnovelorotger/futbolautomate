@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, time
 
 from sqlalchemy import select
 
+from app.core.enums import EditorialPlanningContent
 from app.db.models import ContentCandidate
 from app.services.competition_catalog_service import CompetitionCatalogService
 from app.services.editorial_ops import EditorialOperationsService
+from tests.unit.services.test_match_importance import add_scheduled_match
 from tests.unit.services.test_editorial_narratives import build_session, seed_narratives_data
 
 
@@ -25,12 +27,12 @@ def test_editorial_ops_preview_and_run_daily_for_real_schedule() -> None:
 
         assert preview.total_tasks == 6
         assert preview.blocked_tasks == 2
-        assert preview.expected_total == 8
-        assert run.generated_total == 8
-        assert run.inserted_total == 8
+        assert preview.expected_total == 4
+        assert run.generated_total == 4
+        assert run.inserted_total == 4
         assert run.blocked_tasks == 2
-        assert len(rows) == 8
-        assert {row.content_type for row in rows} == {"match_result", "standings"}
+        assert len(rows) == 4
+        assert {row.content_type for row in rows} == {"results_roundup", "standings_roundup"}
     finally:
         session.close()
 
@@ -60,5 +62,90 @@ def test_editorial_ops_run_daily_generates_metric_narratives_on_wednesday() -> N
             "tercera_rfef_g11",
             "segunda_rfef_g3_baleares",
         }
+    finally:
+        session.close()
+
+
+def test_editorial_ops_preview_and_run_daily_generate_featured_match_drafts_on_friday() -> None:
+    session = build_session()
+    try:
+        CompetitionCatalogService(session).seed_competitions(integrated_only=True, missing_only=True)
+        seed_narratives_data(session)
+        add_scheduled_match(
+            session,
+            competition_code="tercera_rfef_g11",
+            external_id="featured-top-clash",
+            match_date=date(2026, 3, 20),
+            match_time=time(20, 0),
+            home_team="CD Llosetense",
+            away_team="SD Portmany",
+        )
+        add_scheduled_match(
+            session,
+            competition_code="segunda_rfef_g3_baleares",
+            external_id="featured-segunda-clash",
+            match_date=date(2026, 3, 20),
+            match_time=time(19, 30),
+            home_team="UE Sant Andreu",
+            away_team="CD Atletico Baleares",
+        )
+        service = EditorialOperationsService(session)
+
+        preview = service.preview_day(date(2026, 3, 20))
+        run = service.run_day(date(2026, 3, 20))
+        session.commit()
+
+        rows = session.execute(select(ContentCandidate).order_by(ContentCandidate.id.asc())).scalars().all()
+        featured_rows = [row for row in rows if row.content_type in {"featured_match_preview", "featured_match_event"}]
+        featured_preview_rows = [
+            row
+            for row in preview.rows
+            if row.planning_type == EditorialPlanningContent.FEATURED_MATCH_PREVIEW
+        ]
+
+        assert preview.total_tasks == 4
+        assert preview.ready_tasks == 4
+        assert preview.blocked_tasks == 0
+        assert len(featured_preview_rows) == 2
+        assert all(not row.missing_dependencies for row in featured_preview_rows)
+        assert all(row.expected_count == 2 for row in featured_preview_rows)
+        assert run.generated_total >= 6
+        assert featured_rows
+        assert all(row.status == "draft" for row in featured_rows)
+        assert {row.competition_slug for row in featured_rows} == {
+            "tercera_rfef_g11",
+            "segunda_rfef_g3_baleares",
+        }
+    finally:
+        session.close()
+
+
+def test_editorial_ops_featured_match_marks_no_candidates_when_top_match_is_not_strong_enough() -> None:
+    session = build_session()
+    try:
+        CompetitionCatalogService(session).seed_competitions(integrated_only=True, missing_only=True)
+        seed_narratives_data(session)
+        add_scheduled_match(
+            session,
+            competition_code="tercera_rfef_g11",
+            external_id="low-interest-clash",
+            match_date=date(2026, 3, 20),
+            match_time=time(18, 0),
+            home_team="CD Llosetense",
+            away_team="CD Manacor",
+        )
+        service = EditorialOperationsService(session)
+        service.match_importance.build_candidate_drafts = lambda *args, **kwargs: []
+
+        preview = service.preview_day(date(2026, 3, 20))
+
+        featured_row = next(
+            row
+            for row in preview.rows
+            if row.competition_slug == "tercera_rfef_g11"
+            and row.planning_type == EditorialPlanningContent.FEATURED_MATCH_PREVIEW
+        )
+        assert featured_row.expected_count == 0
+        assert featured_row.missing_dependencies == ["no_candidates_available"]
     finally:
         session.close()

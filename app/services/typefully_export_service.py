@@ -23,6 +23,7 @@ from app.schemas.typefully_export import (
     TypefullyExportCandidateView,
     TypefullyExportResult,
 )
+from app.services.editorial_formatter import EditorialFormatterService
 from app.utils.time import utcnow
 
 
@@ -62,6 +63,7 @@ class TypefullyExportService:
             TypefullyApiClient(self.settings),
             default_social_set_id=self.settings.typefully_social_set_id,
         )
+        self.formatter = EditorialFormatterService(session)
 
     @staticmethod
     def config_status(settings: Settings | None = None) -> TypefullyConfigStatus:
@@ -100,14 +102,21 @@ class TypefullyExportService:
         candidate: ContentCandidate,
         *,
         prefer_rewrite: bool = True,
-    ) -> tuple[str, str, bool]:
+    ) -> tuple[str, str, bool, bool]:
         rewrite_text = _usable_text(candidate.rewritten_text)
         draft_text = _usable_text(candidate.text_draft)
         if draft_text is None:
             raise InvalidStateTransitionError(f"El candidato {candidate.id} no tiene text_draft utilizable")
+        formatted_text = _usable_text(candidate.formatted_text) or _usable_text(
+            self.formatter.format_candidate(candidate)
+        )
         if prefer_rewrite and rewrite_text is not None:
-            return rewrite_text, "rewritten_text", True
-        return draft_text, "text_draft", rewrite_text is not None
+            return rewrite_text, "rewritten_text", True, formatted_text is not None
+        if not prefer_rewrite:
+            return draft_text, "text_draft", rewrite_text is not None, formatted_text is not None
+        if formatted_text is not None:
+            return formatted_text, "formatted_text", rewrite_text is not None, True
+        return draft_text, "text_draft", rewrite_text is not None, False
 
     def _row_to_view(
         self,
@@ -115,7 +124,7 @@ class TypefullyExportService:
         *,
         prefer_rewrite: bool = True,
     ) -> TypefullyExportCandidateView:
-        selected_text, text_source, has_rewrite = self._selected_text(
+        selected_text, text_source, has_rewrite, has_formatted = self._selected_text(
             row,
             prefer_rewrite=prefer_rewrite,
         )
@@ -126,6 +135,7 @@ class TypefullyExportService:
             priority=row.priority,
             status=ContentCandidateStatus(row.status),
             has_rewrite=has_rewrite,
+            has_formatted=has_formatted,
             text_source=text_source,
             external_publication_ref=row.external_publication_ref,
             external_channel=row.external_channel,
@@ -168,7 +178,7 @@ class TypefullyExportService:
     ) -> TypefullyExportResult:
         candidate = self._candidate(candidate_id)
         self._validate_candidate(candidate)
-        selected_text, _, _ = self._selected_text(candidate, prefer_rewrite=prefer_rewrite)
+        selected_text, _, _, _ = self._selected_text(candidate, prefer_rewrite=prefer_rewrite)
         if dry_run:
             self.publisher.export_text(selected_text, dry_run=True)
             return TypefullyExportResult(

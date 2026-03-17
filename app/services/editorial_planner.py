@@ -26,13 +26,19 @@ from app.schemas.editorial_planner import (
     EditorialWeeklySchedule,
 )
 from app.services.editorial_content_generator import EditorialContentGenerator
+from app.services.results_roundup import ResultsRoundupService
+from app.services.standings_roundup import StandingsRoundupService
+from app.services.match_importance import MatchImportanceService
 from app.services.editorial_narratives import EditorialNarrativesService
 from app.services.editorial_viral_stories import EditorialViralStoriesService
 
 _PLANNING_CONTENT_MAP = {
     EditorialPlanningContent.LATEST_RESULTS: ContentType.MATCH_RESULT,
+    EditorialPlanningContent.RESULTS_ROUNDUP: ContentType.RESULTS_ROUNDUP,
     EditorialPlanningContent.STANDINGS: ContentType.STANDINGS,
+    EditorialPlanningContent.STANDINGS_ROUNDUP: ContentType.STANDINGS_ROUNDUP,
     EditorialPlanningContent.PREVIEW: ContentType.PREVIEW,
+    EditorialPlanningContent.FEATURED_MATCH_PREVIEW: ContentType.FEATURED_MATCH_PREVIEW,
     EditorialPlanningContent.RANKING: ContentType.RANKING,
     EditorialPlanningContent.STAT_NARRATIVE: ContentType.STAT_NARRATIVE,
     EditorialPlanningContent.METRIC_NARRATIVE: ContentType.METRIC_NARRATIVE,
@@ -66,6 +72,9 @@ class EditorialPlannerService:
         self.settings = settings or get_settings()
         self.schedule = normalize_editorial_schedule(schedule) if schedule is not None else load_editorial_schedule()
         self.generator = generator or EditorialContentGenerator(session)
+        self.results_roundup = ResultsRoundupService(session, settings=self.settings)
+        self.standings_roundup = StandingsRoundupService(session, settings=self.settings)
+        self.match_importance = MatchImportanceService(session, settings=self.settings)
         self.narratives = EditorialNarrativesService(session)
         self.viral_stories = EditorialViralStoriesService(session)
         self.competition_catalog = load_competition_catalog()
@@ -125,11 +134,51 @@ class EditorialPlannerService:
 
         rows: list[EditorialGeneratedTaskResult] = []
         generated_content_cache: dict[str, list[ContentCandidateDraft]] = {}
+        generated_roundup_cache: dict[str, list[ContentCandidateDraft]] = {}
+        generated_standings_roundup_cache: dict[str, list[ContentCandidateDraft]] = {}
+        generated_featured_cache: dict[str, list[ContentCandidateDraft]] = {}
         generated_narratives_cache: dict[str, list[ContentCandidateDraft]] = {}
         generated_viral_cache: dict[str, list[ContentCandidateDraft]] = {}
         for competition_slug in sorted(grouped_tasks):
             for task in grouped_tasks[competition_slug]:
-                if task.planning_type == EditorialPlanningContent.METRIC_NARRATIVE:
+                if task.planning_type == EditorialPlanningContent.RESULTS_ROUNDUP:
+                    if competition_slug not in generated_roundup_cache:
+                        generated_roundup_cache[competition_slug] = self.results_roundup.build_candidate_drafts(
+                            competition_slug,
+                            reference_date=plan.date,
+                        )
+                        self._validate_candidates_for_competition(
+                            competition_slug,
+                            generated_roundup_cache[competition_slug],
+                        )
+                    selected_candidates = generated_roundup_cache[competition_slug]
+                    stats = self.results_roundup.store_candidates(selected_candidates)
+                elif task.planning_type == EditorialPlanningContent.STANDINGS_ROUNDUP:
+                    if competition_slug not in generated_standings_roundup_cache:
+                        generated_standings_roundup_cache[competition_slug] = self.standings_roundup.build_candidate_drafts(
+                            competition_slug,
+                            reference_date=plan.date,
+                        )
+                        self._validate_candidates_for_competition(
+                            competition_slug,
+                            generated_standings_roundup_cache[competition_slug],
+                        )
+                    selected_candidates = generated_standings_roundup_cache[competition_slug]
+                    stats = self.standings_roundup.store_candidates(selected_candidates)
+                elif task.planning_type == EditorialPlanningContent.FEATURED_MATCH_PREVIEW:
+                    if competition_slug not in generated_featured_cache:
+                        generated_featured_cache[competition_slug] = self.match_importance.build_candidate_drafts(
+                            competition_slug,
+                            reference_date=plan.date,
+                            limit=1,
+                        )
+                        self._validate_candidates_for_competition(
+                            competition_slug,
+                            generated_featured_cache[competition_slug],
+                        )
+                    selected_candidates = generated_featured_cache[competition_slug]
+                    stats = self.match_importance.store_candidates(selected_candidates)
+                elif task.planning_type == EditorialPlanningContent.METRIC_NARRATIVE:
                     if competition_slug not in generated_narratives_cache:
                         generated_narratives_cache[competition_slug] = self.narratives.build_candidate_drafts(
                             competition_slug,
@@ -171,7 +220,10 @@ class EditorialPlannerService:
                         task=task,
                         generated_count=len(selected_candidates),
                         stats=stats,
-                        excerpts=[_excerpt(candidate.text_draft) for candidate in selected_candidates[:3]],
+                        excerpts=[
+                            f"{candidate.content_type}: {_excerpt(candidate.text_draft)}"
+                            for candidate in selected_candidates[:3]
+                        ],
                     )
                 )
 

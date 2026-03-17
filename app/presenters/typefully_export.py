@@ -17,7 +17,8 @@ def render_typefully_rows(rows: Iterable[TypefullyExportCandidateView]) -> str:
         exported_at = row.external_exported_at.isoformat() if row.external_exported_at else "-"
         lines.append(
             f"{row.id:>3} | {row.competition_slug} | {row.content_type} | priority={row.priority} | "
-            f"status={row.status} | has_rewrite={str(row.has_rewrite).lower()} | text_source={row.text_source} | "
+            f"status={row.status} | has_rewrite={str(row.has_rewrite).lower()} | "
+            f"has_formatted={str(row.has_formatted).lower()} | text_source={row.text_source} | "
             f"channel={row.external_channel or '-'} | external_ref={row.external_publication_ref or '-'} | "
             f"exported_at={exported_at} | attempted_at={attempted_at} | {row.excerpt}"
         )

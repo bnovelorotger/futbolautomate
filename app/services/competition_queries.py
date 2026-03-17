@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select, union_all
+from sqlalchemy import func, or_, select, union_all
 from sqlalchemy.orm import Session, aliased
 
 from app.core.config import get_settings
@@ -174,6 +174,7 @@ class CompetitionQueryService:
         competition_code: str,
         limit: int = 10,
         relevant_only: bool = False,
+        reference_date: date | None = None,
     ) -> list[CompetitionMatchView]:
         competition = self._get_competition(competition_code)
         query = (
@@ -185,6 +186,13 @@ class CompetitionQueryService:
                 Match.id.asc(),
             )
         )
+        if reference_date is not None:
+            query = query.where(
+                or_(
+                    Match.match_date.is_(None),
+                    Match.match_date >= reference_date,
+                )
+            )
         if not relevant_only:
             query = query.limit(limit)
         return self._match_views(

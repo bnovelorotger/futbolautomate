@@ -1,5 +1,7 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+$OutputEncoding = [Console]::OutputEncoding
 
 $script:ProjectRoot = $null
 $script:LogDir = $null
@@ -193,6 +195,22 @@ function Test-Truthy {
 
 function Complete-Script {
     Write-Log -Level "INFO" -Message "Script completado"
+}
+
+
+function Sync-DraftTempSnapshot {
+    try {
+        Invoke-PythonModule -Label "draft_temp_sync" -Module "app.pipelines.draft_temp" -Arguments @("sync")
+    }
+    catch {
+        $message = if ($_.Exception) {
+            $_.Exception.Message
+        }
+        else {
+            $_.ToString()
+        }
+        Write-Log -Level "WARN" -Message "No se pudo actualizar draft_temp.json: $message"
+    }
 }
 
 

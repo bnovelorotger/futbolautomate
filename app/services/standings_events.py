@@ -21,6 +21,7 @@ from app.schemas.standings_events import (
     StandingsEventsResult,
     StandingsEventView,
 )
+from app.services.editorial_formatter import EditorialFormatterService
 from app.services.standings_history import (
     HistoricalStandingsSnapshot,
     SnapshotStandingRow,
@@ -181,6 +182,7 @@ class StandingsEventsService:
         return candidates
 
     def store_candidates(self, candidates: list[ContentCandidateDraft]) -> IngestStats:
+        candidates = EditorialFormatterService(self.session).apply_to_drafts(candidates)
         stats = IngestStats(found=len(candidates))
         for candidate in candidates:
             _, inserted, updated = self.repository.upsert(candidate.model_dump(mode="python"))

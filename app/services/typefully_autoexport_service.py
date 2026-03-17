@@ -23,6 +23,7 @@ from app.schemas.typefully_autoexport import (
     TypefullyAutoexportStatusView,
 )
 from app.services.editorial_quality_checks import EditorialQualityChecksService
+from app.services.story_importance import StoryImportanceService
 from app.services.typefully_export_service import TypefullyExportService
 from app.utils.time import utcnow
 
@@ -38,6 +39,7 @@ class TypefullyAutoexportService:
         policy: TypefullyAutoexportPolicy | None = None,
         settings: Settings | None = None,
         quality_service: EditorialQualityChecksService | None = None,
+        story_service: StoryImportanceService | None = None,
     ) -> None:
         self.session = session
         self.settings = settings or get_settings()
@@ -49,6 +51,7 @@ class TypefullyAutoexportService:
             settings=self.settings,
             policy=self.policy,
         )
+        self.story_service = story_service or StoryImportanceService(session, settings=self.settings)
 
     def list_candidates(
         self,
@@ -105,9 +108,12 @@ class TypefullyAutoexportService:
         active_limit = limit or self.policy.default_limit
         rewrite_preference = self.policy.use_rewrite_by_default if prefer_rewrite is None else prefer_rewrite
         rows = self._capacity_deferred_candidates(limit=active_limit)
+        ranked_rows = self._rank_rows_by_importance(rows)
         views: list[TypefullyAutoexportCandidateView] = []
-        for row in rows:
+        for index, row in enumerate(ranked_rows, start=1):
             view = self._row_to_view(row, prefer_rewrite=rewrite_preference)
+            self._apply_importance(view, row)
+            view.order_selected = index
             view.export_outcome = "capacity_deferred"
             view.policy_reason = row.external_publication_error or "capacity_deferred"
             views.append(view)
@@ -121,8 +127,9 @@ class TypefullyAutoexportService:
         reference_date: date | None,
         prefer_rewrite: bool,
     ) -> TypefullyAutoexportRunResult:
-        result_rows: list[TypefullyAutoexportCandidateView] = []
-        eligible_count = 0
+        blocked_rows: list[TypefullyAutoexportCandidateView] = []
+        eligible_rows: list[tuple[ContentCandidate, TypefullyAutoexportCandidateView]] = []
+        conditional_narrative_rows: list[tuple[ContentCandidate, TypefullyAutoexportCandidateView]] = []
         exported_count = 0
         capacity_deferred_count = 0
         failed_count = 0
@@ -137,7 +144,7 @@ class TypefullyAutoexportService:
                 self._clear_capacity_deferred_marker(row, persist=not dry_run)
                 view.external_publication_error = row.external_publication_error
                 view.export_outcome = "blocked_policy"
-                result_rows.append(view)
+                blocked_rows.append(view)
                 continue
 
             quality_detail = self.quality_service._check_candidate(
@@ -153,14 +160,44 @@ class TypefullyAutoexportService:
                 view.policy_reason = "quality_check_failed"
                 view.external_publication_error = row.external_publication_error
                 view.export_outcome = "blocked_policy"
-                result_rows.append(view)
+                blocked_rows.append(view)
                 continue
 
-            eligible_count += 1
+            self._apply_importance(view, row)
+            if self.story_service.is_automatic_narrative_content_type(ContentType(row.content_type)):
+                conditional_narrative_rows.append((row, view))
+            else:
+                eligible_rows.append((row, view))
+
+        if conditional_narrative_rows:
+            decisions = self.story_service.select_automatic_narratives(
+                [row for row, _ in conditional_narrative_rows]
+            )
+            for row, view in conditional_narrative_rows:
+                decision = decisions[row.id]
+                view.importance_score = decision.importance_score
+                view.priority_bucket = decision.priority_bucket
+                view.importance_reasoning = list(decision.importance_reasoning)
+                if decision.allowed:
+                    view.policy_reason = "autoexport_allowed_story_importance"
+                    eligible_rows.append((row, view))
+                else:
+                    view.autoexport_allowed = False
+                    view.policy_reason = decision.reason
+                    view.export_outcome = "blocked_policy"
+                    blocked_rows.append(view)
+
+        ranked_eligible_rows = self._rank_eligible_rows(eligible_rows)
+        eligible_count = len(ranked_eligible_rows)
+        result_rows: list[TypefullyAutoexportCandidateView] = []
+        for order_selected, (row, view) in enumerate(ranked_eligible_rows, start=1):
+            view.order_selected = order_selected
             if capacity_stop or (remaining_capacity is not None and remaining_capacity <= 0):
                 defer_reason = capacity_limit_reason or self._capacity_limit_reason(reference_date)
                 self._mark_capacity_deferred(row, defer_reason, persist=not dry_run)
                 deferred_view = self._row_to_view(row, prefer_rewrite=prefer_rewrite)
+                self._apply_importance(deferred_view, row)
+                deferred_view.order_selected = order_selected
                 deferred_view.quality_check_passed = True
                 deferred_view.quality_check_errors = []
                 deferred_view.export_outcome = "capacity_deferred"
@@ -198,6 +235,8 @@ class TypefullyAutoexportService:
                     defer_reason = self._capacity_error_reason(exc)
                     self._mark_capacity_deferred(row, defer_reason, persist=True)
                     deferred_view = self._row_to_view(row, prefer_rewrite=prefer_rewrite)
+                    self._apply_importance(deferred_view, row)
+                    deferred_view.order_selected = order_selected
                     deferred_view.quality_check_passed = True
                     deferred_view.quality_check_errors = []
                     deferred_view.export_outcome = "capacity_deferred"
@@ -211,6 +250,8 @@ class TypefullyAutoexportService:
                     continue
                 failed_count += 1
                 failure_view = self._row_to_view(row, prefer_rewrite=prefer_rewrite)
+                self._apply_importance(failure_view, row)
+                failure_view.order_selected = order_selected
                 failure_view.export_outcome = "failed_technical"
                 failure_view.policy_reason = f"export_failed:{exc}"
                 result_rows.append(failure_view)
@@ -230,6 +271,10 @@ class TypefullyAutoexportService:
                     status=export_result.candidate.status,
                     autoexport_allowed=True,
                     policy_reason="autoexport_allowed",
+                    importance_score=view.importance_score,
+                    priority_bucket=view.priority_bucket,
+                    importance_reasoning=list(view.importance_reasoning),
+                    order_selected=order_selected,
                     quality_check_passed=True,
                     quality_check_errors=[],
                     export_outcome="exported",
@@ -241,6 +286,12 @@ class TypefullyAutoexportService:
                 )
             )
 
+        result_rows.extend(
+            sorted(
+                blocked_rows,
+                key=lambda view: (-view.priority, view.id),
+            )
+        )
         return TypefullyAutoexportRunResult(
             executed_at=utcnow(),
             dry_run=dry_run,
@@ -250,7 +301,7 @@ class TypefullyAutoexportService:
             scanned_count=len(rows),
             eligible_count=eligible_count,
             exported_count=exported_count,
-            blocked_count=sum(1 for row in result_rows if not row.autoexport_allowed),
+            blocked_count=len(blocked_rows),
             capacity_deferred_count=capacity_deferred_count,
             failed_count=failed_count,
             capacity_limit_reached=capacity_limit_reached,
@@ -263,6 +314,8 @@ class TypefullyAutoexportService:
         return TypefullyAutoexportStatusView(
             enabled=self.policy.enabled,
             phase=self.policy.phase,
+            importance_prioritization_enabled=True,
+            importance_tie_breaker="importance_score desc, priority desc, created_at asc, id asc",
             max_exports_per_run=self.policy.max_exports_per_run,
             max_exports_per_day=self.policy.max_exports_per_day,
             stop_on_capacity_limit=self.policy.stop_on_capacity_limit,
@@ -317,12 +370,52 @@ class TypefullyAutoexportService:
             excerpt=export_view.excerpt,
         )
 
+    def _apply_importance(
+        self,
+        view: TypefullyAutoexportCandidateView,
+        row: ContentCandidate,
+    ) -> None:
+        scored = self.story_service.score_row(row)
+        view.importance_score = scored.importance_score
+        view.priority_bucket = scored.priority_bucket
+        view.importance_reasoning = list(scored.importance_reasoning)
+
+    def _rank_rows_by_importance(self, rows: list[ContentCandidate]) -> list[ContentCandidate]:
+        return sorted(
+            rows,
+            key=lambda row: (
+                -self.story_service.score_row(row).importance_score,
+                -row.priority,
+                row.created_at,
+                row.id,
+            ),
+        )
+
+    def _rank_eligible_rows(
+        self,
+        entries: list[tuple[ContentCandidate, TypefullyAutoexportCandidateView]],
+    ) -> list[tuple[ContentCandidate, TypefullyAutoexportCandidateView]]:
+        return sorted(
+            entries,
+            key=lambda item: (
+                -(item[1].importance_score or 0),
+                -item[0].priority,
+                item[0].created_at,
+                item[0].id,
+            ),
+        )
+
     def _pending_candidates(
         self,
         *,
         reference_date: date | None,
         limit: int,
     ) -> list[ContentCandidate]:
+        allowed_content_types = [str(content_type) for content_type in self.policy.active_allowed_content_types()]
+        allowed_first = case(
+            (ContentCandidate.content_type.in_(allowed_content_types), 0),
+            else_=1,
+        )
         query = select(ContentCandidate).where(
             ContentCandidate.status == str(ContentCandidateStatus.PUBLISHED),
             ContentCandidate.external_publication_ref.is_(None),
@@ -336,9 +429,10 @@ class TypefullyAutoexportService:
                 ContentCandidate.published_at < end_utc,
             )
         query = query.order_by(
+            allowed_first,
+            ContentCandidate.priority.desc(),
             case((ContentCandidate.published_at.is_(None), 1), else_=0),
             ContentCandidate.published_at.asc(),
-            ContentCandidate.priority.desc(),
             ContentCandidate.created_at.asc(),
         ).limit(limit)
         return self.session.execute(query).scalars().all()

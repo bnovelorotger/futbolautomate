@@ -18,6 +18,9 @@ class EditorialApprovalCandidateView(BaseModel):
     autoapproved: bool | None = None
     autoapproved_at: datetime | None = None
     autoapproval_reason: str | None = None
+    importance_score: int | None = None
+    priority_bucket: str | None = None
+    importance_reasoning: list[str] = Field(default_factory=list)
     created_at: datetime
     excerpt: str
 
@@ -25,6 +28,7 @@ class EditorialApprovalCandidateView(BaseModel):
 class EditorialApprovalStatusView(BaseModel):
     enabled: bool
     autoapprovable_content_types: list[ContentType] = Field(default_factory=list)
+    conditional_autoapprovable_content_types: list[ContentType] = Field(default_factory=list)
     manual_review_content_types: list[ContentType] = Field(default_factory=list)
     drafts_found: int
     autoapprovable_count: int

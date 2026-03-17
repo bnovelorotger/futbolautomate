@@ -14,6 +14,7 @@ class ContentCandidateDraft(BaseModel):
     content_type: ContentType
     priority: int
     text_draft: str
+    formatted_text: str | None = None
     payload_json: dict[str, Any] = Field(default_factory=dict)
     source_summary_hash: str
     scheduled_at: datetime | None = None

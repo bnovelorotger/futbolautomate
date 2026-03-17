@@ -18,7 +18,9 @@ def render_approval_rows(rows: list[EditorialApprovalCandidateView]) -> str:
         lines.append(
             f"{row.id:>3} | {row.competition_slug} | {row.content_type} | priority={row.priority} | "
             f"status={row.status} | autoapprovable={str(row.autoapprovable).lower()} | "
-            f"policy={row.policy_reason} | autoapproved_at={autoapproved} | {row.excerpt}"
+            f"score={row.importance_score if row.importance_score is not None else '-'} | "
+            f"bucket={row.priority_bucket or '-'} | policy={row.policy_reason} | "
+            f"autoapproved_at={autoapproved} | {row.excerpt}"
         )
     return "\n".join(lines)
 
@@ -29,6 +31,8 @@ def render_approval_status(status: EditorialApprovalStatusView) -> str:
             f"enabled={str(status.enabled).lower()}",
             "autoapprovable_content_types="
             + (", ".join(str(item) for item in status.autoapprovable_content_types) or "-"),
+            "conditional_autoapprovable_content_types="
+            + (", ".join(str(item) for item in status.conditional_autoapprovable_content_types) or "-"),
             "manual_review_content_types="
             + (", ".join(str(item) for item in status.manual_review_content_types) or "-"),
             f"drafts_found={status.drafts_found}",

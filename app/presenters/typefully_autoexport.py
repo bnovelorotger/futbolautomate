@@ -34,7 +34,9 @@ def render_typefully_autoexport_candidates(
         quality_errors = "; ".join(row.quality_check_errors) if row.quality_check_errors else "-"
         lines.append(
             f"{row.id:>3} | {row.competition_slug} | {row.content_type} | priority={row.priority} | "
-            f"status={row.status} | outcome={row.export_outcome} | allowed={str(row.autoexport_allowed).lower()} | "
+            f"status={row.status} | score={row.importance_score if row.importance_score is not None else '-'} | "
+            f"bucket={row.priority_bucket or '-'} | order={row.order_selected if row.order_selected is not None else '-'} | "
+            f"outcome={row.export_outcome} | allowed={str(row.autoexport_allowed).lower()} | "
             f"policy={row.policy_reason} | quality={quality} | quality_errors={quality_errors} | "
             f"text_source={row.text_source} | external_ref={row.external_publication_ref or '-'} | "
             f"external_error={row.external_publication_error or '-'} | {row.excerpt}"
@@ -73,7 +75,9 @@ def render_typefully_autoexport_result(result: TypefullyAutoexportRunResult) -> 
         quality_errors = "; ".join(row.quality_check_errors) if row.quality_check_errors else "-"
         lines.append(
             f"{row.id:>3} | {row.competition_slug} | {row.content_type} | priority={row.priority} | "
-            f"status={row.status} | outcome={row.export_outcome} | allowed={str(row.autoexport_allowed).lower()} | "
+            f"status={row.status} | score={row.importance_score if row.importance_score is not None else '-'} | "
+            f"bucket={row.priority_bucket or '-'} | order={row.order_selected if row.order_selected is not None else '-'} | "
+            f"outcome={row.export_outcome} | allowed={str(row.autoexport_allowed).lower()} | "
             f"policy={row.policy_reason} | quality={quality} | quality_errors={quality_errors} | "
             f"has_rewrite={str(row.has_rewrite).lower()} | "
             f"text_source={row.text_source} | external_ref={row.external_publication_ref or '-'} | "
@@ -86,6 +90,8 @@ def render_typefully_autoexport_status(status: TypefullyAutoexportStatusView) ->
     lines = [
         f"enabled={str(status.enabled).lower()}",
         f"phase={status.phase}",
+        f"importance_prioritization_enabled={str(status.importance_prioritization_enabled).lower()}",
+        f"importance_tie_breaker={status.importance_tie_breaker}",
         f"max_exports_per_run={status.max_exports_per_run if status.max_exports_per_run is not None else '-'}",
         f"max_exports_per_day={status.max_exports_per_day if status.max_exports_per_day is not None else '-'}",
         f"stop_on_capacity_limit={str(status.stop_on_capacity_limit).lower()}",

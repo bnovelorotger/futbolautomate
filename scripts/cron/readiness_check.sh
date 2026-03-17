@@ -14,3 +14,5 @@ run_step "competition_catalog_status" \
   "$PYTHON_BIN" -m app.pipelines.competition_catalog status --integrated-only
 run_step "editorial_readiness" \
   "$PYTHON_BIN" -m app.pipelines.system_check editorial-readiness
+
+sync_draft_temp_snapshot

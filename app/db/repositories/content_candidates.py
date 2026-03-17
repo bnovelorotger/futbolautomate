@@ -49,7 +49,7 @@ class ContentCandidateRepository(BaseRepository[ContentCandidate]):
 
         updated = False
         should_reset_rewrite = False
-        for field in ("priority", "text_draft", "payload_json", "scheduled_at"):
+        for field in ("priority", "text_draft", "formatted_text", "payload_json", "scheduled_at"):
             value = payload.get(field)
             current_value = getattr(item, field)
             if field == "scheduled_at":
@@ -61,7 +61,7 @@ class ContentCandidateRepository(BaseRepository[ContentCandidate]):
             if changed:
                 setattr(item, field, value)
                 updated = True
-                if field in {"text_draft", "payload_json"}:
+                if field in {"text_draft", "formatted_text", "payload_json"}:
                     should_reset_rewrite = True
         if should_reset_rewrite:
             item.rewritten_text = None

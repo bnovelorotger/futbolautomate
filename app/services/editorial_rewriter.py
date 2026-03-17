@@ -18,6 +18,7 @@ from app.schemas.editorial_rewrite import (
     EditorialRewriteCandidateView,
     EditorialRewriteResult,
 )
+from app.services.editorial_formatter import EditorialFormatterService
 from app.utils.time import utcnow
 
 ALLOWED_REWRITE_STATUSES = {
@@ -46,9 +47,17 @@ TYPE_SPECIFIC_GUIDANCE = {
         "Abre con el resultado final y deja muy claro el partido y la competicion. "
         "No cambies marcadores, equipos, jornada ni estado."
     ),
+    ContentType.RESULTS_ROUNDUP: (
+        "Resume una tanda de resultados con lectura rapida y limpia. "
+        "No cambies marcadores, orden ni competicion, y evita anadir analisis."
+    ),
     ContentType.STANDINGS: (
         "Prioriza claridad y lectura rapida de posiciones y puntos. "
         "No alteres ranking, orden, equipos ni puntos."
+    ),
+    ContentType.STANDINGS_ROUNDUP: (
+        "Resume la clasificacion en formato compacto y editorial. "
+        "No alteres posiciones, puntos, equipos ni etiquetas de zona incluidas en el borrador."
     ),
     ContentType.STANDINGS_EVENT: (
         "Escribe el cambio de tabla de forma directa y verificable. "
@@ -102,6 +111,13 @@ def _excerpt(text: str | None, limit: int = 90) -> str | None:
     return f"{compact[: limit - 3]}..."
 
 
+def _usable_text(text: str | None) -> str | None:
+    if text is None:
+        return None
+    normalized = text.strip()
+    return normalized or None
+
+
 def is_candidate_eligible_for_rewrite(
     candidate: ContentCandidate,
     *,
@@ -125,6 +141,7 @@ class EditorialRewriterService:
         self.session = session
         self.settings = settings or get_settings()
         self.provider = provider or build_editorial_rewrite_provider(self.settings)
+        self.formatter = EditorialFormatterService(session)
 
     def _candidate(self, candidate_id: int) -> ContentCandidate:
         candidate = self.session.get(ContentCandidate, candidate_id)
@@ -173,6 +190,7 @@ class EditorialRewriterService:
             priority=row.priority,
             status=ContentCandidateStatus(row.status),
             text_draft=row.text_draft,
+            formatted_text=row.formatted_text,
             rewritten_text=row.rewritten_text,
             payload_json=row.payload_json or {},
             rewrite_status=row.rewrite_status,
@@ -183,9 +201,18 @@ class EditorialRewriterService:
             updated_at=row.updated_at,
         )
 
+    def _base_text(self, candidate: ContentCandidate) -> str:
+        formatted_text = _usable_text(candidate.formatted_text) or _usable_text(
+            self.formatter.format_candidate(candidate)
+        )
+        if formatted_text is not None:
+            return formatted_text
+        return candidate.text_draft
+
     def _prompt(self, candidate: ContentCandidate) -> str:
         content_type = ContentType(candidate.content_type)
         payload_json = json.dumps(candidate.payload_json or {}, ensure_ascii=False, indent=2, default=str)
+        base_text = self._base_text(candidate)
         return "\n\n".join(
             [
                 COMMON_POLICY.format(max_chars=self.settings.editorial_rewrite_max_chars),
@@ -196,7 +223,7 @@ class EditorialRewriterService:
                 f"- max_chars: {self.settings.editorial_rewrite_max_chars}",
                 "",
                 "Borrador base:",
-                candidate.text_draft,
+                base_text,
                 "",
                 "Hechos estructurados disponibles:",
                 payload_json,
@@ -239,7 +266,7 @@ class EditorialRewriterService:
 
         if dry_run and not editorial_rewrite_provider_ready(self.settings):
             preview = self._row_to_detail(candidate)
-            preview.rewritten_text = candidate.text_draft
+            preview.rewritten_text = self._base_text(candidate)
             preview.rewrite_status = "dry_run_unconfigured"
             preview.rewrite_model = self.settings.editorial_rewrite_model
             preview.rewrite_timestamp = utcnow()

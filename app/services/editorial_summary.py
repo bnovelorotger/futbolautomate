@@ -175,6 +175,7 @@ class CompetitionEditorialSummaryService:
             competition_code,
             limit=upcoming_limit,
             relevant_only=relevant_only,
+            reference_date=current_date,
         )
         try:
             standings = self.competition_queries.current_standings(competition_code, limit=standings_limit)

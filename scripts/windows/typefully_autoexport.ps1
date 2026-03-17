@@ -38,6 +38,7 @@ try {
 
     Invoke-PythonModule -Label "typefully_autoexport" -Module "app.pipelines.typefully_autoexport" -Arguments $arguments
 
+    Sync-DraftTempSnapshot
     Complete-Script
     exit 0
 }

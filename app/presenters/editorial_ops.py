@@ -21,6 +21,8 @@ def render_editorial_ops_preview(result: EditorialOpsPreviewResult) -> str:
             f"- priority={row.priority} | {row.competition_slug} | {row.planning_type} -> {row.target_content_type} | "
             f"expected={row.expected_count} | missing={missing}"
         )
+        for excerpt in row.excerpts:
+            lines.append(f"  {excerpt}")
     return "\n".join(lines)
 
 
@@ -43,4 +45,6 @@ def render_editorial_ops_run(result: EditorialOpsRunResult) -> str:
             f"- priority={row.priority} | {row.competition_slug} | {row.planning_type} -> {row.target_content_type} | "
             f"generated={row.generated_count} | inserted={row.inserted} | updated={row.updated} | missing={missing}"
         )
+        for excerpt in row.excerpts:
+            lines.append(f"  {excerpt}")
     return "\n".join(lines)

@@ -11,6 +11,7 @@ from app.schemas.common import IngestStats
 from app.schemas.editorial_content import ContentCandidateDraft, ContentGenerationResult
 from app.schemas.editorial_summary import CompetitionEditorialSummary
 from app.schemas.reporting import CompetitionMatchView, StandingView
+from app.services.editorial_formatter import EditorialFormatterService
 from app.services.editorial_summary import CompetitionEditorialSummaryService
 from app.utils.hashing import stable_hash
 from app.utils.time import utcnow
@@ -269,6 +270,7 @@ class EditorialContentGenerator:
         return sorted(drafts, key=lambda item: (-item.priority, str(item.content_type), item.source_summary_hash))
 
     def store_candidates(self, candidates: list[ContentCandidateDraft]) -> IngestStats:
+        candidates = EditorialFormatterService(self.session).apply_to_drafts(candidates)
         stats = IngestStats(found=len(candidates))
         for candidate in candidates:
             _, inserted, updated = self.repository.upsert(candidate.model_dump(mode="python"))

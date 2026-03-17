@@ -41,6 +41,18 @@ class Team(Base, TimestampMixin):
     source_team_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
 
 
+class TeamMention(Base, TimestampMixin):
+    __tablename__ = "team_mentions"
+    __table_args__ = (
+        UniqueConstraint("competition_slug", "team_name", name="uq_team_mentions_competition_team"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    team_name: Mapped[str] = mapped_column(String(255), index=True)
+    twitter_handle: Mapped[str] = mapped_column(String(120))
+    competition_slug: Mapped[str | None] = mapped_column(ForeignKey("competitions.code"), nullable=True, index=True)
+
+
 class Match(Base, TimestampMixin):
     __tablename__ = "matches"
     __table_args__ = (
@@ -211,6 +223,7 @@ class ContentCandidate(Base, TimestampMixin):
     content_type: Mapped[str] = mapped_column(String(50), index=True)
     priority: Mapped[int] = mapped_column(Integer, default=0, index=True)
     text_draft: Mapped[str] = mapped_column(Text)
+    formatted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     payload_json: Mapped[dict] = mapped_column(JSON)
     source_summary_hash: Mapped[str] = mapped_column(String(64), index=True)
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

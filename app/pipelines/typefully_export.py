@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 
 import typer
 
@@ -17,6 +18,9 @@ from app.presenters.typefully_export import (
 from app.services.typefully_export_service import TypefullyExportService
 
 app = typer.Typer(add_completion=False, help="Exportador de drafts a Typefully.")
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
 
 
 def _dump_json(payload) -> None:

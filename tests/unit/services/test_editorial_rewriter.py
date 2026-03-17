@@ -64,6 +64,7 @@ def seed_candidates(session: Session) -> None:
                 content_type="match_result",
                 priority=99,
                 text_draft="RESULTADO FINAL\n\nTorrent CF 1-0 UE Porreres\n\n2a RFEF Grupo 3\nJornada 26\nEstado: finished",
+                formatted_text="📋 RESULTADOS\n\n2a RFEF Grupo 3\n\nTorrent CF 1-0 UE Porreres\n\n#SegundaRFEF",
                 payload_json={"source_payload": {"home_team": "Torrent CF", "away_team": "UE Porreres", "home_score": 1, "away_score": 0}},
                 source_summary_hash="hash-1",
                 scheduled_at=now,
@@ -82,6 +83,7 @@ def seed_candidates(session: Session) -> None:
                 content_type="preview",
                 priority=90,
                 text_draft="PREVIA",
+                formatted_text=None,
                 payload_json={},
                 source_summary_hash="hash-2",
                 scheduled_at=now,
@@ -100,6 +102,7 @@ def seed_candidates(session: Session) -> None:
                 content_type="ranking",
                 priority=70,
                 text_draft="   ",
+                formatted_text=None,
                 payload_json={},
                 source_summary_hash="hash-3",
                 scheduled_at=now,
@@ -118,6 +121,7 @@ def seed_candidates(session: Session) -> None:
                 content_type="standings",
                 priority=60,
                 text_draft="CLASIFICACION\n\n1. UE Sant Andreu - 54 pts",
+                formatted_text=None,
                 payload_json={},
                 source_summary_hash="hash-4",
                 scheduled_at=now,
@@ -170,7 +174,7 @@ def test_editorial_rewriter_dry_run_without_provider_config_stays_local() -> Non
 
         assert result.dry_run is True
         assert result.candidate.rewrite_status == "dry_run_unconfigured"
-        assert result.candidate.rewritten_text == result.candidate.text_draft
+        assert result.candidate.rewritten_text == result.candidate.formatted_text
         assert session.get(ContentCandidate, 1).rewritten_text is None
     finally:
         session.close()
@@ -200,6 +204,8 @@ def test_editorial_rewriter_rewrites_successfully_with_provider() -> None:
         assert persisted.rewrite_model == "gpt-4.1-mini"
         assert persisted.rewrite_error is None
         provider.rewrite.assert_called_once()
+        prompt = provider.rewrite.call_args.args[0].prompt
+        assert "📋 RESULTADOS" in prompt
     finally:
         session.close()
 

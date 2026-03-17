@@ -14,6 +14,7 @@ class TypefullyExportCandidateView(BaseModel):
     priority: int
     status: ContentCandidateStatus
     has_rewrite: bool = False
+    has_formatted: bool = False
     text_source: str = "text_draft"
     external_publication_ref: str | None = None
     external_channel: str | None = None

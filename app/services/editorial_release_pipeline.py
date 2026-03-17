@@ -65,12 +65,10 @@ class EditorialReleasePipelineService:
         prefer_rewrite: bool | None,
         autoexport_dry_run: bool,
     ) -> EditorialReleaseResult:
-        approval_preview = self.approval_service.autoapprove(
+        quality_candidate_ids = self.approval_service.candidate_ids_for_quality_precheck(
             reference_date=reference_date,
             limit=limit,
-            dry_run=True,
         )
-        quality_candidate_ids = [row.id for row in approval_preview.rows if row.autoapprovable]
         if quality_candidate_ids:
             self.quality_service.check_candidates(
                 quality_candidate_ids,

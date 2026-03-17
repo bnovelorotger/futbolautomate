@@ -30,3 +30,5 @@ for competition in "${COMPETITIONS[@]}"; do
       --target "$target"
   done
 done
+
+sync_draft_temp_snapshot

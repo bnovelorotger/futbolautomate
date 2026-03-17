@@ -124,3 +124,13 @@ run_step() {
   "$@"
   log INFO "Fin: $label"
 }
+
+
+sync_draft_temp_snapshot() {
+  log INFO "Inicio: draft_temp_sync"
+  if "$PYTHON_BIN" -m app.pipelines.draft_temp sync; then
+    log INFO "Fin: draft_temp_sync"
+    return 0
+  fi
+  log WARN "No se pudo actualizar draft_temp.json"
+}

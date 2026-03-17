@@ -14,24 +14,29 @@ from app.schemas.editorial_approval import (
     EditorialApprovalRunResult,
     EditorialApprovalStatusView,
 )
+from app.services.editorial_quality_checks import EditorialQualityChecksService
+from app.services.story_importance import StoryImportanceService
 from app.utils.time import utcnow
 
 
 AUTOAPPROVABLE_CONTENT_TYPES = (
-    ContentType.MATCH_RESULT,
-    ContentType.STANDINGS,
+    ContentType.RESULTS_ROUNDUP,
+    ContentType.STANDINGS_ROUNDUP,
     ContentType.PREVIEW,
     ContentType.RANKING,
 )
+CONDITIONAL_AUTOAPPROVABLE_CONTENT_TYPES: tuple[ContentType, ...] = ()
 MANUAL_REVIEW_CONTENT_TYPES = (
-    ContentType.STANDINGS_EVENT,
+    ContentType.MATCH_RESULT,
+    ContentType.STANDINGS,
     ContentType.FORM_RANKING,
-    ContentType.FORM_EVENT,
     ContentType.FEATURED_MATCH_PREVIEW,
     ContentType.FEATURED_MATCH_EVENT,
+    ContentType.STANDINGS_EVENT,
+    ContentType.FORM_EVENT,
+    ContentType.VIRAL_STORY,
     ContentType.STAT_NARRATIVE,
     ContentType.METRIC_NARRATIVE,
-    ContentType.VIRAL_STORY,
 )
 
 
@@ -46,6 +51,8 @@ class EditorialApprovalPolicyService:
     def __init__(self, session: Session, *, settings: Settings | None = None) -> None:
         self.session = session
         self.settings = settings or get_settings()
+        self.quality_service = EditorialQualityChecksService(session, settings=self.settings)
+        self.story_service = StoryImportanceService(session, settings=self.settings)
 
     def status(
         self,
@@ -54,10 +61,13 @@ class EditorialApprovalPolicyService:
         limit: int = 200,
     ) -> EditorialApprovalStatusView:
         rows = self._pending_drafts(reference_date=reference_date, limit=limit)
-        autoapprovable_count = sum(1 for row in rows if self._evaluate(row).autoapprovable)
+        quality_snapshot = self._quality_snapshot(rows)
+        views = self._evaluate_rows(rows, quality_snapshot=quality_snapshot)
+        autoapprovable_count = sum(1 for view in views if view.autoapprovable)
         return EditorialApprovalStatusView(
             enabled=True,
             autoapprovable_content_types=list(AUTOAPPROVABLE_CONTENT_TYPES),
+            conditional_autoapprovable_content_types=list(CONDITIONAL_AUTOAPPROVABLE_CONTENT_TYPES),
             manual_review_content_types=list(MANUAL_REVIEW_CONTENT_TYPES),
             drafts_found=len(rows),
             autoapprovable_count=autoapprovable_count,
@@ -72,13 +82,17 @@ class EditorialApprovalPolicyService:
         dry_run: bool = False,
     ) -> EditorialApprovalRunResult:
         rows = self._pending_drafts(reference_date=reference_date, limit=limit)
+        quality_snapshot = self._quality_snapshot(rows)
+        evaluated_rows = {
+            view.id: view for view in self._evaluate_rows(rows, quality_snapshot=quality_snapshot)
+        }
         result_rows: list[EditorialApprovalCandidateView] = []
         autoapprovable_count = 0
         autoapproved_count = 0
         timestamp = utcnow()
 
         for row in rows:
-            view = self._evaluate(row)
+            view = evaluated_rows[row.id]
             if view.autoapprovable:
                 autoapprovable_count += 1
                 if not dry_run:
@@ -92,7 +106,14 @@ class EditorialApprovalPolicyService:
                     row.autoapproval_reason = view.policy_reason
                     self.session.add(row)
                     self.session.flush()
-                    view = self._row_to_view(row, autoapprovable=True, policy_reason=view.policy_reason)
+                    view = self._row_to_view(
+                        row,
+                        autoapprovable=True,
+                        policy_reason=view.policy_reason,
+                        importance_score=view.importance_score,
+                        priority_bucket=view.priority_bucket,
+                        importance_reasoning=view.importance_reasoning,
+                    )
                 autoapproved_count += 1
             result_rows.append(view)
 
@@ -106,28 +127,125 @@ class EditorialApprovalPolicyService:
             rows=result_rows,
         )
 
-    def _evaluate(self, candidate: ContentCandidate) -> EditorialApprovalCandidateView:
-        autoapprovable = False
-        policy_reason = "manual_review_policy"
+    def candidate_ids_for_quality_precheck(
+        self,
+        *,
+        reference_date: date | None = None,
+        limit: int = 200,
+    ) -> list[int]:
+        rows = self._pending_drafts(reference_date=reference_date, limit=limit)
+        return [row.id for row in rows if self._is_potential_autoapprovable(row)]
+
+    def _evaluate_rows(
+        self,
+        candidates: list[ContentCandidate],
+        *,
+        quality_snapshot: dict[int, tuple[bool, list[str]]] | None = None,
+    ) -> list[EditorialApprovalCandidateView]:
+        views_by_id: dict[int, EditorialApprovalCandidateView] = {}
+        conditional_candidates: list[ContentCandidate] = []
+        for candidate in candidates:
+            autoapprovable, policy_reason = self._base_policy(
+                candidate,
+                quality_snapshot=quality_snapshot,
+            )
+            if policy_reason == "story_importance_pending":
+                conditional_candidates.append(candidate)
+                continue
+            views_by_id[candidate.id] = self._row_to_view(
+                candidate,
+                autoapprovable=autoapprovable,
+                policy_reason=policy_reason,
+            )
+
+        decisions = self.story_service.select_automatic_narratives(conditional_candidates)
+        for candidate in conditional_candidates:
+            decision = decisions[candidate.id]
+            views_by_id[candidate.id] = self._row_to_view(
+                candidate,
+                autoapprovable=decision.allowed,
+                policy_reason=(
+                    "policy_autoapprove_story_importance"
+                    if decision.allowed
+                    else decision.reason
+                ),
+                importance_score=decision.importance_score,
+                priority_bucket=decision.priority_bucket,
+                importance_reasoning=decision.importance_reasoning,
+            )
+        return [views_by_id[candidate.id] for candidate in candidates]
+
+    def _base_policy(
+        self,
+        candidate: ContentCandidate,
+        *,
+        quality_snapshot: dict[int, tuple[bool, list[str]]] | None = None,
+    ) -> tuple[bool, str]:
         status = ContentCandidateStatus(candidate.status)
+        quality_passed, quality_errors = self._quality_state(
+            candidate,
+            quality_snapshot=quality_snapshot,
+        )
         if status != ContentCandidateStatus.DRAFT:
-            policy_reason = f"status_not_draft:{status}"
+            return False, f"status_not_draft:{status}"
         elif candidate.reviewed_at is not None:
-            policy_reason = "already_reviewed"
+            return False, "already_reviewed"
         elif not candidate.text_draft.strip():
-            policy_reason = "text_draft_empty"
-        elif candidate.quality_check_passed is False or (candidate.quality_check_errors or []):
-            policy_reason = "quality_errors_present"
+            return False, "text_draft_empty"
+        elif quality_passed is False or quality_errors:
+            return False, "quality_errors_present"
         else:
             content_type = ContentType(candidate.content_type)
             if content_type in AUTOAPPROVABLE_CONTENT_TYPES:
-                autoapprovable = True
-                policy_reason = "policy_autoapprove_safe_type"
+                return True, "policy_autoapprove_safe_type"
+            if content_type in CONDITIONAL_AUTOAPPROVABLE_CONTENT_TYPES:
+                return False, "story_importance_pending"
             elif content_type in MANUAL_REVIEW_CONTENT_TYPES:
-                policy_reason = "manual_review_policy"
+                return False, "manual_review_policy"
             else:
-                policy_reason = "content_type_not_configured"
-        return self._row_to_view(candidate, autoapprovable=autoapprovable, policy_reason=policy_reason)
+                return False, "content_type_not_configured"
+
+    def _is_potential_autoapprovable(self, candidate: ContentCandidate) -> bool:
+        status = ContentCandidateStatus(candidate.status)
+        if status != ContentCandidateStatus.DRAFT:
+            return False
+        if candidate.reviewed_at is not None:
+            return False
+        if not candidate.text_draft.strip():
+            return False
+        content_type = ContentType(candidate.content_type)
+        return (
+            content_type in AUTOAPPROVABLE_CONTENT_TYPES
+            or content_type in CONDITIONAL_AUTOAPPROVABLE_CONTENT_TYPES
+        )
+
+    def _quality_snapshot(
+        self,
+        rows: list[ContentCandidate],
+    ) -> dict[int, tuple[bool, list[str]]]:
+        candidate_ids = [row.id for row in rows if self._is_potential_autoapprovable(row)]
+        if not candidate_ids:
+            return {}
+        batch = self.quality_service.check_candidates(
+            candidate_ids,
+            dry_run=True,
+            require_published=False,
+        )
+        return {
+            row.id: (row.passed, list(row.errors))
+            for row in batch.rows
+        }
+
+    def _quality_state(
+        self,
+        candidate: ContentCandidate,
+        *,
+        quality_snapshot: dict[int, tuple[bool, list[str]]] | None,
+    ) -> tuple[bool | None, list[str]]:
+        if quality_snapshot is not None and candidate.id in quality_snapshot:
+            passed, errors = quality_snapshot[candidate.id]
+            return passed, list(errors)
+        return candidate.quality_check_passed, list(candidate.quality_check_errors or [])
 
     def _row_to_view(
         self,
@@ -135,6 +253,9 @@ class EditorialApprovalPolicyService:
         *,
         autoapprovable: bool,
         policy_reason: str,
+        importance_score: int | None = None,
+        priority_bucket: str | None = None,
+        importance_reasoning: list[str] | None = None,
     ) -> EditorialApprovalCandidateView:
         return EditorialApprovalCandidateView(
             id=candidate.id,
@@ -147,6 +268,9 @@ class EditorialApprovalPolicyService:
             autoapproved=candidate.autoapproved,
             autoapproved_at=candidate.autoapproved_at,
             autoapproval_reason=candidate.autoapproval_reason,
+            importance_score=importance_score,
+            priority_bucket=priority_bucket,
+            importance_reasoning=list(importance_reasoning or []),
             created_at=candidate.created_at,
             excerpt=_excerpt(candidate.text_draft),
         )

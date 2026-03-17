@@ -26,6 +26,7 @@ try {
 
     if ($previewMode) {
         Write-Log -Level "WARN" -Message "PREVIEW_ONLY=true: se omite run-daily"
+        Sync-DraftTempSnapshot
         Complete-Script
         exit 0
     }
@@ -35,6 +36,7 @@ try {
         "--date", $TargetDate
     )
 
+    Sync-DraftTempSnapshot
     Complete-Script
     exit 0
 }

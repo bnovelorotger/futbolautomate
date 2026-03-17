@@ -36,6 +36,7 @@ try {
 
     Invoke-PythonModule -Label "editorial_release" -Module "app.pipelines.editorial_release" -Arguments $arguments
 
+    Sync-DraftTempSnapshot
     Complete-Script
     exit 0
 }

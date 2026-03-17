@@ -21,6 +21,8 @@ from app.schemas.editorial_summary import (
 )
 from app.schemas.reporting import CompetitionMatchView, StandingView, TeamRankingView
 from app.services.editorial_planner import EditorialPlannerService
+from tests.unit.services.test_match_importance import add_scheduled_match, seed_second_competition
+from tests.unit.services.test_team_form import seed_form_data
 
 
 def build_session() -> Session:
@@ -92,6 +94,11 @@ def build_schedule() -> EditorialWeeklySchedule:
                     competition_slug="tercera_rfef_g11",
                     content_type=EditorialPlanningContent.PREVIEW,
                     priority=90,
+                ),
+                EditorialScheduleRule(
+                    competition_slug="tercera_rfef_g11",
+                    content_type=EditorialPlanningContent.FEATURED_MATCH_PREVIEW,
+                    priority=89,
                 )
             ],
         },
@@ -252,7 +259,7 @@ def test_editorial_planner_week_plan_spans_monday_to_sunday() -> None:
         assert week_plan.week_end == date(2026, 3, 15)
         assert len(week_plan.days) == 7
         assert week_plan.days[4].weekday_key == "friday"
-        assert week_plan.days[4].total_tasks == 1
+        assert week_plan.days[4].total_tasks == 2
         assert week_plan.days[6].weekday_key == "sunday"
         assert week_plan.days[6].total_tasks == 2
     finally:
@@ -307,6 +314,182 @@ def test_editorial_planner_generates_only_planned_candidates() -> None:
         }
         assert counts_by_planning_type[EditorialPlanningContent.LATEST_RESULTS] == 2
         assert counts_by_planning_type[EditorialPlanningContent.STANDINGS] == 1
+    finally:
+        session.close()
+
+
+def test_editorial_planner_generates_featured_match_candidates_on_friday() -> None:
+    session = build_session()
+    try:
+        seed_form_data(session)
+        add_scheduled_match(
+            session,
+            competition_code="tercera_rfef_g11",
+            external_id="featured-top-clash",
+            match_date=date(2026, 3, 20),
+            match_time=time(18, 0),
+            home_team="CE Alpha",
+            away_team="CE Beta",
+        )
+        service = EditorialPlannerService(
+            session,
+            schedule=build_schedule(),
+            settings=build_settings(),
+        )
+
+        result = service.generate_for_date(date(2026, 3, 20))
+        session.commit()
+
+        rows = session.execute(select(ContentCandidate).order_by(ContentCandidate.id.asc())).scalars().all()
+        featured_rows = [row for row in rows if row.content_type in {"featured_match_preview", "featured_match_event"}]
+
+        assert result.total_tasks == 2
+        assert featured_rows
+        assert {row.content_type for row in featured_rows} == {
+            "featured_match_preview",
+            "featured_match_event",
+        }
+        assert all(row.competition_slug == "tercera_rfef_g11" for row in featured_rows)
+        assert any("CE Alpha vs CE Beta" in row.text_draft for row in featured_rows)
+        assert all(row.status == "draft" for row in featured_rows)
+    finally:
+        session.close()
+
+
+def test_editorial_planner_generates_results_roundup_candidates_when_planned() -> None:
+    session = build_session()
+    try:
+        seed_form_data(session)
+        schedule = EditorialWeeklySchedule(
+            timezone="Europe/Madrid",
+            weekly_plan={
+                "domingo": [
+                    EditorialScheduleRule(
+                        competition_slug="tercera_rfef_g11",
+                        content_type=EditorialPlanningContent.RESULTS_ROUNDUP,
+                        priority=100,
+                    )
+                ]
+            },
+        )
+        service = EditorialPlannerService(
+            session,
+            schedule=schedule,
+            settings=build_settings(),
+        )
+
+        result = service.generate_for_date(date(2026, 3, 15))
+        session.commit()
+
+        rows = session.execute(select(ContentCandidate).order_by(ContentCandidate.id.asc())).scalars().all()
+
+        assert result.total_tasks == 1
+        assert result.total_generated == 1
+        assert len(rows) == 1
+        assert rows[0].content_type == "results_roundup"
+        assert rows[0].status == "draft"
+        assert "RESULTADOS | 3a RFEF Baleares | Jornada 26" in rows[0].text_draft
+    finally:
+        session.close()
+
+
+def test_editorial_planner_generates_standings_roundup_candidates_when_planned() -> None:
+    session = build_session()
+    try:
+        seed_form_data(session)
+        schedule = EditorialWeeklySchedule(
+            timezone="Europe/Madrid",
+            weekly_plan={
+                "domingo": [
+                    EditorialScheduleRule(
+                        competition_slug="tercera_rfef_g11",
+                        content_type=EditorialPlanningContent.STANDINGS_ROUNDUP,
+                        priority=80,
+                    )
+                ]
+            },
+        )
+        service = EditorialPlannerService(
+            session,
+            schedule=schedule,
+            settings=build_settings(),
+        )
+
+        result = service.generate_for_date(date(2026, 3, 15))
+        session.commit()
+
+        rows = session.execute(select(ContentCandidate).order_by(ContentCandidate.id.asc())).scalars().all()
+
+        assert result.total_tasks == 1
+        assert result.total_generated == 1
+        assert len(rows) == 1
+        assert rows[0].content_type == "standings_roundup"
+        assert rows[0].status == "draft"
+        assert "CLASIFICACION | 3a RFEF Baleares | Jornada 26" in rows[0].text_draft
+    finally:
+        session.close()
+
+
+def test_editorial_planner_featured_match_generation_does_not_mix_competitions() -> None:
+    session = build_session()
+    try:
+        seed_form_data(session)
+        seed_second_competition(session)
+        add_scheduled_match(
+            session,
+            competition_code="tercera_rfef_g11",
+            external_id="tercera-top-clash",
+            match_date=date(2026, 3, 20),
+            match_time=time(18, 0),
+            home_team="CE Alpha",
+            away_team="CE Beta",
+        )
+        add_scheduled_match(
+            session,
+            competition_code="segunda_rfef_g3_baleares",
+            external_id="segunda-top-clash",
+            match_date=date(2026, 3, 20),
+            match_time=time(19, 0),
+            home_team="Torrent CF",
+            away_team="UE Porreres",
+        )
+        schedule = EditorialWeeklySchedule(
+            timezone="Europe/Madrid",
+            weekly_plan={
+                "viernes": [
+                    EditorialScheduleRule(
+                        competition_slug="tercera_rfef_g11",
+                        content_type=EditorialPlanningContent.FEATURED_MATCH_PREVIEW,
+                        priority=89,
+                    ),
+                    EditorialScheduleRule(
+                        competition_slug="segunda_rfef_g3_baleares",
+                        content_type=EditorialPlanningContent.FEATURED_MATCH_PREVIEW,
+                        priority=89,
+                    ),
+                ]
+            },
+        )
+        service = EditorialPlannerService(
+            session,
+            schedule=schedule,
+            settings=build_settings(),
+        )
+
+        result = service.generate_for_date(date(2026, 3, 20))
+        session.commit()
+
+        rows = session.execute(select(ContentCandidate).order_by(ContentCandidate.id.asc())).scalars().all()
+
+        assert result.total_tasks == 2
+        assert {row.competition_slug for row in rows} == {
+            "tercera_rfef_g11",
+            "segunda_rfef_g3_baleares",
+        }
+        tercera_rows = [row for row in rows if row.competition_slug == "tercera_rfef_g11"]
+        segunda_rows = [row for row in rows if row.competition_slug == "segunda_rfef_g3_baleares"]
+        assert all("Torrent CF" not in row.text_draft and "UE Porreres" not in row.text_draft for row in tercera_rows)
+        assert all("CE Alpha" not in row.text_draft and "CE Beta" not in row.text_draft for row in segunda_rows)
     finally:
         session.close()
 

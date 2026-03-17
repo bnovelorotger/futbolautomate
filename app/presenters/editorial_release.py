@@ -39,6 +39,9 @@ def render_release_result(result: EditorialReleaseResult) -> str:
         for row in result.autoexport_rows:
             lines.append(
                 f"{row.id:>3} | {row.competition_slug} | {row.content_type} | "
+                f"score={row.importance_score if row.importance_score is not None else '-'} | "
+                f"bucket={row.priority_bucket or '-'} | "
+                f"order={row.order_selected if row.order_selected is not None else '-'} | "
                 f"allowed={str(row.autoexport_allowed).lower()} | policy={row.policy_reason} | "
                 f"external_ref={row.external_publication_ref or '-'} | {row.excerpt}"
             )

@@ -63,6 +63,7 @@ def seed_candidates(session: Session) -> None:
                 content_type="match_result",
                 priority=99,
                 text_draft="RESULTADO FINAL\n\nTorrent CF 1-0 UE Porreres",
+                formatted_text=None,
                 rewritten_text="Torrent CF se impuso por 1-0 a la UE Porreres.",
                 rewrite_status="rewritten",
                 rewrite_model="gpt-4.1-mini",
@@ -91,6 +92,7 @@ def seed_candidates(session: Session) -> None:
                 content_type="standings",
                 priority=80,
                 text_draft="CLASIFICACION\n\n1. UE Sant Andreu - 54 pts",
+                formatted_text=None,
                 rewritten_text=None,
                 rewrite_status=None,
                 rewrite_model=None,
@@ -119,6 +121,7 @@ def seed_candidates(session: Session) -> None:
                 content_type="preview",
                 priority=90,
                 text_draft="PREVIA",
+                formatted_text=None,
                 rewritten_text=None,
                 rewrite_status=None,
                 rewrite_model=None,
@@ -147,6 +150,7 @@ def seed_candidates(session: Session) -> None:
                 content_type="ranking",
                 priority=70,
                 text_draft="   ",
+                formatted_text=None,
                 rewritten_text=None,
                 rewrite_status=None,
                 rewrite_model=None,
@@ -175,6 +179,7 @@ def seed_candidates(session: Session) -> None:
                 content_type="stat_narrative",
                 priority=65,
                 text_draft="NARRATIVA ESTADISTICA\n\nDato base",
+                formatted_text="🔥 Dato base\n\n#SegundaRFEF",
                 rewritten_text=None,
                 rewrite_status=None,
                 rewrite_model=None,
@@ -203,6 +208,7 @@ def seed_candidates(session: Session) -> None:
                 content_type="preview",
                 priority=64,
                 text_draft="PREVIA BASE\n\nTexto original",
+                formatted_text=None,
                 rewritten_text="   ",
                 rewrite_status="rewritten",
                 rewrite_model="gpt-4.1-mini",
@@ -210,6 +216,35 @@ def seed_candidates(session: Session) -> None:
                 rewrite_error=None,
                 payload_json={},
                 source_summary_hash="hash-6",
+                scheduled_at=now,
+                status="published",
+                reviewed_at=now,
+                approved_at=now,
+                published_at=now,
+                rejection_reason=None,
+                external_publication_ref=None,
+                external_channel=None,
+                external_exported_at=None,
+                external_publication_timestamp=None,
+                external_publication_attempted_at=None,
+                external_publication_error=None,
+                created_at=now,
+                updated_at=now,
+            ),
+            ContentCandidate(
+                id=7,
+                competition_slug="segunda_rfef_g3_baleares",
+                content_type="results_roundup",
+                priority=88,
+                text_draft="RESULTADOS | 2a RFEF Grupo 3\n\nAtletico Baleares 2-0 Torrent CF",
+                formatted_text="📋 RESULTADOS\n\n2a RFEF Grupo 3\n\nAtletico Baleares 2-0 Torrent CF\n\n#SegundaRFEF",
+                rewritten_text=None,
+                rewrite_status=None,
+                rewrite_model=None,
+                rewrite_timestamp=None,
+                rewrite_error=None,
+                payload_json={},
+                source_summary_hash="hash-7",
                 scheduled_at=now,
                 status="published",
                 reviewed_at=now,
@@ -240,6 +275,7 @@ def test_typefully_export_service_eligibility_filter() -> None:
         candidate_4 = session.get(ContentCandidate, 4)
         candidate_5 = session.get(ContentCandidate, 5)
         candidate_6 = session.get(ContentCandidate, 6)
+        candidate_7 = session.get(ContentCandidate, 7)
 
         assert candidate_1 is not None
         assert candidate_2 is not None
@@ -247,12 +283,14 @@ def test_typefully_export_service_eligibility_filter() -> None:
         assert candidate_4 is not None
         assert candidate_5 is not None
         assert candidate_6 is not None
+        assert candidate_7 is not None
         assert is_candidate_eligible_for_typefully(candidate_1) is True
         assert is_candidate_eligible_for_typefully(candidate_2) is False
         assert is_candidate_eligible_for_typefully(candidate_3) is False
         assert is_candidate_eligible_for_typefully(candidate_4) is False
         assert is_candidate_eligible_for_typefully(candidate_5) is True
         assert is_candidate_eligible_for_typefully(candidate_6) is True
+        assert is_candidate_eligible_for_typefully(candidate_7) is True
     finally:
         session.close()
 
@@ -279,7 +317,7 @@ def test_typefully_export_service_lists_and_exports_with_rewrite_by_default() ->
         result = service.export_candidate(1, dry_run=False)
         session.commit()
 
-        assert [row.id for row in pending] == [1, 5, 6]
+        assert [row.id for row in pending] == [1, 7, 5, 6]
         assert pending[0].has_rewrite is True
         assert pending[0].text_source == "rewritten_text"
         assert result.candidate.external_publication_ref == "draft-1"
@@ -341,10 +379,41 @@ def test_typefully_export_service_falls_back_to_draft_when_rewrite_is_empty() ->
 
         row = next(row for row in pending if row.id == 6)
         assert row.has_rewrite is False
+        assert row.has_formatted is False
         assert row.text_source == "text_draft"
         assert result.candidate.text_source == "text_draft"
         publisher.export_text.assert_called_once_with(
             "PREVIA BASE\n\nTexto original",
+            dry_run=False,
+        )
+    finally:
+        session.close()
+
+
+def test_typefully_export_service_prefers_formatted_text_when_rewrite_missing() -> None:
+    session = build_session()
+    try:
+        seed_candidates(session)
+        publisher = Mock()
+        publisher.export_text.return_value = TypefullyDraftResponse(
+            draft_id="draft-7",
+            social_set_id="social-set-1",
+            exported_at=datetime(2026, 3, 15, 10, 5, tzinfo=timezone.utc),
+            raw_response={"id": "draft-7"},
+            dry_run=False,
+        )
+        service = TypefullyExportService(session, publisher=publisher, settings=build_settings())
+
+        pending = service.list_pending(limit=10)
+        result = service.export_candidate(7, dry_run=False)
+
+        row = next(row for row in pending if row.id == 7)
+        assert row.has_rewrite is False
+        assert row.has_formatted is True
+        assert row.text_source == "formatted_text"
+        assert result.candidate.text_source == "formatted_text"
+        publisher.export_text.assert_called_once_with(
+            "📋 RESULTADOS\n\n2a RFEF Grupo 3\n\nAtletico Baleares 2-0 Torrent CF\n\n#SegundaRFEF",
             dry_run=False,
         )
     finally:
@@ -398,7 +467,7 @@ def test_typefully_export_service_supports_dry_run_without_persistence() -> None
 
         candidate = session.get(ContentCandidate, 5)
         assert result.dry_run is True
-        assert result.candidate.text_source == "text_draft"
+        assert result.candidate.text_source == "formatted_text"
         assert candidate.external_publication_ref is None
         assert candidate.external_publication_attempted_at is None
     finally:
@@ -427,8 +496,8 @@ def test_typefully_export_service_export_ready_dry_run() -> None:
         session.commit()
 
         assert result.dry_run is True
-        assert result.exported_count == 3
-        assert [row.id for row in result.rows] == [1, 5, 6]
+        assert result.exported_count == 4
+        assert [row.id for row in result.rows] == [1, 7, 5, 6]
         assert session.get(ContentCandidate, 1).external_publication_ref is None
     finally:
         session.close()

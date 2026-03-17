@@ -96,6 +96,10 @@ class TypefullyAutoexportCandidateView(BaseModel):
     status: ContentCandidateStatus
     autoexport_allowed: bool
     policy_reason: str
+    importance_score: int | None = None
+    priority_bucket: str | None = None
+    importance_reasoning: list[str] = Field(default_factory=list)
+    order_selected: int | None = None
     quality_check_passed: bool | None = None
     quality_check_errors: list[str] = Field(default_factory=list)
     export_outcome: str = "pending"
@@ -142,6 +146,8 @@ class TypefullyAutoexportLastRun(BaseModel):
 class TypefullyAutoexportStatusView(BaseModel):
     enabled: bool
     phase: int
+    importance_prioritization_enabled: bool = True
+    importance_tie_breaker: str = "importance_score desc, priority desc, created_at asc, id asc"
     max_exports_per_run: int | None = None
     max_exports_per_day: int | None = None
     stop_on_capacity_limit: bool = True

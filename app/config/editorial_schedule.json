@@ -4,32 +4,32 @@
     "lunes": [
       {
         "competition_slug": "tercera_rfef_g11",
-        "content_type": "latest_results",
+        "content_type": "results_roundup",
         "priority": 100
       },
       {
         "competition_slug": "tercera_rfef_g11",
-        "content_type": "standings",
+        "content_type": "standings_roundup",
         "priority": 80
       },
       {
         "competition_slug": "segunda_rfef_g3_baleares",
-        "content_type": "latest_results",
+        "content_type": "results_roundup",
         "priority": 100
       },
       {
         "competition_slug": "segunda_rfef_g3_baleares",
-        "content_type": "standings",
+        "content_type": "standings_roundup",
         "priority": 80
       },
       {
         "competition_slug": "division_honor_mallorca",
-        "content_type": "latest_results",
+        "content_type": "results_roundup",
         "priority": 95
       },
       {
         "competition_slug": "division_honor_mallorca",
-        "content_type": "standings",
+        "content_type": "standings_roundup",
         "priority": 75
       }
     ],
@@ -72,21 +72,41 @@
         "priority": 90
       },
       {
+        "competition_slug": "tercera_rfef_g11",
+        "content_type": "featured_match_preview",
+        "priority": 89
+      },
+      {
         "competition_slug": "segunda_rfef_g3_baleares",
         "content_type": "preview",
         "priority": 90
+      },
+      {
+        "competition_slug": "segunda_rfef_g3_baleares",
+        "content_type": "featured_match_preview",
+        "priority": 89
       }
     ],
     "domingo": [
       {
         "competition_slug": "tercera_rfef_g11",
-        "content_type": "latest_results",
+        "content_type": "results_roundup",
+        "priority": 100
+      },
+      {
+        "competition_slug": "tercera_rfef_g11",
+        "content_type": "standings_roundup",
+        "priority": 80
+      },
+      {
+        "competition_slug": "segunda_rfef_g3_baleares",
+        "content_type": "results_roundup",
         "priority": 100
       },
       {
         "competition_slug": "segunda_rfef_g3_baleares",
-        "content_type": "latest_results",
-        "priority": 100
+        "content_type": "standings_roundup",
+        "priority": 80
       }
     ]
   }

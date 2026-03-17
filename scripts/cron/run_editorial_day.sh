@@ -18,8 +18,11 @@ run_step "preview_day_$TARGET_DATE" \
 
 if [[ "${PREVIEW_ONLY,,}" == "true" ]]; then
   log WARN "PREVIEW_ONLY=true: se omite run-daily"
+  sync_draft_temp_snapshot
   exit 0
 fi
 
 run_step "run_editorial_day_$TARGET_DATE" \
   "$PYTHON_BIN" -m app.pipelines.editorial_ops run-daily --date "$TARGET_DATE"
+
+sync_draft_temp_snapshot

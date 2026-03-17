@@ -35,6 +35,7 @@ try {
         }
     }
 
+    Sync-DraftTempSnapshot
     Complete-Script
     exit 0
 }

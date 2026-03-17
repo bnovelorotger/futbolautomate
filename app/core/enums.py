@@ -90,7 +90,9 @@ class CompetitionReferenceRole(StrEnum):
 
 class ContentType(StrEnum):
     MATCH_RESULT = "match_result"
+    RESULTS_ROUNDUP = "results_roundup"
     STANDINGS = "standings"
+    STANDINGS_ROUNDUP = "standings_roundup"
     STANDINGS_EVENT = "standings_event"
     PREVIEW = "preview"
     RANKING = "ranking"
@@ -105,8 +107,11 @@ class ContentType(StrEnum):
 
 class EditorialPlanningContent(StrEnum):
     LATEST_RESULTS = "latest_results"
+    RESULTS_ROUNDUP = "results_roundup"
     STANDINGS = "standings"
+    STANDINGS_ROUNDUP = "standings_roundup"
     PREVIEW = "preview"
+    FEATURED_MATCH_PREVIEW = "featured_match_preview"
     RANKING = "ranking"
     STAT_NARRATIVE = "stat_narrative"
     METRIC_NARRATIVE = "metric_narrative"
