@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import case, func, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
@@ -288,8 +288,13 @@ class EditorialApprovalPolicyService:
         if reference_date is not None:
             start_utc, end_utc = self._day_bounds(reference_date)
             query = query.where(
-                ContentCandidate.created_at >= start_utc,
-                ContentCandidate.created_at < end_utc,
+                or_(
+                    and_(
+                        ContentCandidate.created_at >= start_utc,
+                        ContentCandidate.created_at < end_utc,
+                    ),
+                    ContentCandidate.payload_json["reference_date"].as_string() == reference_date.isoformat(),
+                ),
             )
         query = query.order_by(
             ContentCandidate.priority.desc(),

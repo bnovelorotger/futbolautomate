@@ -6,7 +6,7 @@ La documentacion detallada de esta iteracion se conserva en [docs/README_detaile
 
 ## Version actual
 
-Snapshot del **17 de marzo de 2026**.
+Snapshot del **22 de marzo de 2026**.
 
 Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolidados:
 
@@ -16,7 +16,10 @@ Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolida
 - scoring de `match_importance` para partidos destacados
 - agregados editoriales `results_roundup` y `standings_roundup`
 - `editorial_formatter` como capa determinista previa a exportacion
+- `viral_formatted_text` como capa compacta para export seguro en resultados, clasificaciones, previas y rankings
 - `team_socials` + `social_enricher` para insertar menciones de clubes sin duplicados
+- `team_name_aliases.json` + `team_name_normalizer` para fijar naming editorial consistente
+- dataset curado `scripts/team_socials_dataset.json` para poblar `team_socials`
 - `story_importance` para ordenar prioridad dentro del autoexport seguro
 - scope automatico v1 acotado a piezas seguras y reversibles
 
@@ -390,13 +393,17 @@ Flujo actualizado:
 
 Prioridad final de texto en export:
 1. `rewritten_text`
-2. `enriched_text`
-3. `formatted_text`
-4. `text_draft`
+2. `viral_formatted_text`
+3. `enriched_text`
+4. `formatted_text`
+5. `text_draft`
 
 Que formatea:
 - `results_roundup`
 - `standings_roundup`
+- `standings`
+- `preview`
+- `ranking`
 - `stat_narrative`
 - `metric_narrative`
 - `viral_story`
@@ -408,6 +415,7 @@ Que formatea:
 Reglas:
 - todo es determinista
 - no inventa datos
+- normaliza aliases editoriales desde `app/config/team_name_aliases.json` antes de resumir o enriquecer
 - usa solo estos emojis: `📋`, `📊`, `🔥`, `⚽`
 - objetivo de longitud `<= 240`
 - si un texto se pasa, reduce secciones opcionales; no corta cadenas arbitrariamente
@@ -416,12 +424,12 @@ Menciones y hashtags:
 - `team_socials` es la fuente principal de handles
 - `team_mentions` queda como fallback legacy cuando aun no existe identidad social curada
 - `social_enricher` solo inserta menciones si caben en longitud, no duplica handles y respeta `MAX_MENTIONS_PER_POST`
-- `editorial_quality_checks` falla si el texto final repite handles o supera el maximo configurado
+- `editorial_quality_checks` falla si el texto final supera 240 caracteres, repite handles o usa hashtags de mas
 - hashtags permitidos:
   - `#TerceraRFEF`
   - `#SegundaRFEF`
   - `#FutbolBalear`
-- maximo un hashtag y siempre al final
+- maximo dos hashtags, sin duplicados y siempre al final
 
 Configuracion relevante:
 
@@ -437,9 +445,10 @@ python -m app.pipelines.team_mentions upsert --competition tercera_rfef_g11 --te
 ```
 
 Notas:
-- `scripts/seed_team_socials.py` carga primero un dataset opcional `scripts/team_socials_dataset.json` si existe
-- despues reutiliza `team_mentions` como bootstrap para no perder handles ya cargados
+- `scripts/seed_team_socials.py` arranca con bootstrap legacy desde `team_mentions`
+- despues aplica el dataset curado `scripts/team_socials_dataset.json`, que puede sobrescribir el bootstrap si hay mejor dato
 - `social_identity_service` resuelve por competicion, actividad, seguidores aproximados e identidad normalizada del club
+- `team_name_normalizer` convierte nombres tecnicos como `Atletico Baleares` o `SCR Pena Deportiva` a naming editorial consistente
 
 Ejemplo antes vs despues:
 
@@ -496,7 +505,8 @@ Resolucion de identidad:
 
 Uso operativo:
 - `editorial_formatter` puede producir texto formateado y luego enriquecerlo con handles
-- `typefully_export` prioriza `enriched_text` cuando no hay `rewritten_text`
+- `editorial_formatter` tambien puede producir `viral_formatted_text` mas compacto para salida social
+- `typefully_export` prioriza `viral_formatted_text` y luego `enriched_text` cuando no hay `rewritten_text`
 - el enriquecimiento esta pensado para `results_roundup`, `standings`, `standings_roundup`, `preview`, `ranking` y piezas con equipos identificables en `source_payload`
 - el limite de menciones por post es configurable y se valida otra vez en `quality_checks`
 
@@ -575,9 +585,10 @@ Flujo automatico v1:
 
 Flujo final de texto:
 1. `rewritten_text`
-2. `enriched_text`
-3. `formatted_text`
-4. `text_draft`
+2. `viral_formatted_text`
+3. `enriched_text`
+4. `formatted_text`
+5. `text_draft`
 
 Comandos de validacion manual recomendados:
 

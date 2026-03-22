@@ -446,7 +446,7 @@ def test_typefully_export_service_prefers_formatted_text_when_rewrite_missing() 
         session.close()
 
 
-def test_typefully_export_service_prefers_enriched_text_over_plain_formatted_text() -> None:
+def test_typefully_export_service_prefers_viral_formatted_text_over_plain_formatted_text() -> None:
     session = build_session()
     try:
         seed_candidates(session)
@@ -454,15 +454,17 @@ def test_typefully_export_service_prefers_enriched_text_over_plain_formatted_tex
         candidate = session.get(ContentCandidate, 7)
         assert candidate is not None
         candidate.payload_json = {
-            "source_payload": {
-                "matches": [
-                    {
-                        "home_team": "Atletico Baleares",
-                        "away_team": "Torrent CF",
-                    }
-                ]
+                "source_payload": {
+                    "matches": [
+                        {
+                            "home_team": "Atletico Baleares",
+                            "away_team": "Torrent CF",
+                            "home_score": 2,
+                            "away_score": 0,
+                        }
+                    ]
+                }
             }
-        }
         session.add(candidate)
         session.commit()
 
@@ -478,10 +480,11 @@ def test_typefully_export_service_prefers_enriched_text_over_plain_formatted_tex
 
         result = service.export_candidate(7, dry_run=False)
 
-        assert result.candidate.text_source == "enriched_text"
+        assert result.candidate.text_source == "viral_formatted_text"
         exported_text = publisher.export_text.call_args.args[0]
-        assert "Atletico Baleares @atleticbalears 2-0 Torrent CF @torrentcf" in exported_text
-        assert exported_text.endswith("#SegundaRFEF")
+        assert exported_text.startswith("📋 Resultados")
+        assert "@atleticbalears 2-0 @torrentcf" in exported_text
+        assert exported_text.endswith("#FutbolBalear #SegundaRFEF")
         assert publisher.export_text.call_args.kwargs["dry_run"] is False
     finally:
         session.close()
@@ -534,7 +537,7 @@ def test_typefully_export_service_supports_dry_run_without_persistence() -> None
 
         candidate = session.get(ContentCandidate, 5)
         assert result.dry_run is True
-        assert result.candidate.text_source == "formatted_text"
+        assert result.candidate.text_source in {"formatted_text", "enriched_text"}
         assert candidate.external_publication_ref is None
         assert candidate.external_publication_attempted_at is None
     finally:

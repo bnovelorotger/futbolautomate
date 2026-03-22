@@ -22,6 +22,7 @@ from app.schemas.typefully_autoexport import (
     TypefullyAutoexportPolicy,
     TypefullyAutoexportStatusView,
 )
+from app.schemas.story_importance import StoryImportanceCandidateView
 from app.services.typefully_autoexport_service import TypefullyAutoexportService
 from tests.unit.services.test_editorial_narratives import seed_competition
 from tests.unit.services.test_typefully_export_service import build_session, build_settings, seed_candidates
@@ -1032,10 +1033,33 @@ def test_typefully_autoexport_uses_stable_tiebreaker_on_same_importance() -> Non
             priority=95,
             created_at=datetime(2026, 3, 18, 10, 25, tzinfo=timezone.utc),
         )
+        class DummyStoryService:
+            @staticmethod
+            def score_row(row):
+                return StoryImportanceCandidateView(
+                    candidate_id=row.id,
+                    competition_slug=row.competition_slug,
+                    content_type=ContentType(row.content_type),
+                    status=ContentCandidateStatus(row.status),
+                    current_priority=row.priority,
+                    importance_score=75,
+                    importance_reasoning=["forced_tie"],
+                    tags=["forced_tie"],
+                    priority_bucket="medium",
+                    excerpt=row.text_draft,
+                    created_at=row.created_at,
+                    published_at=row.published_at,
+                )
+
+            @staticmethod
+            def is_automatic_narrative_content_type(content_type):
+                return False
+
         service = TypefullyAutoexportService(
             session,
             policy=build_policy(enabled=True, phase=1),
             settings=build_settings(),
+            story_service=DummyStoryService(),
         )
 
         result = service.run(dry_run=True, limit=10)

@@ -1,0 +1,335 @@
+[
+  {
+    "team_name": "UD Poblense",
+    "competition_slug": "segunda_rfef_g3_baleares",
+    "x_handle": "@udpoblense",
+    "followers_approx": 5290,
+    "activity_level": "alta",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "CD Atletico Baleares",
+    "competition_slug": "segunda_rfef_g3_baleares",
+    "x_handle": "@atleticbalears",
+    "followers_approx": 21792,
+    "activity_level": "muy_alta",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "CD Atletico Baleares Femenino",
+    "competition_slug": "segunda_rfef_g3_baleares",
+    "x_handle": "@ATBFem",
+    "followers_approx": 997,
+    "activity_level": "media",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "CD Ibiza Islas Pitiusas",
+    "competition_slug": "segunda_rfef_g3_baleares",
+    "x_handle": "@sdibizaip",
+    "followers_approx": 4732,
+    "activity_level": "alta",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "CE Andratx",
+    "competition_slug": "segunda_rfef_g3_baleares",
+    "x_handle": "@ce_andratx",
+    "followers_approx": 2009,
+    "activity_level": "alta",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "UE Porreres",
+    "competition_slug": "segunda_rfef_g3_baleares",
+    "x_handle": "@UEPorreres",
+    "followers_approx": null,
+    "activity_level": "media",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "RCD Mallorca B",
+    "competition_slug": "tercera_rfef_g11",
+    "x_handle": "@RCD_Mallorca",
+    "followers_approx": 352204,
+    "activity_level": "muy_alta",
+    "is_shared_handle": true,
+    "is_active": true
+  },
+  {
+    "team_name": "CD Manacor",
+    "competition_slug": "tercera_rfef_g11",
+    "x_handle": "@cemanacor",
+    "followers_approx": 2137,
+    "activity_level": "alta",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "SCR Pena Deportiva",
+    "competition_slug": "tercera_rfef_g11",
+    "x_handle": "@Penyadeportiva",
+    "followers_approx": 6790,
+    "activity_level": "alta",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "CD Llosetense",
+    "competition_slug": "tercera_rfef_g11",
+    "x_handle": "@CD_Llosetense",
+    "followers_approx": 2995,
+    "activity_level": "alta",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "CE Constancia",
+    "competition_slug": "tercera_rfef_g11",
+    "x_handle": "@CEConstancia",
+    "followers_approx": 4230,
+    "activity_level": "alta",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "CE Mercadal",
+    "competition_slug": "tercera_rfef_g11",
+    "x_handle": "@CeMercadal",
+    "followers_approx": 1117,
+    "activity_level": "media",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "Inter Ibiza CD",
+    "competition_slug": "tercera_rfef_g11",
+    "x_handle": "@InterIbiza",
+    "followers_approx": 277,
+    "activity_level": "baja_media",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "SD Formentera",
+    "competition_slug": "tercera_rfef_g11",
+    "x_handle": "@sdformentera",
+    "followers_approx": 11604,
+    "activity_level": "alta",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "CD Cardassar",
+    "competition_slug": "tercera_rfef_g11",
+    "x_handle": "@cardassar",
+    "followers_approx": 1489,
+    "activity_level": "media",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "CE Santanyi",
+    "competition_slug": "tercera_rfef_g11",
+    "x_handle": "@CE_Santanyi",
+    "followers_approx": 1675,
+    "activity_level": "media",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "UE Alcudia",
+    "competition_slug": "tercera_rfef_g11",
+    "x_handle": "@ue_alcudia",
+    "followers_approx": null,
+    "activity_level": "media",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "CF Platges de Calvia",
+    "competition_slug": "tercera_rfef_g11",
+    "x_handle": "@playasdcalvia",
+    "followers_approx": null,
+    "activity_level": "media",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "CD Binissalem",
+    "competition_slug": "tercera_rfef_g11",
+    "x_handle": "@CDBinissalem",
+    "followers_approx": 1672,
+    "activity_level": "media",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "CD Son Cladera",
+    "competition_slug": "tercera_rfef_g11",
+    "x_handle": "@CD_SonCladera",
+    "followers_approx": 440,
+    "activity_level": "baja_media",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "SD Portmany",
+    "competition_slug": "tercera_rfef_g11",
+    "x_handle": "@sdportmany",
+    "followers_approx": 1202,
+    "activity_level": "media",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "CE Felanitx",
+    "competition_slug": "tercera_rfef_g11",
+    "x_handle": "@cefelanitx",
+    "followers_approx": 1640,
+    "activity_level": "media",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "UD Collerense",
+    "competition_slug": "tercera_rfef_g11",
+    "x_handle": "@udcolleoficial",
+    "followers_approx": 1913,
+    "activity_level": "media",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "UD Rotlet Molinar",
+    "competition_slug": "tercera_rfef_g11",
+    "x_handle": "@udrotletmolinar",
+    "followers_approx": 1432,
+    "activity_level": "media",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "CE Andratx B",
+    "competition_slug": "division_honor_mallorca",
+    "x_handle": "@ce_andratx",
+    "followers_approx": 2009,
+    "activity_level": "alta",
+    "is_shared_handle": true,
+    "is_active": true
+  },
+  {
+    "team_name": "CE Sineu",
+    "competition_slug": "division_honor_mallorca",
+    "x_handle": "@ce_sineu",
+    "followers_approx": 500,
+    "activity_level": "media",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "CD Ferriolense",
+    "competition_slug": "division_honor_mallorca",
+    "x_handle": "@cd_ferriolense",
+    "followers_approx": 1598,
+    "activity_level": "media",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "CE Esporles",
+    "competition_slug": "division_honor_mallorca",
+    "x_handle": "@CE_Esporles",
+    "followers_approx": 1066,
+    "activity_level": "media",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "CD Serverense",
+    "competition_slug": "division_honor_mallorca",
+    "x_handle": "@CdServerense",
+    "followers_approx": null,
+    "activity_level": "media",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "Sta Catalina Atl",
+    "competition_slug": "division_honor_mallorca",
+    "x_handle": "@StaCatalinaAT",
+    "followers_approx": null,
+    "activity_level": "baja_media",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "CE Sant Jordi",
+    "competition_slug": "division_honor_mallorca",
+    "x_handle": "@cdsantjordi",
+    "followers_approx": 819,
+    "activity_level": "media",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "CF Soller",
+    "competition_slug": "division_honor_mallorca",
+    "x_handle": "@CF_Soller",
+    "followers_approx": 1019,
+    "activity_level": "media",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "Platges Calvia B",
+    "competition_slug": "division_honor_mallorca",
+    "x_handle": "@playasdcalvia",
+    "followers_approx": null,
+    "activity_level": "media",
+    "is_shared_handle": true,
+    "is_active": true
+  },
+  {
+    "team_name": "CE Campos",
+    "competition_slug": "division_honor_mallorca",
+    "x_handle": "@clubecampos",
+    "followers_approx": 1216,
+    "activity_level": "media",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "Inter Manacor",
+    "competition_slug": "division_honor_mallorca",
+    "x_handle": "@InterManacor",
+    "followers_approx": null,
+    "activity_level": "baja_media",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "UD Alaro",
+    "competition_slug": "division_honor_mallorca",
+    "x_handle": "@UeAlaro",
+    "followers_approx": null,
+    "activity_level": "media",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "UE Alcudia B",
+    "competition_slug": "division_honor_mallorca",
+    "x_handle": "@ue_alcudia",
+    "followers_approx": null,
+    "activity_level": "media",
+    "is_shared_handle": true,
+    "is_active": true
+  }
+]

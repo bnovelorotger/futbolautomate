@@ -107,21 +107,16 @@ class TypefullyExportService:
         draft_text = _usable_text(candidate.text_draft)
         if draft_text is None:
             raise InvalidStateTransitionError(f"El candidato {candidate.id} no tiene text_draft utilizable")
-        formatted_text = _usable_text(candidate.formatted_text) or _usable_text(
-            self.formatter.format_candidate(candidate)
-        )
-        enriched_text = _usable_text(
-            self.formatter.enrich_text(
-                competition_slug=candidate.competition_slug,
-                content_type=ContentType(candidate.content_type),
-                text=formatted_text or draft_text,
-                payload_json=candidate.payload_json or {},
-            )
-        )
+        layers = self.formatter.build_text_layers_for_candidate(candidate)
+        formatted_text = _usable_text(candidate.formatted_text) or _usable_text(layers.formatted_text)
+        enriched_text = _usable_text(layers.enriched_text)
+        viral_formatted_text = _usable_text(layers.viral_formatted_text)
         if prefer_rewrite and rewrite_text is not None:
             return rewrite_text, "rewritten_text", True, formatted_text is not None
         if not prefer_rewrite:
             return draft_text, "text_draft", rewrite_text is not None, formatted_text is not None
+        if viral_formatted_text is not None and viral_formatted_text != (enriched_text or formatted_text or draft_text):
+            return viral_formatted_text, "viral_formatted_text", rewrite_text is not None, formatted_text is not None
         if enriched_text is not None and enriched_text != (formatted_text or draft_text):
             return enriched_text, "enriched_text", rewrite_text is not None, formatted_text is not None
         if formatted_text is not None:

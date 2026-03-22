@@ -32,6 +32,8 @@ _TEAM_KEYS = {"team", "teams", "home_team", "away_team", "runner_up_team"}
 _METRIC_VALUE_KEYS = {"metric_value", "recent_points", "recent_goals_for", "delta"}
 _MIN_STAT_NARRATIVE_MATCHES = 4
 _HANDLE_PATTERN = re.compile(r"(?<!\w)@[A-Za-z0-9_]{1,15}")
+_HASHTAG_PATTERN = re.compile(r"(?<!\w)#[A-Za-z0-9_]+")
+_MAX_EDITORIAL_TEXT_LENGTH = 240
 
 
 def _excerpt(text: str, limit: int = 110) -> str:
@@ -235,9 +237,10 @@ class EditorialQualityChecksService:
             errors.append("selected_text_empty")
             return errors, warnings
 
-        if len(selected_text) > self.policy.max_text_length:
-            errors.append(f"text_too_long>{self.policy.max_text_length}")
-        elif len(selected_text) >= int(self.policy.max_text_length * 0.9):
+        max_text_length = min(self.policy.max_text_length, _MAX_EDITORIAL_TEXT_LENGTH)
+        if len(selected_text) > max_text_length:
+            errors.append(f"text_too_long>{max_text_length}")
+        elif len(selected_text) >= int(max_text_length * 0.9):
             warnings.append("text_near_limit")
 
         if "\x00" in selected_text:
@@ -271,6 +274,12 @@ class EditorialQualityChecksService:
         normalized_handles = [handle.lower() for handle in handles]
         if len(set(normalized_handles)) != len(normalized_handles):
             errors.append("text_mentions_duplicated")
+        hashtags = _HASHTAG_PATTERN.findall(selected_text)
+        if len(hashtags) > 2:
+            errors.append("text_hashtags_exceed_max>2")
+        normalized_hashtags = [hashtag.lower() for hashtag in hashtags]
+        if len(set(normalized_hashtags)) != len(normalized_hashtags):
+            errors.append("text_hashtags_duplicated")
 
         competition = self.session.scalar(
             select(Competition).where(Competition.code == candidate.competition_slug)

@@ -9,6 +9,10 @@ from app.db.models import TeamMention, TeamSocial
 from app.db.session import init_db, session_scope
 
 DATASET_PATH = Path(__file__).resolve().with_name("team_socials_dataset.json")
+_ALLOWED_ACTIVITY_LEVELS = {"muy_alta", "alta", "media", "baja_media", "baja"}
+_ACTIVITY_ALIASES = {
+    "media_baja": "baja_media",
+}
 
 
 def _normalize_handle(handle: str | None) -> str | None:
@@ -30,6 +34,14 @@ def _dataset_rows() -> list[dict]:
     if not isinstance(payload, list):
         raise ValueError(f"Dataset invalido en {DATASET_PATH}")
     return [row for row in payload if isinstance(row, dict)]
+
+
+def _normalize_activity_level(value: str | None) -> str:
+    normalized = str(value or "media").strip().lower()
+    normalized = _ACTIVITY_ALIASES.get(normalized, normalized)
+    if normalized not in _ALLOWED_ACTIVITY_LEVELS:
+        return "media"
+    return normalized
 
 
 def _legacy_rows(session) -> list[dict]:
@@ -74,7 +86,7 @@ def _upsert_row(session, payload: dict) -> tuple[bool, bool]:
             competition_slug=competition_slug,
             x_handle=handle,
             followers_approx=payload.get("followers_approx"),
-            activity_level=str(payload.get("activity_level") or "media"),
+            activity_level=_normalize_activity_level(payload.get("activity_level")),
             is_shared_handle=bool(payload.get("is_shared_handle", False)),
             is_active=bool(payload.get("is_active", True)),
         )
@@ -89,7 +101,7 @@ def _upsert_row(session, payload: dict) -> tuple[bool, bool]:
     if row.followers_approx != new_followers:
         row.followers_approx = new_followers
         updated = True
-    new_activity = str(payload.get("activity_level") or "media")
+    new_activity = _normalize_activity_level(payload.get("activity_level"))
     if row.activity_level != new_activity:
         row.activity_level = new_activity
         updated = True
@@ -114,7 +126,7 @@ def main() -> None:
         created = 0
         updated = 0
         skipped = 0
-        for payload in [*dataset_rows, *bootstrap_rows]:
+        for payload in [*bootstrap_rows, *dataset_rows]:
             inserted, changed = _upsert_row(session, payload)
             if inserted:
                 created += 1

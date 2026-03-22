@@ -473,3 +473,43 @@ def test_quality_checks_keep_older_roundup_valid_after_publish_state_changes() -
         assert result.candidate.errors == []
     finally:
         session.close()
+
+
+def test_quality_checks_block_more_than_two_hashtags() -> None:
+    session = build_session()
+    try:
+        seed_narratives_data(session)
+        candidate = ContentCandidate(
+            competition_slug="tercera_rfef_g11",
+            content_type="results_roundup",
+            priority=99,
+            text_draft="📋 Resultados 3a RFEF Baleares\n\nCD Llosetense 2-0 SD Portmany\n\n#FutbolBalear #TerceraRFEF #Extra",
+            payload_json={
+                "content_key": "results_roundup:hashtags",
+                "source_payload": {
+                    "selected_matches_count": 1,
+                    "omitted_matches_count": 0,
+                    "matches": [
+                        {"home_team": "CD Llosetense", "away_team": "SD Portmany", "home_score": 2, "away_score": 0}
+                    ],
+                },
+            },
+            source_summary_hash="quality-too-many-hashtags",
+            status="published",
+            reviewed_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+            approved_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+            published_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+        )
+        session.add(candidate)
+        session.commit()
+
+        result = EditorialQualityChecksService(
+            session,
+            settings=build_settings(),
+            policy=build_policy(enabled=True),
+        ).check_candidate(candidate.id, dry_run=False, prefer_rewrite=False)
+
+        assert result.candidate.passed is False
+        assert "text_hashtags_exceed_max>2" in result.candidate.errors
+    finally:
+        session.close()

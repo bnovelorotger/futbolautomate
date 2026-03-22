@@ -508,7 +508,12 @@ class StoryImportanceService:
         return sorted(names)
 
     def _recent_candidates(self, candidate: ContentCandidate) -> list[ContentCandidate]:
-        cutoff = utcnow() - timedelta(hours=self.config.repetition.window_hours)
+        reference_timestamp = candidate.published_at or candidate.created_at or utcnow()
+        if reference_timestamp.tzinfo is None:
+            reference_timestamp = reference_timestamp.replace(tzinfo=timezone.utc)
+        else:
+            reference_timestamp = reference_timestamp.astimezone(timezone.utc)
+        cutoff = reference_timestamp - timedelta(hours=self.config.repetition.window_hours)
         query = (
             select(ContentCandidate)
             .where(
@@ -522,8 +527,8 @@ class StoryImportanceService:
                     ]
                 ),
                 or_(
-                    ContentCandidate.published_at >= cutoff,
-                    ContentCandidate.created_at >= cutoff,
+                    ContentCandidate.published_at.between(cutoff, reference_timestamp),
+                    ContentCandidate.created_at.between(cutoff, reference_timestamp),
                 ),
             )
             .order_by(ContentCandidate.created_at.desc())
