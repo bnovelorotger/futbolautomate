@@ -23,6 +23,7 @@ from app.schemas.editorial_narratives import (
 )
 from app.schemas.reporting import CompetitionMatchView
 from app.services.competition_queries import CompetitionQueryService
+from app.services.competition_relevance import CompetitionRelevanceService
 from app.services.editorial_formatter import EditorialFormatterService
 from app.utils.hashing import stable_hash
 from app.utils.time import utcnow
@@ -96,6 +97,7 @@ class EditorialNarrativesService:
         self.session = session
         self.repository = ContentCandidateRepository(session)
         self.queries = CompetitionQueryService(session)
+        self.relevance = CompetitionRelevanceService()
         self.competition_catalog = load_competition_catalog()
         self.timezone_name = get_settings().timezone
 
@@ -206,9 +208,10 @@ class EditorialNarrativesService:
             )
 
         try:
-            best_attack = next(iter(self.queries.top_scoring_teams(competition_code, limit=1)), None)
-            best_defense = next(iter(self.queries.best_defense_teams(competition_code, limit=1)), None)
-            most_wins = next(iter(self.queries.most_wins_teams(competition_code, limit=1)), None)
+            standings = self.queries.current_standings(competition_code)
+            best_attack = next(iter(self.relevance.top_scoring_teams_from_standings(competition_code, standings, limit=1)), None)
+            best_defense = next(iter(self.relevance.best_defense_teams_from_standings(competition_code, standings, limit=1)), None)
+            most_wins = next(iter(self.relevance.most_wins_teams_from_standings(competition_code, standings, limit=1)), None)
         except ConfigurationError:
             best_attack = None
             best_defense = None

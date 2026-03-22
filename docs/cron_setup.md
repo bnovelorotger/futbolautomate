@@ -9,7 +9,7 @@ La automatizacion de uFutbolBalear es deliberadamente externa. `cron` no contien
 - la logica editorial sigue en el backend
 - no hay scheduler interno
 - no hay autopublicacion
-- no hay exportacion automatica a Typefully
+- la exportacion JSON local sigue siendo un paso explicito
 
 ## Scripts creados
 
@@ -35,6 +35,7 @@ Ruta: `scripts/cron/`
 - `run_slot.sh`
   - envoltorio opcional
   - soporta `refresh`, `readiness` y `editorial-day`
+  - no incluye `editorial-release`; ese cierre sigue siendo manual por ahora
 
 ## Variables y entorno
 
@@ -52,8 +53,6 @@ Variables minimas utiles para cron:
 
 ```bash
 DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/futbol_balear
-TYPEFULLY_API_KEY=tu_api_key
-TYPEFULLY_API_URL=https://api.typefully.com
 APP_TIMEZONE=Europe/Madrid
 PYTHON_BIN=/srv/ufutbolbalear/.venv/bin/python
 ```
@@ -61,7 +60,6 @@ PYTHON_BIN=/srv/ufutbolbalear/.venv/bin/python
 Notas:
 
 - `PYTHON_BIN` puede definirse en `.env.cron` o en la propia `crontab`
-- `TYPEFULLY_*` se usan por `editorial-readiness`, aunque no haya autoexport
 - no metas secretos directamente en la `crontab` si puedes evitarlos
 - `PREVIEW_ONLY=true` permite un primer despliegue seguro sin persistir borradores editoriales
 
@@ -113,7 +111,7 @@ Esta propuesta esta adaptada al estado real actual del sistema:
 - competiciones operativas: `tercera_rfef_g11`, `segunda_rfef_g3_baleares`, `division_honor_mallorca`
 - planner semanal operativo: lunes, miercoles, viernes y domingo
 - juvenil/femenino: pendiente de integracion end-to-end
-- sin exportacion automatica a Typefully
+- sin `editorial_release` automatizado en cron por ahora
 
 ```cron
 SHELL=/bin/bash
@@ -164,8 +162,9 @@ Esta frecuencia es razonable hoy porque:
 - revisar la cola en `editorial_queue`
 - `approve` / `reject`
 - `publication_dispatch`
-- exportacion a Typefully
-- edicion final, ajuste fino y programacion en Typefully
+- ejecutar `python -m app.pipelines.editorial_release run --date <fecha>` para generar `export/export_base.json`
+- revisar el JSON exportado y entregarlo al canal final
+- edicion final, ajuste fino y programacion en la herramienta externa que toque
 
 ## Checklist diaria recomendada
 
@@ -183,8 +182,8 @@ Para preparar salida manual:
 2. revisar `editorial_queue show --id <ID>`
 3. aprobar manualmente
 4. despachar con `publication_dispatch dispatch --include-unscheduled`
-5. validar con `typefully_export dry-run --id <ID>`
-6. exportar con `typefully_export export --id <ID>`
+5. validar con `python -m app.pipelines.editorial_release dry-run --date <fecha>`
+6. generar `export/export_base.json` con `python -m app.pipelines.editorial_release run --date <fecha>`
 
 ### Primer despliegue seguro
 

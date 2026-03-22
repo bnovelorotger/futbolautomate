@@ -16,11 +16,12 @@ Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolida
 - scoring de `match_importance` para partidos destacados
 - agregados editoriales `results_roundup` y `standings_roundup`
 - `editorial_formatter` como capa determinista previa a exportacion
+- `editorial_release` + `export_json_service` para generar `export/export_base.json`
 - `viral_formatted_text` como capa compacta para export seguro en resultados, clasificaciones, previas y rankings
 - `team_socials` + `social_enricher` para insertar menciones de clubes sin duplicados
 - `team_name_aliases.json` + `team_name_normalizer` para fijar naming editorial consistente
 - dataset curado `scripts/team_socials_dataset.json` para poblar `team_socials`
-- `story_importance` para ordenar prioridad dentro del autoexport seguro
+- `story_importance` para ordenar prioridad dentro del release seguro
 - scope automatico v1 acotado a piezas seguras y reversibles
 
 ## Que incluye ahora
@@ -29,7 +30,7 @@ Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolida
 - Catalogo de competiciones y reglas editoriales configurables.
 - Persistencia con SQLAlchemy y migraciones con Alembic.
 - Pipelines CLI con Typer para scraping, consultas y operativa editorial.
-- Flujos para aprobacion editorial, exportacion a Typefully y publicacion en X.
+- Flujos para aprobacion editorial, exportacion JSON local y publicacion en X.
 - Suite de tests unitarios e integracion.
 
 ## Estructura principal
@@ -72,7 +73,8 @@ python -m app.pipelines.standings_history latest --competition tercera_rfef_g11
 python -m app.pipelines.standings_events show --competition tercera_rfef_g11
 python -m app.pipelines.team_form ranking --competition tercera_rfef_g11
 python -m app.pipelines.results_roundup show --competition tercera_rfef_g11
-python -m app.pipelines.typefully_export verify-config
+python -m app.pipelines.editorial_quality_checks dry-run --date 2026-03-22
+python -m app.pipelines.editorial_release dry-run --date 2026-03-22
 python -m app.pipelines.x_auth start-auth
 ```
 
@@ -85,7 +87,7 @@ pytest
 ## Estado actual del desarrollo
 
 - La base tecnica de scraping, persistencia y consultas ya existe y tiene tests.
-- El repo contiene capa editorial, cola de aprobacion y release hacia Typefully/X a nivel de codigo.
+- El repo contiene capa editorial, cola de aprobacion y release hacia `export/export_base.json`, con publicacion en X todavia desacoplada.
 - La operativa real depende de credenciales, base de datos y tareas programadas locales.
 - Falta endurecer el flujo de trabajo de equipo: ramas, CI, politicas de revision y despliegue.
 
@@ -286,7 +288,7 @@ Texto:
 - breve
 - centrado en competicion y marcadores
 - sin analisis inventado
-- apto para Typefully/X
+- apto para `export/export_base.json` y para publicacion posterior en X
 
 Control de longitud:
 - limite por defecto de `280` caracteres
@@ -316,7 +318,7 @@ Integracion editorial:
 - lunes y domingo el planner usa `results_roundup` como bloque principal de resultados
 - `match_result` individual sigue existiendo en el backend y no se elimina en esta fase
 - `results_roundup` sigue generandose primero en `draft`
-- `results_roundup` entra en el carril automatico seguro: `draft -> autoapproval -> dispatch -> Typefully autoexport`
+- `results_roundup` entra en el carril seguro: `draft -> quality_checks -> autoapproval -> dispatch -> export_json`
 - en `phase=1` se trata como pieza segura junto a `standings_roundup`, `preview` y `ranking`
 - `match_result` individual sigue existiendo para casos legacy o gestion manual, pero ya no es la salida principal de resultados del planner
 
@@ -346,7 +348,7 @@ Texto:
 - breve
 - centrado en posiciones y puntos
 - sin analisis inventado
-- apto para Typefully/X
+- apto para `export/export_base.json` y para publicacion posterior en X
 
 CLI:
 
@@ -372,7 +374,7 @@ Integracion editorial:
 - lunes el planner usa `results_roundup + standings_roundup`
 - domingo el planner usa `results_roundup + standings_roundup` para las competiciones activas del cierre de jornada
 - `standings_roundup` se genera en `draft`
-- `standings_roundup` entra en el carril automatico seguro: `draft -> autoapproval -> dispatch -> Typefully autoexport`
+- `standings_roundup` entra en el carril seguro: `draft -> quality_checks -> autoapproval -> dispatch -> export_json`
 - en `phase=1` se trata como pieza segura junto a `results_roundup`, `preview` y `ranking`
 - `standings` individual sigue existiendo como capa legacy o fallback manual
 
@@ -480,7 +482,8 @@ Como probarlo:
 ```bash
 python -m app.pipelines.results_roundup generate --competition tercera_rfef_g11
 python -m app.pipelines.standings_roundup generate --competition tercera_rfef_g11
-python -m app.pipelines.typefully_export dry-run --id 68
+python -m app.pipelines.editorial_quality_checks dry-run --date 2026-03-22
+python -m app.pipelines.editorial_release dry-run --date 2026-03-22
 python -m app.pipelines.editorial_rewrite dry-run --id 68
 ```
 
@@ -506,9 +509,35 @@ Resolucion de identidad:
 Uso operativo:
 - `editorial_formatter` puede producir texto formateado y luego enriquecerlo con handles
 - `editorial_formatter` tambien puede producir `viral_formatted_text` mas compacto para salida social
-- `typefully_export` prioriza `viral_formatted_text` y luego `enriched_text` cuando no hay `rewritten_text`
+- `editorial_text_selector` prioriza `viral_formatted_text` y luego `enriched_text` cuando no hay `rewritten_text`
 - el enriquecimiento esta pensado para `results_roundup`, `standings`, `standings_roundup`, `preview`, `ranking` y piezas con equipos identificables en `source_payload`
 - el limite de menciones por post es configurable y se valida otra vez en `quality_checks`
+
+## Export JSON local
+
+La salida automatica actual del release no crea drafts en un canal externo. Genera un fichero local `export/export_base.json`.
+
+Flujo actual:
+- `editorial_quality_checks`
+- `editorial_approval`
+- `publication_dispatch`
+- `export_json_service`
+
+Que persiste cada fila:
+- `id`
+- `content_type`
+- `competition`
+- `group`
+- `match_date`
+- `tweet`
+- `created_at`
+
+Reglas operativas:
+- solo exporta piezas ya `published`
+- respeta la ventana editorial por jornada usando `editorial_candidate_window`
+- usa `editorial_text_selector` para elegir `rewritten_text`, `viral_formatted_text`, `enriched_text`, `formatted_text` o `text_draft`
+- bloquea series partidas de `results_roundup` o `standings_roundup` si falta alguna parte o alguna pieza no pasa `quality_checks`
+- el fichero `export/export_base.json` es artefacto local de salida, no fuente editable del sistema
 
 ## Story Importance
 
@@ -539,16 +568,9 @@ python -m app.pipelines.story_importance rank-pending
 ```
 
 Uso actual en produccion v1:
-- ordena las piezas ya elegibles dentro de `typefully_autoexport`
-- no amplia la policy automatica
-- no mete narrativas en el carril automatico por si solo
-
-Integracion actual con autoexport:
-- primero se aplica la policy normal de `typefully_autoexport`
-- despues se ejecutan `quality_checks`
-- solo sobre las piezas ya elegibles se calcula `importance_score`
-- el orden final es `importance_score desc`, luego `priority desc`, luego `created_at asc` y por ultimo `id asc`
-- `dry-run`, `run` y `pending-capacity` muestran `score`, `bucket` y `order`
+- se mantiene como scoring CLI y como base para futuras politicas condicionales
+- no amplia la policy automatica v1 por si solo
+- hoy el carril seguro sigue cerrado a los tipos autoaprobables definidos en `editorial_approval_policy`
 
 Limitaciones:
 - no persiste `importance_score` en BD; el calculo es al vuelo
@@ -579,9 +601,11 @@ Manual v1:
 
 Flujo automatico v1:
 - `editorial_ops run-daily`
-- `editorial_approval`
-- `publication_dispatch`
-- `typefully_autoexport`
+- `editorial_release`
+  - `editorial_quality_checks`
+  - `editorial_approval`
+  - `publication_dispatch`
+  - `export/export_base.json`
 
 Flujo final de texto:
 1. `rewritten_text`
@@ -594,16 +618,17 @@ Comandos de validacion manual recomendados:
 
 ```bash
 python -m app.pipelines.editorial_approval dry-run --date 2026-03-17
-python -m app.pipelines.editorial_release dry-run --date 2026-03-17
-python -m app.pipelines.editorial_release dry-run --date 2026-03-14
-python -m app.pipelines.typefully_autoexport status
-python -m app.pipelines.typefully_autoexport dry-run --date 2026-03-17
+python -m app.pipelines.editorial_quality_checks dry-run --date 2026-03-22
+python -m app.pipelines.editorial_release dry-run --date 2026-03-22
+python -m app.pipelines.editorial_release run --date 2026-03-22
+python -m app.pipelines.system_check editorial-readiness
 ```
 
 Notas operativas:
 - `results_roundup` y `standings_roundup` son la salida principal de resultados y clasificacion
 - `match_result` y `standings` se mantienen como fallback/legacy manual
 - `preview` y `ranking` siguen siendo piezas automaticas seguras
+- `editorial_release` genera `export/export_base.json` como artefacto local listo para canalizacion externa o revision manual
 - no se anaden nuevas features en esta fase; las mejoras futuras quedan para una iteracion posterior
 
 ## Control de versiones

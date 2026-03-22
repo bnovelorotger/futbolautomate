@@ -12,19 +12,18 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings, get_settings
 from app.core.enums import ContentCandidateStatus, ContentType, NarrativeMetricType, ViralStoryType
 from app.core.exceptions import ConfigurationError, InvalidStateTransitionError
-from app.core.typefully_autoexport import load_typefully_autoexport_policy
 from app.db.models import Competition, ContentCandidate, Match, Standing
+from app.schemas.editorial_export import EditorialExportPolicy
 from app.schemas.editorial_quality_checks import (
     EditorialQualityCheckBatchResult,
     EditorialQualityCheckCandidateDetail,
     EditorialQualityCheckCandidateView,
     EditorialQualityCheckResult,
 )
-from app.schemas.typefully_autoexport import TypefullyAutoexportPolicy
 from app.services.editorial_narratives import METRIC_NARRATIVE_THRESHOLDS
 from app.services.editorial_formatter import normalize_team_identity_value
+from app.services.editorial_text_selector import EditorialTextSelectorService
 from app.services.editorial_viral_stories import VIRAL_STORY_THRESHOLDS
-from app.services.typefully_export_service import TypefullyExportService
 from app.normalizers.text import normalize_token
 from app.utils.time import utcnow
 
@@ -34,6 +33,11 @@ _MIN_STAT_NARRATIVE_MATCHES = 4
 _HANDLE_PATTERN = re.compile(r"(?<!\w)@[A-Za-z0-9_]{1,15}")
 _HASHTAG_PATTERN = re.compile(r"(?<!\w)#[A-Za-z0-9_]+")
 _MAX_EDITORIAL_TEXT_LENGTH = 240
+_RESULTS_TITLE_PATTERN = re.compile(r"^📋 Resultados - .+ - J\d+(?: \(\d+/\d+\))?$")
+_STANDINGS_TITLE_PATTERN = re.compile(r"^📊 Clasificación - .+ - J\d+(?: \(\d+/\d+\))?$")
+_PREVIEW_TITLE_PATTERN = re.compile(r"^🔎 Previa - .+ - J\d+$")
+_RANKING_TITLE_PATTERN = re.compile(r"^🏆 .+ - .+")
+_MATCH_RESULT_TITLE_PATTERN = re.compile(r"^📋 Resultado - .+ - J\d+$")
 
 
 def _excerpt(text: str, limit: int = 110) -> str:
@@ -52,14 +56,14 @@ class EditorialQualityChecksService:
         self,
         session: Session,
         *,
-        export_service: TypefullyExportService | None = None,
+        text_selector: EditorialTextSelectorService | None = None,
         settings: Settings | None = None,
-        policy: TypefullyAutoexportPolicy | None = None,
+        policy: EditorialExportPolicy | None = None,
     ) -> None:
         self.session = session
         self.settings = settings or get_settings()
-        self.policy = policy or load_typefully_autoexport_policy()
-        self.export_service = export_service or TypefullyExportService(session, settings=self.settings)
+        self.policy = policy or EditorialExportPolicy()
+        self.text_selector = text_selector or EditorialTextSelectorService(session)
         self._competition_team_cache: dict[str, set[str]] = {}
 
     def check_candidate(
@@ -137,7 +141,7 @@ class EditorialQualityChecksService:
                 raise ConfigurationError(f"Content candidate desconocido: {candidate_id}")
             if require_published and row.status != str(ContentCandidateStatus.PUBLISHED):
                 raise InvalidStateTransitionError(
-                    "Los quality checks de autoexport solo aplican a candidatos en estado published. "
+                    "Los quality checks de exportacion solo aplican a candidatos en estado published. "
                     f"Estado actual: {row.status}"
                 )
             detail = self._check_candidate(row, prefer_rewrite=rewrite_preference, persist=not dry_run)
@@ -161,7 +165,7 @@ class EditorialQualityChecksService:
             raise ConfigurationError(f"Content candidate desconocido: {candidate_id}")
         if candidate.status != str(ContentCandidateStatus.PUBLISHED):
             raise InvalidStateTransitionError(
-                "Los quality checks de autoexport solo aplican a candidatos en estado published. "
+                "Los quality checks de exportacion solo aplican a candidatos en estado published. "
                 f"Estado actual: {candidate.status}"
             )
         return candidate
@@ -173,10 +177,11 @@ class EditorialQualityChecksService:
         prefer_rewrite: bool,
         persist: bool,
     ) -> EditorialQualityCheckCandidateDetail:
-        selected_text, text_source, _, _ = self.export_service._selected_text(
+        selection = self.text_selector.select_text(
             candidate,
             prefer_rewrite=prefer_rewrite,
         )
+        selected_text = selection.text
         errors, warnings = self._evaluate(candidate, selected_text, prefer_rewrite=prefer_rewrite)
         checked_at = utcnow()
         if persist:
@@ -191,7 +196,7 @@ class EditorialQualityChecksService:
             content_type=ContentType(candidate.content_type),
             priority=candidate.priority,
             status=ContentCandidateStatus(candidate.status),
-            text_source=text_source,
+            text_source=selection.source,
             selected_text=selected_text,
             payload_json=candidate.payload_json or {},
             passed=not errors,
@@ -265,6 +270,13 @@ class EditorialQualityChecksService:
             ContentType.FEATURED_MATCH_EVENT,
         }:
             max_line_breaks = max(max_line_breaks, 8)
+        if content_type in {
+            ContentType.PREVIEW,
+            ContentType.FEATURED_MATCH_PREVIEW,
+            ContentType.RANKING,
+            ContentType.FORM_RANKING,
+        }:
+            max_line_breaks = max(max_line_breaks, 10)
         if selected_text.count("\n") > max_line_breaks:
             errors.append(f"text_excessive_line_breaks>{max_line_breaks}")
 
@@ -297,6 +309,7 @@ class EditorialQualityChecksService:
             return sorted(set(errors)), warnings
 
         errors.extend(self._coherence_errors(candidate, source_payload))
+        errors.extend(self._structure_errors(candidate, selected_text, source_payload))
         errors.extend(self._duplicate_errors(candidate, selected_text, prefer_rewrite=prefer_rewrite))
         errors.extend(self._significance_errors(candidate, source_payload))
 
@@ -351,6 +364,75 @@ class EditorialQualityChecksService:
             errors.append("viral_story_type_missing")
         return errors
 
+    def _structure_errors(
+        self,
+        candidate: ContentCandidate,
+        selected_text: str,
+        source_payload: dict[str, Any],
+    ) -> list[str]:
+        errors: list[str] = []
+        content_type = ContentType(candidate.content_type)
+        first_line = selected_text.splitlines()[0].strip() if selected_text.splitlines() else ""
+
+        if content_type == ContentType.RESULTS_ROUNDUP:
+            if not _RESULTS_TITLE_PATTERN.match(first_line):
+                errors.append("results_roundup_title_invalid")
+            matches = source_payload.get("matches")
+            if isinstance(matches, list):
+                if len(matches) > 4:
+                    errors.append("results_roundup_partition_exceeds_max_matches")
+                if source_payload.get("selected_matches_count") != len(matches):
+                    errors.append("results_roundup_selected_matches_count_mismatch")
+            part_total = source_payload.get("part_total")
+            part_index = source_payload.get("part_index")
+            if isinstance(part_total, int) and part_total > 1:
+                if not isinstance(part_index, int) or part_index < 1 or part_index > part_total:
+                    errors.append("results_roundup_partition_invalid")
+                if f"({part_index}/{part_total})" not in first_line:
+                    errors.append("results_roundup_partition_title_missing")
+
+        if content_type in {ContentType.STANDINGS, ContentType.STANDINGS_ROUNDUP}:
+            if not _STANDINGS_TITLE_PATTERN.match(first_line):
+                errors.append("standings_title_invalid")
+            rows = source_payload.get("rows")
+            if isinstance(rows, list) and source_payload.get("selected_rows_count") is not None:
+                if source_payload.get("selected_rows_count") != len(rows):
+                    errors.append("standings_selected_rows_count_mismatch")
+            if content_type == ContentType.STANDINGS_ROUNDUP:
+                part_total = source_payload.get("part_total")
+                part_index = source_payload.get("part_index")
+                split_focus = source_payload.get("split_focus")
+                if isinstance(part_total, int) and part_total > 1:
+                    if part_total != 2:
+                        errors.append("standings_roundup_partition_total_invalid")
+                    if split_focus not in {"top", "relegation"}:
+                        errors.append("standings_roundup_split_focus_invalid")
+                    if not isinstance(part_index, int) or part_index < 1 or part_index > part_total:
+                        errors.append("standings_roundup_partition_invalid")
+                    if isinstance(part_index, int) and f"({part_index}/{part_total})" not in first_line:
+                        errors.append("standings_roundup_partition_title_missing")
+
+        if content_type in {ContentType.PREVIEW, ContentType.FEATURED_MATCH_PREVIEW}:
+            if not _PREVIEW_TITLE_PATTERN.match(first_line):
+                errors.append("preview_title_invalid")
+
+        if content_type in {ContentType.RANKING, ContentType.FORM_RANKING}:
+            if not _RANKING_TITLE_PATTERN.match(first_line):
+                errors.append("ranking_title_invalid")
+            if content_type == ContentType.RANKING:
+                ranking_teams: list[str] = []
+                for key in ("best_attack", "best_defense", "most_wins"):
+                    value = source_payload.get(key)
+                    if isinstance(value, dict) and isinstance(value.get("team"), str):
+                        ranking_teams.append(normalize_team_identity_value(value["team"]))
+                if len(set(ranking_teams)) != len(ranking_teams):
+                    errors.append("ranking_duplicate_teams")
+
+        if content_type == ContentType.MATCH_RESULT and not _MATCH_RESULT_TITLE_PATTERN.match(first_line):
+            errors.append("match_result_title_invalid")
+
+        return errors
+
     def _duplicate_errors(
         self,
         candidate: ContentCandidate,
@@ -382,7 +464,10 @@ class EditorialQualityChecksService:
             if row_timestamp == candidate_timestamp and row.id > candidate.id:
                 continue
             try:
-                other_text, _, _, _ = self.export_service._selected_text(row, prefer_rewrite=prefer_rewrite)
+                other_text = self.text_selector.select_text(
+                    row,
+                    prefer_rewrite=prefer_rewrite,
+                ).text
             except InvalidStateTransitionError:
                 continue
             if row.source_summary_hash == candidate.source_summary_hash:

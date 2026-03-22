@@ -112,20 +112,14 @@ def test_editorial_content_generator_creates_expected_draft_types() -> None:
 
     drafts = EditorialContentGenerator.generate_from_summary(generator, summary)
 
-    assert len(drafts) == 6
-    assert [draft.content_type for draft in drafts[:2]] == [
-        ContentType.MATCH_RESULT,
-        ContentType.MATCH_RESULT,
-    ]
+    assert len(drafts) == 4
     assert {draft.content_type for draft in drafts} == {
-        ContentType.MATCH_RESULT,
         ContentType.STANDINGS,
         ContentType.PREVIEW,
         ContentType.RANKING,
         ContentType.STAT_NARRATIVE,
     }
-    assert drafts[0].text_draft.startswith("RESULTADO FINAL")
-    assert "CD Llosetense 3-0 SD Portmany" in drafts[0].text_draft
+    assert drafts[0].content_type == ContentType.PREVIEW
     assert any(draft.text_draft.startswith("CLASIFICACION") for draft in drafts)
     assert any("PREVIA DE LA JORNADA" in draft.text_draft for draft in drafts)
     assert any("NARRATIVA ESTADISTICA" in draft.text_draft for draft in drafts)
@@ -139,4 +133,4 @@ def test_editorial_content_generator_hashes_source_payload_not_template_text() -
 
     assert isinstance(draft, ContentCandidateDraft)
     assert draft.source_summary_hash
-    assert draft.payload_json["content_key"] == "result:https://example.com/result-1"
+    assert draft.payload_json["content_key"] == "preview:upcoming"

@@ -10,7 +10,7 @@ from app.db.session import init_db, session_scope
 from app.presenters.editorial_release import render_release_result
 from app.services.editorial_release_pipeline import EditorialReleasePipelineService
 
-app = typer.Typer(add_completion=False, help="Release automatizado de piezas seguras hasta Typefully.")
+app = typer.Typer(add_completion=False, help="Release automatizado de piezas seguras con exportacion JSON local.")
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
@@ -24,8 +24,8 @@ def _dump_json(payload) -> None:
 def dry_run(
     reference_date: str | None = typer.Option(None, "--date", help="Fecha local YYYY-MM-DD sobre created_at"),
     limit: int = typer.Option(200, min=1, help="Maximo de drafts a evaluar"),
-    use_draft: bool = typer.Option(False, "--use-draft", help="Fuerza text_draft en autoexport"),
-    use_rewrite: bool = typer.Option(False, "--use-rewrite", help="Prioriza rewritten_text en autoexport"),
+    use_draft: bool = typer.Option(False, "--use-draft", help="Fuerza text_draft en la exportacion JSON"),
+    use_rewrite: bool = typer.Option(False, "--use-rewrite", help="Prioriza rewritten_text en la exportacion JSON"),
     as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
 ) -> None:
     init_db()
@@ -50,8 +50,8 @@ def dry_run(
 def run(
     reference_date: str | None = typer.Option(None, "--date", help="Fecha local YYYY-MM-DD sobre created_at"),
     limit: int = typer.Option(200, min=1, help="Maximo de drafts a evaluar"),
-    use_draft: bool = typer.Option(False, "--use-draft", help="Fuerza text_draft en autoexport"),
-    use_rewrite: bool = typer.Option(False, "--use-rewrite", help="Prioriza rewritten_text en autoexport"),
+    use_draft: bool = typer.Option(False, "--use-draft", help="Fuerza text_draft en la exportacion JSON"),
+    use_rewrite: bool = typer.Option(False, "--use-rewrite", help="Prioriza rewritten_text en la exportacion JSON"),
     as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
 ) -> None:
     init_db()

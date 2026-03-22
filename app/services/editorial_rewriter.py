@@ -36,7 +36,7 @@ Reglas obligatorias:
 - No recalcular datos ni corregirlos con conocimiento externo.
 - No anadir opinion, hype, clickbait, ironia, emojis ni hashtags.
 - Tono directo, periodistico, limpio y breve.
-- Texto apto para Typefully/X.
+- Texto apto para X y para exportacion local.
 - Maximo {max_chars} caracteres.
 - Si el borrador ya esta bien, haz solo una mejora ligera.
 - Devuelve solo JSON con la clave rewritten_text.

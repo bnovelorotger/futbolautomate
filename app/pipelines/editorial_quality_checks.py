@@ -14,7 +14,7 @@ from app.presenters.editorial_quality_checks import (
 )
 from app.services.editorial_quality_checks import EditorialQualityChecksService
 
-app = typer.Typer(add_completion=False, help="Checks editoriales deterministas previos a la autoexportacion.")
+app = typer.Typer(add_completion=False, help="Checks editoriales deterministas previos a la exportacion local.")
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")

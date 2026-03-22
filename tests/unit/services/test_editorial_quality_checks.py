@@ -7,8 +7,7 @@ from app.services.editorial_narratives import EditorialNarrativesService
 from app.services.editorial_quality_checks import EditorialQualityChecksService
 from app.services.editorial_viral_stories import EditorialViralStoriesService
 from tests.unit.services.test_editorial_narratives import build_session, seed_narratives_data
-from tests.unit.services.test_typefully_autoexport_service import build_policy
-from tests.unit.services.test_typefully_export_service import build_settings
+from tests.unit.services.service_test_support import build_export_policy, build_settings
 
 
 def test_quality_checks_pass_for_valid_generated_viral_story() -> None:
@@ -27,7 +26,7 @@ def test_quality_checks_pass_for_valid_generated_viral_story() -> None:
         result = EditorialQualityChecksService(
             session,
             settings=build_settings(),
-            policy=build_policy(enabled=True),
+            policy=build_export_policy(),
         ).check_candidate(candidate.id, dry_run=False)
         session.commit()
 
@@ -72,7 +71,7 @@ def test_quality_checks_block_trivial_viral_story() -> None:
         result = EditorialQualityChecksService(
             session,
             settings=build_settings(),
-            policy=build_policy(enabled=True),
+            policy=build_export_policy(),
         ).check_candidate(candidate.id, dry_run=False)
 
         assert result.candidate.passed is False
@@ -131,7 +130,7 @@ def test_quality_checks_block_recent_duplicates() -> None:
         result = EditorialQualityChecksService(
             session,
             settings=build_settings(),
-            policy=build_policy(enabled=True),
+            policy=build_export_policy(),
         ).check_candidate(second.id, dry_run=False)
 
         assert result.candidate.passed is False
@@ -163,7 +162,7 @@ def test_quality_checks_persist_errors_for_invalid_stat_narrative() -> None:
         EditorialQualityChecksService(
             session,
             settings=build_settings(),
-            policy=build_policy(enabled=True),
+            policy=build_export_policy(),
         ).check_candidate(candidate.id, dry_run=False)
         session.commit()
 
@@ -208,7 +207,7 @@ def test_quality_checks_pass_for_valid_results_roundup() -> None:
         result = EditorialQualityChecksService(
             session,
             settings=build_settings(),
-            policy=build_policy(enabled=True),
+            policy=build_export_policy(),
         ).check_candidate(candidate.id, dry_run=False)
 
         assert result.candidate.passed is True
@@ -254,7 +253,7 @@ def test_quality_checks_accept_results_roundup_with_normalized_team_names() -> N
         result = EditorialQualityChecksService(
             session,
             settings=build_settings(),
-            policy=build_policy(enabled=True),
+            policy=build_export_policy(),
         ).check_candidate(candidate.id, dry_run=False)
 
         assert result.candidate.passed is True
@@ -263,7 +262,7 @@ def test_quality_checks_accept_results_roundup_with_normalized_team_names() -> N
         session.close()
 
 
-def test_quality_checks_accept_standings_roundup_multiline_format() -> None:
+def test_quality_checks_accept_partitioned_standings_roundup_format() -> None:
     session = build_session()
     try:
         seed_narratives_data(session)
@@ -271,19 +270,21 @@ def test_quality_checks_accept_standings_roundup_multiline_format() -> None:
             competition_slug="tercera_rfef_g11",
             content_type="standings_roundup",
             priority=82,
-            text_draft="📊 CLASIFICACION\n\n3a RFEF Baleares\n\n1️⃣ CD Llosetense - 54 [PO]\n2️⃣ CD Manacor - 52 [PO]\n3️⃣ CE Mercadal - 50 [PO]\n4️⃣ SD Portmany - 47 [PO]\n5. CD Llosetense - 24 [DESC]\n6. CD Manacor - 21 [DESC]\n\n#TerceraRFEF",
+            text_draft="CLASIFICACION | 3a RFEF Baleares | Jornada 26 (1/2)",
             payload_json={
                 "content_key": "standings_roundup:j26",
                 "source_payload": {
-                    "selected_rows_count": 6,
-                    "omitted_rows_count": 9,
+                    "group_label": "Jornada 26",
+                    "part_index": 1,
+                    "part_total": 2,
+                    "split_focus": "top",
+                    "selected_rows_count": 4,
+                    "omitted_rows_count": 2,
                     "rows": [
                         {"position": 1, "team": "CD Llosetense", "points": 54},
                         {"position": 2, "team": "CD Manacor", "points": 52, "zone_tag": "playoff"},
                         {"position": 3, "team": "CE Mercadal", "points": 50, "zone_tag": "playoff"},
                         {"position": 4, "team": "SD Portmany", "points": 47, "zone_tag": "playoff"},
-                        {"position": 5, "team": "CD Llosetense", "points": 24, "zone_tag": "relegation"},
-                        {"position": 6, "team": "CD Manacor", "points": 21, "zone_tag": "relegation"},
                     ],
                 },
             },
@@ -299,7 +300,7 @@ def test_quality_checks_accept_standings_roundup_multiline_format() -> None:
         result = EditorialQualityChecksService(
             session,
             settings=build_settings(),
-            policy=build_policy(enabled=True),
+            policy=build_export_policy(),
         ).check_candidate(candidate.id, dry_run=False)
 
         assert result.candidate.passed is True
@@ -335,7 +336,7 @@ def test_quality_checks_block_standings_roundup_without_rows_payload() -> None:
         result = EditorialQualityChecksService(
             session,
             settings=build_settings(),
-            policy=build_policy(enabled=True),
+            policy=build_export_policy(),
         ).check_candidate(candidate.id, dry_run=False)
 
         assert result.candidate.passed is False
@@ -403,7 +404,7 @@ def test_quality_checks_only_block_newer_duplicate_roundup() -> None:
         service = EditorialQualityChecksService(
             session,
             settings=build_settings(),
-            policy=build_policy(enabled=True),
+            policy=build_export_policy(),
         )
         first_result = service.check_candidate(first.id, dry_run=False)
         second_result = service.check_candidate(second.id, dry_run=False)
@@ -466,7 +467,7 @@ def test_quality_checks_keep_older_roundup_valid_after_publish_state_changes() -
         result = EditorialQualityChecksService(
             session,
             settings=build_settings(),
-            policy=build_policy(enabled=True),
+            policy=build_export_policy(),
         ).check_candidate(first.id, dry_run=False)
 
         assert result.candidate.passed is True
@@ -506,7 +507,7 @@ def test_quality_checks_block_more_than_two_hashtags() -> None:
         result = EditorialQualityChecksService(
             session,
             settings=build_settings(),
-            policy=build_policy(enabled=True),
+            policy=build_export_policy(),
         ).check_candidate(candidate.id, dry_run=False, prefer_rewrite=False)
 
         assert result.candidate.passed is False

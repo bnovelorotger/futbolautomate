@@ -5,8 +5,8 @@ from datetime import date
 from pydantic import BaseModel, Field
 
 from app.schemas.editorial_approval import EditorialApprovalCandidateView
+from app.schemas.export_json import ExportJsonBlockedSeries, ExportJsonEntry
 from app.schemas.publication_dispatch import PublicationCandidateView
-from app.schemas.typefully_autoexport import TypefullyAutoexportCandidateView
 
 
 class EditorialReleaseResult(BaseModel):
@@ -17,11 +17,10 @@ class EditorialReleaseResult(BaseModel):
     autoapproved_count: int
     manual_review_count: int
     dispatched_count: int
-    autoexport_scanned_count: int
-    autoexport_eligible_count: int
-    autoexport_exported_count: int
-    autoexport_blocked_count: int
-    autoexport_failed_count: int
+    export_json_count: int
+    export_json_path: str
+    export_blocked_series_count: int = 0
+    export_blocked_series: list[ExportJsonBlockedSeries] = Field(default_factory=list)
     approval_rows: list[EditorialApprovalCandidateView] = Field(default_factory=list)
     dispatched_rows: list[PublicationCandidateView] = Field(default_factory=list)
-    autoexport_rows: list[TypefullyAutoexportCandidateView] = Field(default_factory=list)
+    export_json_rows: list[ExportJsonEntry] = Field(default_factory=list)

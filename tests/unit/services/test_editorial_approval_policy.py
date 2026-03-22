@@ -5,7 +5,7 @@ from datetime import date, datetime, timezone
 from app.db.models import ContentCandidate
 from app.services.editorial_approval_policy import EditorialApprovalPolicyService
 from tests.unit.services.test_editorial_narratives import seed_competition
-from tests.unit.services.test_typefully_export_service import build_session, build_settings
+from tests.unit.services.service_test_support import build_session, build_settings
 
 
 def test_autoapprove_includes_logical_reference_date_even_if_created_next_day() -> None:
@@ -37,16 +37,18 @@ def test_autoapprove_includes_logical_reference_date_even_if_created_next_day() 
                 priority=90,
                 text_draft="RESULTADOS | 3a RFEF Baleares | Jornada 26",
                 payload_json={
-                    "reference_date": "2026-03-16",
+                    "reference_date": "2026-03-17",
                     "competition_name": "3a RFEF Baleares",
                     "content_key": "results_roundup:j26:test",
                     "source_payload": {
-                        "reference_date": "2026-03-16",
+                        "reference_date": "2026-03-17",
                         "selected_matches_count": 1,
                         "omitted_matches_count": 0,
                         "group_label": "Jornada 26",
                         "matches": [
                             {
+                                "round_name": "Jornada 26",
+                                "match_date": "2026-03-16",
                                 "home_team": "CD Llosetense",
                                 "away_team": "SD Portmany",
                                 "home_score": 2,
@@ -65,7 +67,7 @@ def test_autoapprove_includes_logical_reference_date_even_if_created_next_day() 
         session.commit()
 
         result = EditorialApprovalPolicyService(session, settings=build_settings()).autoapprove(
-            reference_date=date(2026, 3, 16),
+            reference_date=date(2026, 3, 17),
             dry_run=True,
         )
 

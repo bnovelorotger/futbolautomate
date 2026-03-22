@@ -37,9 +37,6 @@ class Settings(BaseSettings):
     x_token_url: str = "https://api.x.com/2/oauth2/token"
     x_bearer_token: str | None = None
     x_api_base_url: str = "https://api.x.com"
-    typefully_api_key: str | None = None
-    typefully_api_url: str | None = None
-    typefully_social_set_id: str | None = None
     editorial_rewrite_provider: str = "openai"
     editorial_rewrite_api_key: str | None = None
     editorial_rewrite_api_url: str = "https://api.openai.com/v1/responses"

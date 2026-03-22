@@ -7,7 +7,7 @@ from functools import lru_cache
 from app.core.catalog import load_competition_catalog, load_team_alias_catalog
 from app.core.exceptions import ConfigurationError
 from app.normalizers.text import normalize_token
-from app.schemas.reporting import CompetitionMatchView
+from app.schemas.reporting import CompetitionMatchView, StandingView, TeamRankingView
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,6 +86,66 @@ class CompetitionRelevanceService:
             match
             for match in rows
             if self.is_relevant_match(competition_code, match.home_team, match.away_team)
+        ]
+
+    def filter_standing_views(
+        self,
+        competition_code: str,
+        standings: Iterable[StandingView],
+    ) -> list[StandingView]:
+        rows = list(standings)
+        if not self.has_tracked_teams(competition_code):
+            return rows
+        filtered: list[StandingView] = []
+        seen: set[str] = set()
+        for row in rows:
+            canonical = self.canonical_team(competition_code, row.team)
+            if canonical is None or canonical in seen:
+                continue
+            seen.add(canonical)
+            filtered.append(row)
+        return filtered
+
+    def top_scoring_teams_from_standings(
+        self,
+        competition_code: str,
+        standings: Iterable[StandingView],
+        *,
+        limit: int = 5,
+    ) -> list[TeamRankingView]:
+        rows = [row for row in self.filter_standing_views(competition_code, standings) if row.goals_for is not None]
+        ordered = sorted(rows, key=lambda row: (-int(row.goals_for or 0), row.position, row.team))
+        return [
+            TeamRankingView(team=row.team, value=row.goals_for, position=row.position)
+            for row in ordered[:limit]
+        ]
+
+    def best_defense_teams_from_standings(
+        self,
+        competition_code: str,
+        standings: Iterable[StandingView],
+        *,
+        limit: int = 5,
+    ) -> list[TeamRankingView]:
+        rows = [row for row in self.filter_standing_views(competition_code, standings) if row.goals_against is not None]
+        ordered = sorted(rows, key=lambda row: (int(row.goals_against or 0), row.position, row.team))
+        return [
+            TeamRankingView(team=row.team, value=row.goals_against, position=row.position)
+            for row in ordered[:limit]
+        ]
+
+    def most_wins_teams_from_standings(
+        self,
+        competition_code: str,
+        standings: Iterable[StandingView],
+        *,
+        limit: int = 5,
+    ) -> list[TeamRankingView]:
+        rows = [row for row in self.filter_standing_views(competition_code, standings) if row.wins is not None]
+        ordered = sorted(rows, key=lambda row: (-int(row.wins or 0), row.position, row.team))
+        return [
+            TeamRankingView(team=row.team, value=row.wins, position=row.position)
+            for row in ordered[:limit]
         ]
 
     def tracked_teams_present(self, competition_code: str, team_names: Iterable[str]) -> list[str]:

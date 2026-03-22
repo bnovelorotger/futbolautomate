@@ -1,4 +1,4 @@
-from app.schemas.reporting import CompetitionMatchView
+from app.schemas.reporting import CompetitionMatchView, StandingView
 from app.services.competition_relevance import CompetitionRelevanceService
 
 
@@ -46,3 +46,28 @@ def test_competition_relevance_service_filters_only_matches_with_tracked_teams()
         "https://example.com/2",
         "https://example.com/3",
     ]
+
+
+def test_competition_relevance_service_filters_standings_and_rankings_to_tracked_teams() -> None:
+    service = CompetitionRelevanceService()
+    standings = [
+        StandingView(position=1, team="UE Sant Andreu", points=51, played=25, wins=15, draws=6, losses=4, goals_for=39, goals_against=20, goal_difference=19),
+        StandingView(position=2, team="CD Atlético Baleares", points=48, played=25, wins=14, draws=6, losses=5, goals_for=35, goals_against=18, goal_difference=17),
+        StandingView(position=3, team="UD Poblense", points=46, played=25, wins=13, draws=7, losses=5, goals_for=31, goals_against=19, goal_difference=12),
+        StandingView(position=4, team="Reus FC Reddis", points=42, played=25, wins=12, draws=6, losses=7, goals_for=30, goals_against=22, goal_difference=8),
+        StandingView(position=5, team="UE Porreres", points=41, played=25, wins=11, draws=8, losses=6, goals_for=28, goals_against=24, goal_difference=4),
+    ]
+
+    filtered_standings = service.filter_standing_views("segunda_rfef_g3_baleares", standings)
+    top_attack = service.top_scoring_teams_from_standings("segunda_rfef_g3_baleares", standings, limit=2)
+    top_defense = service.best_defense_teams_from_standings("segunda_rfef_g3_baleares", standings, limit=2)
+    top_wins = service.most_wins_teams_from_standings("segunda_rfef_g3_baleares", standings, limit=2)
+
+    assert [row.team for row in filtered_standings] == [
+        "CD Atlético Baleares",
+        "UD Poblense",
+        "UE Porreres",
+    ]
+    assert [row.team for row in top_attack] == ["CD Atlético Baleares", "UD Poblense"]
+    assert [row.team for row in top_defense] == ["CD Atlético Baleares", "UD Poblense"]
+    assert [row.team for row in top_wins] == ["CD Atlético Baleares", "UD Poblense"]

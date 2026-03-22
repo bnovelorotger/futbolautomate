@@ -2,7 +2,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 if (-not $args -or $args.Count -lt 1) {
-    Write-Error "Uso: run_slot.ps1 <refresh|readiness|editorial-day|editorial-release|autoexport> [YYYY-MM-DD] [-PreviewOnly] [-DryRun] [-UseDraft] [-UseRewrite] [-RefreshSource futbolme]"
+    Write-Error "Uso: run_slot.ps1 <refresh|readiness|editorial-day|editorial-release> [YYYY-MM-DD] [-PreviewOnly] [-DryRun] [-UseDraft] [-UseRewrite] [-RefreshSource futbolme]"
     exit 2
 }
 
@@ -76,15 +76,6 @@ switch ($slotName) {
         }
         else {
             & "$PSScriptRoot\editorial_release.ps1" -DryRun:$dryRun -UseDraft:$useDraft -UseRewrite:$useRewrite
-        }
-        exit $LASTEXITCODE
-    }
-    "autoexport" {
-        if ($targetDate) {
-            & "$PSScriptRoot\typefully_autoexport.ps1" -TargetDate $targetDate -DryRun:$dryRun -UseDraft:$useDraft -UseRewrite:$useRewrite
-        }
-        else {
-            & "$PSScriptRoot\typefully_autoexport.ps1" -DryRun:$dryRun -UseDraft:$useDraft -UseRewrite:$useRewrite
         }
         exit $LASTEXITCODE
     }

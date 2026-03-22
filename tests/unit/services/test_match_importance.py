@@ -239,3 +239,29 @@ def test_match_importance_generate_persists_featured_match_candidates() -> None:
         assert "CE Alpha vs CE Beta" in preview.text_draft
     finally:
         session.close()
+
+
+def test_match_importance_uses_editorial_standings_subset_for_segunda_positions() -> None:
+    session = build_session()
+    try:
+        seed_second_competition(session)
+        add_scheduled_match(
+            session,
+            competition_code="segunda_rfef_g3_baleares",
+            external_id="segunda-clash",
+            match_date=date(2026, 3, 21),
+            match_time=time(18, 0),
+            home_team="UE Porreres",
+            away_team="Torrent CF",
+        )
+
+        result = MatchImportanceService(session, config_map=importance_config()).show_for_competition(
+            "segunda_rfef_g3_baleares",
+            reference_date=date(2026, 3, 16),
+        )
+
+        row = next(item for item in result.rows if item.home_team == "UE Porreres")
+        assert row.home_position == 4
+        assert row.away_position is None
+    finally:
+        session.close()

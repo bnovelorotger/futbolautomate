@@ -104,18 +104,23 @@ def test_editorial_ops_preview_and_run_daily_generate_featured_match_drafts_on_f
         ]
 
         assert preview.total_tasks == 4
-        assert preview.ready_tasks == 4
-        assert preview.blocked_tasks == 0
+        assert preview.ready_tasks == 3
+        assert preview.blocked_tasks == 1
         assert len(featured_preview_rows) == 2
-        assert all(not row.missing_dependencies for row in featured_preview_rows)
-        assert all(row.expected_count == 2 for row in featured_preview_rows)
-        assert run.generated_total >= 6
+        segunda_featured_row = next(
+            row for row in featured_preview_rows if row.competition_slug == "segunda_rfef_g3_baleares"
+        )
+        tercera_featured_row = next(
+            row for row in featured_preview_rows if row.competition_slug == "tercera_rfef_g11"
+        )
+        assert segunda_featured_row.expected_count == 0
+        assert segunda_featured_row.missing_dependencies == ["no_candidates_available"]
+        assert tercera_featured_row.expected_count == 2
+        assert not tercera_featured_row.missing_dependencies
+        assert run.generated_total == 4
         assert featured_rows
         assert all(row.status == "draft" for row in featured_rows)
-        assert {row.competition_slug for row in featured_rows} == {
-            "tercera_rfef_g11",
-            "segunda_rfef_g3_baleares",
-        }
+        assert {row.competition_slug for row in featured_rows} == {"tercera_rfef_g11"}
     finally:
         session.close()
 

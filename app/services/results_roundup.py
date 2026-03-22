@@ -117,48 +117,62 @@ class ResultsRoundupService:
         reference_date: date | None = None,
     ) -> list[ContentCandidateDraft]:
         preview = self._preview(competition_code, reference_date=reference_date)
-        if not preview.text_draft or not preview.matches:
+        if not preview.matches:
             return []
-        payload_matches = [match.model_dump(mode="json") for match in preview.matches]
-        block_signature = stable_hash(payload_matches)[:12]
-        content_key = (
-            f"results_roundup:{preview.group_label or 'results'}:{block_signature}"
-        )
-        source_payload = {
-            "group_label": preview.group_label,
-            "reference_date": preview.reference_date.isoformat(),
-            "selected_matches_count": preview.selected_matches_count,
-            "omitted_matches_count": preview.omitted_matches_count,
-            "matches": payload_matches,
-            "max_characters": preview.max_characters,
-        }
-        stable_source_payload = {key: value for key, value in source_payload.items() if key != "reference_date"}
         latest_match_date = max((match.match_date for match in preview.matches if match.match_date is not None), default=None)
         scheduled_at = None
         if latest_match_date is not None:
             scheduled_at = datetime.combine(latest_match_date, datetime.min.time(), tzinfo=ZoneInfo(self.settings.timezone))
-        candidate = ContentCandidateDraft(
-            competition_slug=preview.competition_slug,
-            content_type=ContentType.RESULTS_ROUNDUP,
-            priority=99,
-            text_draft=preview.text_draft,
-            payload_json={
-                "content_key": content_key,
-                "template_name": "results_roundup_v1",
-                "competition_name": preview.competition_name,
+        candidates: list[ContentCandidateDraft] = []
+        match_chunks = [
+            preview.matches[index : index + 4]
+            for index in range(0, len(preview.matches), 4)
+        ]
+        part_total = len(match_chunks)
+        for part_index, match_chunk in enumerate(match_chunks, start=1):
+            payload_matches = [match.model_dump(mode="json") for match in match_chunk]
+            chunk_signature = stable_hash(payload_matches)[:12]
+            content_key = f"results_roundup:{preview.group_label or 'results'}:{chunk_signature}:p{part_index}of{part_total}"
+            source_payload = {
+                "group_label": preview.group_label,
                 "reference_date": preview.reference_date.isoformat(),
-                "source_payload": source_payload,
-            },
-            source_summary_hash=_candidate_hash(
-                preview.competition_slug,
-                ContentType.RESULTS_ROUNDUP,
-                content_key,
-                stable_source_payload,
-            ),
-            scheduled_at=scheduled_at,
-            status=ContentCandidateStatus.DRAFT,
-        )
-        return [self._reuse_existing_candidate_hash(candidate)]
+                "selected_matches_count": len(payload_matches),
+                "omitted_matches_count": max(0, len(preview.matches) - len(payload_matches)),
+                "matches": payload_matches,
+                "max_characters": preview.max_characters,
+                "part_index": part_index,
+                "part_total": part_total,
+            }
+            stable_source_payload = {key: value for key, value in source_payload.items() if key != "reference_date"}
+            candidate = ContentCandidateDraft(
+                competition_slug=preview.competition_slug,
+                content_type=ContentType.RESULTS_ROUNDUP,
+                priority=99,
+                text_draft=self._build_part_text(
+                    competition_name=preview.competition_name,
+                    group_label=preview.group_label,
+                    matches=match_chunk,
+                    part_index=part_index,
+                    part_total=part_total,
+                ),
+                payload_json={
+                    "content_key": content_key,
+                    "template_name": "results_roundup_v1",
+                    "competition_name": preview.competition_name,
+                    "reference_date": preview.reference_date.isoformat(),
+                    "source_payload": source_payload,
+                },
+                source_summary_hash=_candidate_hash(
+                    preview.competition_slug,
+                    ContentType.RESULTS_ROUNDUP,
+                    content_key,
+                    stable_source_payload,
+                ),
+                scheduled_at=scheduled_at,
+                status=ContentCandidateStatus.DRAFT,
+            )
+            candidates.append(self._reuse_existing_candidate_hash(candidate))
+        return candidates
 
     def store_candidates(self, candidates: list[ContentCandidateDraft]) -> IngestStats:
         candidates = EditorialFormatterService(self.session).apply_to_drafts(candidates)
@@ -309,6 +323,25 @@ class ResultsRoundupService:
             )
         )
         return selected_views, group_label
+
+    def _build_part_text(
+        self,
+        *,
+        competition_name: str,
+        group_label: str | None,
+        matches: list[ResultsRoundupMatchView],
+        part_index: int,
+        part_total: int,
+    ) -> str:
+        title = f"RESULTADOS | {competition_name}"
+        if group_label:
+            title = f"{title} | {group_label}"
+        if part_total > 1:
+            title = f"{title} ({part_index}/{part_total})"
+        lines = [title, ""]
+        for match in matches:
+            lines.append(_score_line(match))
+        return "\n".join(lines)
 
     def _competition(self, competition_code: str) -> Competition:
         competition = self.session.scalar(select(Competition).where(Competition.code == competition_code))

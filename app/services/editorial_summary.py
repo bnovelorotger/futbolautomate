@@ -178,10 +178,43 @@ class CompetitionEditorialSummaryService:
             reference_date=current_date,
         )
         try:
-            standings = self.competition_queries.current_standings(competition_code, limit=standings_limit)
-            best_attack = next(iter(self.competition_queries.top_scoring_teams(competition_code, limit=1)), None)
-            best_defense = next(iter(self.competition_queries.best_defense_teams(competition_code, limit=1)), None)
-            most_wins = next(iter(self.competition_queries.most_wins_teams(competition_code, limit=1)), None)
+            standings_source = self.competition_queries.current_standings(competition_code)
+            standings = self._editorial_standings(
+                competition_code,
+                standings_source,
+                relevant_only=relevant_only,
+                limit=standings_limit,
+            )
+            best_attack = next(
+                iter(
+                    self.relevance.top_scoring_teams_from_standings(
+                        competition_code,
+                        standings_source if relevant_only else standings,
+                        limit=1,
+                    )
+                ),
+                None,
+            )
+            best_defense = next(
+                iter(
+                    self.relevance.best_defense_teams_from_standings(
+                        competition_code,
+                        standings_source if relevant_only else standings,
+                        limit=1,
+                    )
+                ),
+                None,
+            )
+            most_wins = next(
+                iter(
+                    self.relevance.most_wins_teams_from_standings(
+                        competition_code,
+                        standings_source if relevant_only else standings,
+                        limit=1,
+                    )
+                ),
+                None,
+            )
         except ConfigurationError:
             standings = []
             best_attack = None
@@ -248,3 +281,16 @@ class CompetitionEditorialSummaryService:
             editorial_news=prioritized_news,
             aggregate_metrics=aggregate_metrics,
         )
+
+    def _editorial_standings(
+        self,
+        competition_code: str,
+        standings: list,
+        *,
+        relevant_only: bool,
+        limit: int,
+    ) -> list:
+        rows = list(standings)
+        if relevant_only:
+            rows = self.relevance.filter_standing_views(competition_code, rows)
+        return rows[:limit]

@@ -55,11 +55,9 @@ def test_editorial_planner_generates_viral_stories_without_cross_competition_mix
         segunda_rows = [row for row in rows if row.competition_slug == "segunda_rfef_g3_baleares"]
 
         assert result.total_tasks == 2
-        assert tercera_rows
+        assert not tercera_rows
         assert segunda_rows
-        assert all(row.content_type == "match_result" for row in tercera_rows)
         assert all(row.content_type == "viral_story" for row in segunda_rows)
-        assert all("Torrent CF" not in row.text_draft and "UE Porreres" not in row.text_draft for row in tercera_rows)
         assert all("CD Llosetense" not in row.text_draft and "SD Portmany" not in row.text_draft for row in segunda_rows)
     finally:
         session.close()

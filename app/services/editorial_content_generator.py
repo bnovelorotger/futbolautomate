@@ -181,21 +181,20 @@ class EditorialContentGenerator:
     def _ranking_candidate(self, summary: CompetitionEditorialSummary) -> ContentCandidateDraft | None:
         ranking_lines: list[str] = []
         source_payload: dict[str, Any] = {}
-        if summary.rankings.best_attack is not None:
-            ranking_lines.append(
-                f"Mejor ataque: {summary.rankings.best_attack.team} ({summary.rankings.best_attack.value})"
-            )
-            source_payload["best_attack"] = summary.rankings.best_attack.model_dump(mode="json")
-        if summary.rankings.best_defense is not None:
-            ranking_lines.append(
-                f"Mejor defensa: {summary.rankings.best_defense.team} ({summary.rankings.best_defense.value})"
-            )
-            source_payload["best_defense"] = summary.rankings.best_defense.model_dump(mode="json")
-        if summary.rankings.most_wins is not None:
-            ranking_lines.append(
-                f"Mas victorias: {summary.rankings.most_wins.team} ({summary.rankings.most_wins.value})"
-            )
-            source_payload["most_wins"] = summary.rankings.most_wins.model_dump(mode="json")
+        seen_teams: set[str] = set()
+        for key, label, row in (
+            ("best_attack", "Mejor ataque", summary.rankings.best_attack),
+            ("best_defense", "Mejor defensa", summary.rankings.best_defense),
+            ("most_wins", "Mas victorias", summary.rankings.most_wins),
+        ):
+            if row is None:
+                continue
+            normalized_team = row.team.strip().lower()
+            if normalized_team in seen_teams:
+                continue
+            seen_teams.add(normalized_team)
+            ranking_lines.append(f"{label}: {row.team} ({row.value})")
+            source_payload[key] = row.model_dump(mode="json")
         if not ranking_lines:
             return None
         text_draft = "\n".join(
@@ -249,8 +248,6 @@ class EditorialContentGenerator:
 
     def generate_from_summary(self, summary: CompetitionEditorialSummary) -> list[ContentCandidateDraft]:
         drafts: list[ContentCandidateDraft] = []
-        drafts.extend(self._result_candidates(summary))
-
         standings_candidate = self._standings_candidate(summary)
         if standings_candidate is not None:
             drafts.append(standings_candidate)

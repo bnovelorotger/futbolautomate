@@ -12,7 +12,6 @@ from app.core.enums import CompetitionIntegrationStatus, ContentCandidateStatus,
 from app.db.models import ContentCandidate
 from app.schemas.system_check import EditorialCompetitionReadinessRow, EditorialReadinessReport
 from app.services.competition_catalog_service import CompetitionCatalogService
-from app.services.typefully_export_service import TypefullyExportService
 from app.utils.time import utcnow
 
 
@@ -79,7 +78,6 @@ class SystemCheckService:
                 )
             )
 
-        typefully_status = TypefullyExportService.config_status(self.settings)
         content_candidates_total = self.session.scalar(
             select(func.count()).select_from(ContentCandidate)
         ) or 0
@@ -97,8 +95,8 @@ class SystemCheckService:
             integrated_catalog_count=len(integrated_codes),
             seeded_integrated_count=sum(int(row.seeded_in_db) for row in rows),
             planner_ready_count=sum(int(row.planner_ready) for row in rows),
-            typefully_ready=typefully_status.ready,
-            typefully_social_set_strategy=typefully_status.social_set_strategy,
+            export_json_ready=True,
+            export_json_path=str(self.settings.app_root / "export" / "export_base.json"),
             content_candidates_total=content_candidates_total,
             content_candidates_pending_export=content_candidates_pending_export,
             rows=rows,

@@ -23,6 +23,7 @@ from app.schemas.editorial_viral_stories import (
 )
 from app.schemas.reporting import CompetitionMatchView, StandingView
 from app.services.competition_queries import CompetitionQueryService
+from app.services.competition_relevance import CompetitionRelevanceService
 from app.services.editorial_formatter import EditorialFormatterService
 from app.utils.hashing import stable_hash
 from app.utils.time import utcnow
@@ -132,6 +133,7 @@ class EditorialViralStoriesService:
         self.session = session
         self.repository = ContentCandidateRepository(session)
         self.queries = CompetitionQueryService(session)
+        self.relevance = CompetitionRelevanceService()
         self.competition_catalog = load_competition_catalog()
         self.timezone_name = get_settings().timezone
 
@@ -224,7 +226,10 @@ class EditorialViralStoriesService:
             candidates.append(recent_scoring_story)
 
         try:
-            standings = self.queries.current_standings(competition_code)
+            standings = self.relevance.filter_standing_views(
+                competition_code,
+                self.queries.current_standings(competition_code),
+            )
         except ConfigurationError:
             standings = []
 

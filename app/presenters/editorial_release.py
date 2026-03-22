@@ -14,35 +14,35 @@ def render_release_result(result: EditorialReleaseResult) -> str:
         f"autoapproved_count={result.autoapproved_count}",
         f"manual_review_count={result.manual_review_count}",
         f"dispatched_count={result.dispatched_count}",
-        f"autoexport_scanned_count={result.autoexport_scanned_count}",
-        f"autoexport_eligible_count={result.autoexport_eligible_count}",
-        f"autoexport_exported_count={result.autoexport_exported_count}",
-        f"autoexport_blocked_count={result.autoexport_blocked_count}",
-        f"autoexport_failed_count={result.autoexport_failed_count}",
+        f"export_json_count={result.export_json_count}",
+        f"export_blocked_series_count={result.export_blocked_series_count}",
+        f"export_json_path={result.export_json_path}",
     ]
     if result.approval_rows:
         lines.extend(["", "[approval]", render_approval_rows(result.approval_rows)])
     if result.dispatched_rows:
         lines.extend(["", "[dispatch]", render_dispatch_rows(result.dispatched_rows)])
-    if result.autoexport_rows:
+    if result.export_json_rows:
         lines.extend(
             [
                 "",
-                "[autoexport]",
-                f"scanned_count={result.autoexport_scanned_count}",
-                f"eligible_count={result.autoexport_eligible_count}",
-                f"exported_count={result.autoexport_exported_count}",
-                f"blocked_count={result.autoexport_blocked_count}",
-                f"failed_count={result.autoexport_failed_count}",
+                "[export_json]",
+                f"count={result.export_json_count}",
+                f"blocked_series={result.export_blocked_series_count}",
+                f"path={result.export_json_path}",
             ]
         )
-        for row in result.autoexport_rows:
+        for row in result.export_json_rows:
             lines.append(
-                f"{row.id:>3} | {row.competition_slug} | {row.content_type} | "
-                f"score={row.importance_score if row.importance_score is not None else '-'} | "
-                f"bucket={row.priority_bucket or '-'} | "
-                f"order={row.order_selected if row.order_selected is not None else '-'} | "
-                f"allowed={str(row.autoexport_allowed).lower()} | policy={row.policy_reason} | "
-                f"external_ref={row.external_publication_ref or '-'} | {row.excerpt}"
+                f"{row.id:>3} | {row.content_type} | {row.competition} | "
+                f"group={row.group or '-'} | match_date={row.match_date.isoformat() if row.match_date else '-'}"
+            )
+    if result.export_blocked_series:
+        lines.extend(["", "[blocked_series]"])
+        for row in result.export_blocked_series:
+            lines.append(
+                f"{row.content_type} | {row.competition} | group={row.group or '-'} | "
+                f"round={row.round_label or '-'} | expected={row.expected_parts} | "
+                f"available={row.available_parts} | passed={row.passed_parts} | reason={row.blocked_reason or '-'}"
             )
     return "\n".join(lines)

@@ -14,6 +14,7 @@ from app.schemas.editorial_approval import (
     EditorialApprovalRunResult,
     EditorialApprovalStatusView,
 )
+from app.services.editorial_candidate_window import EditorialCandidateWindowService
 from app.services.editorial_quality_checks import EditorialQualityChecksService
 from app.services.story_importance import StoryImportanceService
 from app.utils.time import utcnow
@@ -51,6 +52,7 @@ class EditorialApprovalPolicyService:
     def __init__(self, session: Session, *, settings: Settings | None = None) -> None:
         self.session = session
         self.settings = settings or get_settings()
+        self.window_service = EditorialCandidateWindowService(session, settings=self.settings)
         self.quality_service = EditorialQualityChecksService(session, settings=self.settings)
         self.story_service = StoryImportanceService(session, settings=self.settings)
 
@@ -281,19 +283,20 @@ class EditorialApprovalPolicyService:
         reference_date: date | None,
         limit: int,
     ) -> list[ContentCandidate]:
+        selected_date = reference_date or datetime.now(ZoneInfo(self.settings.timezone)).date()
         query = select(ContentCandidate).where(
             ContentCandidate.status == str(ContentCandidateStatus.DRAFT),
             ContentCandidate.reviewed_at.is_(None),
         )
-        if reference_date is not None:
-            start_utc, end_utc = self._day_bounds(reference_date)
+        if selected_date is not None:
+            start_utc, end_utc = self._day_bounds(selected_date)
             query = query.where(
                 or_(
                     and_(
                         ContentCandidate.created_at >= start_utc,
                         ContentCandidate.created_at < end_utc,
                     ),
-                    ContentCandidate.payload_json["reference_date"].as_string() == reference_date.isoformat(),
+                    ContentCandidate.payload_json["reference_date"].as_string() == selected_date.isoformat(),
                 ),
             )
         query = query.order_by(
@@ -302,7 +305,12 @@ class EditorialApprovalPolicyService:
             ContentCandidate.scheduled_at.asc(),
             ContentCandidate.created_at.asc(),
         ).limit(limit)
-        return self.session.execute(query).scalars().all()
+        rows = self.session.execute(query).scalars().all()
+        return [
+            row
+            for row in rows
+            if self.window_service.matches_release_window(row, reference_date=selected_date)
+        ]
 
     def _day_bounds(self, target_date: date) -> tuple[datetime, datetime]:
         start_local = datetime.combine(target_date, time.min, tzinfo=ZoneInfo(self.settings.timezone))

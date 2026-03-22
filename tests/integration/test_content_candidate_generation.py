@@ -116,21 +116,21 @@ def test_editorial_content_generator_stores_candidates_idempotently() -> None:
         stats = generator.store_candidates(candidates)
         session.commit()
 
-        assert stats.found == 5
-        assert stats.inserted == 5
+        assert stats.found == 4
+        assert stats.inserted == 4
         assert stats.updated == 0
 
         stats_second = generator.store_candidates(candidates)
         session.commit()
 
-        assert stats_second.found == 5
+        assert stats_second.found == 4
         assert stats_second.inserted == 0
         assert stats_second.updated == 0
 
         rows = session.execute(
             select(ContentCandidate).where(ContentCandidate.competition_slug == "division_honor_mallorca")
         ).scalars().all()
-        assert len(rows) == 5
+        assert len(rows) == 4
         assert rows[0].status == "draft"
     finally:
         session.close()

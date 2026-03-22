@@ -743,10 +743,17 @@ def test_competition_editorial_summary_service_filters_to_tracked_balearic_teams
         assert len(payload.calendar_windows.today) == 1
         assert payload.calendar_windows.today[0].home_team == "UE Porreres"
 
-        assert len(payload.current_standings) == 5
-        assert payload.current_standings[0].team == "UE Sant Andreu"
+        assert [row.team for row in payload.current_standings] == [
+            "CD Atlético Baleares",
+            "UD Poblense",
+            "UE Porreres",
+        ]
         assert payload.rankings.best_attack is not None
-        assert payload.rankings.best_attack.team == "UE Sant Andreu"
+        assert payload.rankings.best_attack.team == "CD Atlético Baleares"
+        assert payload.rankings.best_defense is not None
+        assert payload.rankings.best_defense.team == "CD Atlético Baleares"
+        assert payload.rankings.most_wins is not None
+        assert payload.rankings.most_wins.team == "CD Atlético Baleares"
 
         assert payload.editorial_news[0].selection_reason in {"competition_detected", "club_overlap"}
         assert payload.editorial_news[0].title == "El CD Atlético Baleares quiere seguir arriba en Segunda RFEF"

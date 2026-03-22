@@ -8,7 +8,7 @@ Windows es el entorno principal actual de operacion de uFutbolBalear. La automat
 - toda la logica sigue en `app.pipelines.*`
 - no hay scheduler interno
 - no hay autopublicacion en X
-- Typefully es el panel operativo final
+- `editorial_release` deja el handoff final en `export/export_base.json`
 - la produccion v1 congela el scope automatico y no anade nuevas familias de contenido
 
 ## Scripts activos
@@ -38,18 +38,14 @@ Ruta: `scripts/windows/`
   - si no, ejecuta `run-daily`
 - `editorial_release.ps1`
   - ejecuta `editorial_release dry-run` o `run`
-  - el pipeline interno hace `quality_checks -> autoapprove -> dispatch -> autoexport`
-  - en produccion v1 solo empuja a Typefully:
+  - el pipeline interno hace `quality_checks -> autoapprove -> dispatch -> export_json`
+  - en produccion v1 solo exporta automaticamente al JSON local:
     - `results_roundup`
     - `standings_roundup`
     - `preview`
     - `ranking`
-- `typefully_autoexport.ps1`
-  - ejecuta `typefully_autoexport dry-run` o `run`
-  - queda como utilidad diagnostica o manual
-  - el carril v1 recomendado pasa por `editorial_release`
 - `run_slot.ps1`
-  - wrapper opcional para `refresh`, `readiness`, `editorial-day`, `editorial-release` y `autoexport`
+  - wrapper opcional para `refresh`, `readiness`, `editorial-day` y `editorial-release`
 
 ## Variables y entorno
 
@@ -62,8 +58,6 @@ Variables utiles:
 
 ```powershell
 DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/futbol_balear
-TYPEFULLY_API_KEY=tu_api_key
-TYPEFULLY_API_URL=https://api.typefully.com
 PYTHON_BIN=C:\Users\bnove\Documents\futbolbalear\.venv\Scripts\python.exe
 APP_TIMEZONE=Europe/Madrid
 ```
@@ -81,7 +75,6 @@ Logs operativos:
 - `logs\cron_readiness.log`
 - `logs\cron_editorial.log`
 - `logs\cron_release.log`
-- `logs\cron_autoexport.log`
 
 Cada linea incluye:
 
@@ -111,14 +104,12 @@ Todo lo demas queda manual en esta fase:
 - `metric_narrative`
 - `viral_story`
 
-La politica activa de autoexport vive en `app/config/typefully_autoexport.json`:
+La frontera automatica real vive en codigo:
 
-- `enabled=true`
-- `phase=1`
-- `allowed_content_types=results_roundup, standings_roundup, preview, ranking`
-- `max_exports_per_run=5`
-
-`phase=2` y `phase=3` quedan congeladas con la misma frontera v1 durante esta iteracion.
+- `EditorialApprovalPolicyService` solo autoaprueba `results_roundup`, `standings_roundup`, `preview` y `ranking`
+- `EditorialCandidateWindowService` limita la ventana temporal del release
+- `ExportJsonService` solo exporta piezas `published` sin `external_publication_ref`
+- el artefacto final se escribe en `export/export_base.json`
 
 ## Ejecucion manual exacta
 
@@ -129,10 +120,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\windows\refre
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\windows\readiness_check.ps1"
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\windows\run_editorial_day.ps1" -TargetDate 2026-03-17
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\windows\editorial_release.ps1" -TargetDate 2026-03-17 -DryRun
+python -m app.pipelines.editorial_quality_checks dry-run --date 2026-03-17
 python -m app.pipelines.editorial_approval dry-run --date 2026-03-17
 python -m app.pipelines.editorial_release dry-run --date 2026-03-17
-python -m app.pipelines.typefully_autoexport status
-python -m app.pipelines.typefully_autoexport pending-capacity
+python -m app.pipelines.editorial_release run --date 2026-03-17
+python -m app.pipelines.system_check editorial-readiness
 ```
 
 Modo seguro de primer despliegue:
@@ -246,11 +238,12 @@ Start in: C:\Users\bnove\Documents\futbolbalear
    - `logs\cron_readiness.log`
    - `logs\cron_editorial.log`
    - `logs\cron_release.log`
-6. revisar `python -m app.pipelines.typefully_autoexport status`
-7. si todo es correcto, crear las tareas en Task Scheduler
-8. quitar `-PreviewOnly` y `-DryRun` cuando el comportamiento ya sea estable
+6. revisar `python -m app.pipelines.system_check editorial-readiness`
+7. revisar `export/export_base.json` tras un `editorial_release run`
+8. si todo es correcto, crear las tareas en Task Scheduler
+9. quitar `-PreviewOnly` y `-DryRun` cuando el comportamiento ya sea estable
 
-## Editorial Release como panel operativo v1
+## Editorial Release como cierre operativo v1
 
 El flujo recomendado es:
 
@@ -261,35 +254,32 @@ El flujo recomendado es:
 
 `Editorial Release` hace internamente:
 
-- `editorial_approval_policy`
 - `editorial_quality_checks`
+- `editorial_approval_policy`
 - `publication_dispatch`
-- `typefully_autoexport`
+- `export_json_service`
 
-Con eso, Typefully pasa a ser el panel real para las piezas seguras de produccion v1.
+Con eso, `export/export_base.json` pasa a ser el handoff estable para las piezas seguras de produccion v1.
 
-## Capacidad de Typefully
+## Export JSON local
 
-Si el plan de Typefully devuelve `MONETIZATION_ERROR`, el sistema lo trata como limite de capacidad del canal:
+`editorial_release run` genera `export/export_base.json` con una lista estable para consumo externo:
 
-- las piezas pasan a `pending-capacity`
-- siguen siendo reintentables
-- no se cuentan como fallo tecnico real
-- el resumen separa `capacity_deferred_count` de `failed_count`
+- aplica prioridad de texto via `EditorialTextSelectorService`
+- deduplica piezas ya incluidas en el mismo payload
+- bloquea series parciales de `results_roundup` y `standings_roundup`
+- deja trazabilidad con `export_json_count`, `export_json_path` y `blocked_partition_series`
 
-Estrategia recomendada:
+El consumo y publicacion final del JSON siguen siendo externos al scheduler.
 
-1. mantener `max_exports_per_run=5`
-2. revisar `pending-capacity`
-3. reintentar con `python -m app.pipelines.typefully_autoexport run --date <fecha>` cuando liberes drafts o amplíes plan
 
 ## Tareas que siguen siendo manuales
 
 - revisar drafts en `editorial_queue`
 - `approve/reject` de piezas fuera de la frontera v1
 - `publication_dispatch` de piezas sensibles
-- `typefully_export` manual de cualquier pieza que falle `editorial_quality_checks`
-- edicion final y programacion dentro de Typefully
+- revisar `export/export_base.json` antes de entregarlo al canal final
+- edicion final y programacion en la herramienta externa que toque
 
 ## Limitaciones abiertas
 

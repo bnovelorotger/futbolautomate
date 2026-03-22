@@ -24,6 +24,7 @@ from app.schemas.standings_roundup import (
     StandingsRoundupRowView,
 )
 from app.services.competition_queries import CompetitionQueryService
+from app.services.competition_relevance import CompetitionRelevanceService
 from app.services.editorial_formatter import EditorialFormatterService
 from app.utils.hashing import stable_hash
 from app.utils.time import utcnow
@@ -70,6 +71,7 @@ class StandingsRoundupService:
         self.repository = ContentCandidateRepository(session)
         self.catalog = load_competition_catalog()
         self.zones = load_standings_zones()
+        self.relevance = CompetitionRelevanceService()
         self.max_characters = max_characters
         self.top_rows = top_rows
 
@@ -116,44 +118,62 @@ class StandingsRoundupService:
         reference_date: date | None = None,
     ) -> list[ContentCandidateDraft]:
         preview = self._preview(competition_code, reference_date=reference_date)
-        if not preview.text_draft or not preview.rows:
+        if not preview.rows:
             return []
-        payload_rows = [row.model_dump(mode="json") for row in preview.rows]
-        block_signature = stable_hash(payload_rows)[:12]
-        content_key = (
-            f"standings_roundup:{preview.group_label or 'standings'}:{block_signature}"
-        )
-        source_payload = {
-            "group_label": preview.group_label,
-            "reference_date": preview.reference_date.isoformat(),
-            "selected_rows_count": preview.selected_rows_count,
-            "omitted_rows_count": preview.omitted_rows_count,
-            "rows": payload_rows,
-            "max_characters": preview.max_characters,
-        }
-        stable_source_payload = {key: value for key, value in source_payload.items() if key != "reference_date"}
-        candidate = ContentCandidateDraft(
-            competition_slug=preview.competition_slug,
-            content_type=ContentType.STANDINGS_ROUNDUP,
-            priority=82,
-            text_draft=preview.text_draft,
-            payload_json={
-                "content_key": content_key,
-                "template_name": "standings_roundup_v1",
-                "competition_name": preview.competition_name,
+        top_rows = [row for row in preview.rows if row.zone_tag != "relegation"]
+        relegation_rows = [row for row in preview.rows if row.zone_tag == "relegation"]
+        row_groups: list[tuple[str, list[StandingsRoundupRowView]]] = [("top", top_rows)]
+        if relegation_rows:
+            row_groups.append(("relegation", relegation_rows))
+
+        candidates: list[ContentCandidateDraft] = []
+        part_total = len(row_groups)
+        for part_index, (split_focus, row_group) in enumerate(row_groups, start=1):
+            payload_rows = [row.model_dump(mode="json") for row in row_group]
+            block_signature = stable_hash(payload_rows)[:12]
+            content_key = f"standings_roundup:{preview.group_label or 'standings'}:{split_focus}:{block_signature}:p{part_index}of{part_total}"
+            source_payload = {
+                "group_label": preview.group_label,
+                "round_name": preview.group_label,
                 "reference_date": preview.reference_date.isoformat(),
-                "source_payload": source_payload,
-            },
-            source_summary_hash=_candidate_hash(
-                preview.competition_slug,
-                ContentType.STANDINGS_ROUNDUP,
-                content_key,
-                stable_source_payload,
-            ),
-            scheduled_at=None,
-            status=ContentCandidateStatus.DRAFT,
-        )
-        return [self._reuse_existing_candidate_hash(candidate)]
+                "selected_rows_count": len(payload_rows),
+                "omitted_rows_count": max(0, len(preview.rows) - len(payload_rows)),
+                "rows": payload_rows,
+                "max_characters": preview.max_characters,
+                "part_index": part_index,
+                "part_total": part_total,
+                "split_focus": split_focus,
+            }
+            stable_source_payload = {key: value for key, value in source_payload.items() if key != "reference_date"}
+            candidate = ContentCandidateDraft(
+                competition_slug=preview.competition_slug,
+                content_type=ContentType.STANDINGS_ROUNDUP,
+                priority=82,
+                text_draft=self._build_part_text(
+                    competition_name=preview.competition_name,
+                    group_label=preview.group_label,
+                    rows=row_group,
+                    part_index=part_index,
+                    part_total=part_total,
+                ),
+                payload_json={
+                    "content_key": content_key,
+                    "template_name": "standings_roundup_v1",
+                    "competition_name": preview.competition_name,
+                    "reference_date": preview.reference_date.isoformat(),
+                    "source_payload": source_payload,
+                },
+                source_summary_hash=_candidate_hash(
+                    preview.competition_slug,
+                    ContentType.STANDINGS_ROUNDUP,
+                    content_key,
+                    stable_source_payload,
+                ),
+                scheduled_at=None,
+                status=ContentCandidateStatus.DRAFT,
+            )
+            candidates.append(self._reuse_existing_candidate_hash(candidate))
+        return candidates
 
     def store_candidates(self, candidates: list[ContentCandidateDraft]) -> IngestStats:
         candidates = EditorialFormatterService(self.session).apply_to_drafts(candidates)
@@ -261,6 +281,22 @@ class StandingsRoundupService:
                 text += suffix
         return text
 
+    def _build_part_text(
+        self,
+        *,
+        competition_name: str,
+        group_label: str | None,
+        rows: list[StandingsRoundupRowView],
+        part_index: int,
+        part_total: int,
+    ) -> str:
+        header = f"CLASIFICACION | {competition_name}"
+        if group_label:
+            header = f"{header} | {group_label}"
+        if part_total > 1:
+            header = f"{header} ({part_index}/{part_total})"
+        return self._render_text(header, rows, total_rows=len(rows))
+
     def _row_line(self, row: StandingsRoundupRowView) -> str:
         points = "-" if row.points is None else row.points
         suffix = ""
@@ -282,12 +318,15 @@ class StandingsRoundupService:
 
         rows_by_position = {row.position: row for row in standings}
         preferred_positions: list[int] = []
-        for position in range(1, top_block_end + 1):
-            if position in rows_by_position:
-                preferred_positions.append(position)
-        for position in sorted(relegation_positions):
-            if position in rows_by_position and position not in preferred_positions:
-                preferred_positions.append(position)
+        if len(standings) <= self.top_rows:
+            preferred_positions = [row.position for row in standings]
+        else:
+            for position in range(1, top_block_end + 1):
+                if position in rows_by_position:
+                    preferred_positions.append(position)
+            for position in sorted(relegation_positions):
+                if position in rows_by_position and position not in preferred_positions:
+                    preferred_positions.append(position)
         if not preferred_positions:
             preferred_positions = [row.position for row in standings[: self.top_rows]]
 
@@ -315,13 +354,14 @@ class StandingsRoundupService:
             for row in standings
             if row.played is not None and row.played > 0
         }
-        if len(played_values) == 1:
-            return f"Jornada {next(iter(played_values))}"
+        if played_values:
+            return f"Jornada {max(played_values)}"
         return None
 
     def _current_standings(self, competition_code: str) -> list[StandingView]:
         try:
-            return self.queries.current_standings(competition_code)
+            standings = self.queries.current_standings(competition_code)
+            return self.relevance.filter_standing_views(competition_code, standings)
         except ConfigurationError as exc:
             if "No hay clasificacion disponible" in str(exc):
                 return []

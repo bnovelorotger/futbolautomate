@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from app.db.models import Competition, ContentCandidate
 from app.services.story_importance import StoryImportanceService
-from tests.unit.services.test_typefully_export_service import build_session, build_settings
+from tests.unit.services.service_test_support import build_session, build_settings
 
 
 def seed_competition(session) -> None:
@@ -265,7 +265,7 @@ def test_story_importance_rank_pending_orders_by_score_and_skips_exported() -> N
             priority=70,
             text_draft="Ranking editorial simple.",
             payload_json={"content_key": "ranking:j26", "source_payload": {}},
-            external_ref="typefully-32",
+            external_ref="legacy-export-32",
         )
 
         rows = StoryImportanceService(session, settings=build_settings()).rank_pending(limit=10).rows

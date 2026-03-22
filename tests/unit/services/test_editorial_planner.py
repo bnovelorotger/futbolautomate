@@ -291,28 +291,19 @@ def test_editorial_planner_generates_only_planned_candidates() -> None:
         rows = session.execute(select(ContentCandidate).order_by(ContentCandidate.id.asc())).scalars().all()
 
         assert result.total_tasks == 2
-        assert result.total_generated == 3
-        assert result.total_inserted == 3
-        assert len(rows) == 3
-        assert sorted(row.content_type for row in rows) == [
-            "match_result",
-            "match_result",
-            "standings",
-        ]
-        assert {row.competition_slug for row in rows} == {
-            "tercera_rfef_g11",
-            "segunda_rfef_g3_baleares",
-        }
+        assert result.total_generated == 1
+        assert result.total_inserted == 1
+        assert len(rows) == 1
+        assert [row.content_type for row in rows] == ["standings"]
+        assert {row.competition_slug for row in rows} == {"segunda_rfef_g3_baleares"}
         assert all(row.status == "draft" for row in rows)
-        tercera_rows = [row for row in rows if row.competition_slug == "tercera_rfef_g11"]
         segunda_rows = [row for row in rows if row.competition_slug == "segunda_rfef_g3_baleares"]
-        assert all("Torrent CF" not in row.text_draft and "UE Porreres" not in row.text_draft for row in tercera_rows)
         assert all("CD Llosetense" not in row.text_draft and "CE Mercadal" not in row.text_draft for row in segunda_rows)
         counts_by_planning_type = {
             row.task.planning_type: row.generated_count
             for row in result.rows
         }
-        assert counts_by_planning_type[EditorialPlanningContent.LATEST_RESULTS] == 2
+        assert counts_by_planning_type[EditorialPlanningContent.LATEST_RESULTS] == 0
         assert counts_by_planning_type[EditorialPlanningContent.STANDINGS] == 1
     finally:
         session.close()

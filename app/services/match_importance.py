@@ -24,6 +24,7 @@ from app.schemas.match_importance import (
 )
 from app.schemas.team_form import TeamFormEntryView
 from app.services.competition_queries import CompetitionQueryService
+from app.services.competition_relevance import CompetitionRelevanceService
 from app.services.editorial_formatter import EditorialFormatterService
 from app.services.team_form import DEFAULT_FORM_WINDOW, TeamFormService
 from app.utils.hashing import stable_hash
@@ -77,6 +78,7 @@ class MatchImportanceService:
         self.session = session
         self.settings = settings or get_settings()
         self.queries = CompetitionQueryService(session)
+        self.relevance = CompetitionRelevanceService()
         self.team_form = TeamFormService(session, settings=self.settings)
         self.repository = ContentCandidateRepository(session)
         self.catalog = load_competition_catalog()
@@ -243,7 +245,18 @@ class MatchImportanceService:
         config = self._config(competition_code)
         selected_date = self._reference_date(reference_date)
         standings = self.queries.current_standings(competition_code)
-        positions = {row.team: row.position for row in standings}
+        filtered_standings = self.relevance.filter_standing_views(
+            competition_code,
+            standings,
+        )
+        positions = {
+            self.relevance.canonical_team(competition_code, row.team) or row.team: row.position
+            for row in filtered_standings
+        }
+        full_positions = {
+            self.relevance.canonical_team(competition_code, row.team) or row.team: row.position
+            for row in standings
+        }
         form_rows = self.team_form.build_form_rows(
             competition_code,
             window_size=DEFAULT_FORM_WINDOW,
@@ -267,6 +280,7 @@ class MatchImportanceService:
                 competition_name=self._competition_name(competition),
                 match=match,
                 positions=positions,
+                full_positions=full_positions,
                 form_map=form_map,
                 config=config,
             )
@@ -298,14 +312,19 @@ class MatchImportanceService:
         competition_name: str,
         match,
         positions: dict[str, int],
+        full_positions: dict[str, int],
         form_map: dict[str, TeamFormEntryView],
         config: MatchImportanceConfig,
     ) -> MatchImportanceRowView:
         score = 0
         tags: list[str] = []
         reasoning: list[str] = []
-        home_position = positions.get(match.home_team)
-        away_position = positions.get(match.away_team)
+        home_team_key = self.relevance.canonical_team(competition_slug, match.home_team) or match.home_team
+        away_team_key = self.relevance.canonical_team(competition_slug, match.away_team) or match.away_team
+        home_position = positions.get(home_team_key)
+        away_position = positions.get(away_team_key)
+        full_home_position = full_positions.get(home_team_key)
+        full_away_position = full_positions.get(away_team_key)
         position_gap = (
             abs(home_position - away_position)
             if home_position is not None and away_position is not None
@@ -375,6 +394,43 @@ class MatchImportanceService:
             score += weights.cold_form_match
             tags.append("cold_form_match")
             reasoning.append(f"cold_form_match:+{weights.cold_form_match}")
+
+        # For partially tracked competitions, keep a narrow fallback only when a tracked
+        # team is directly fighting around playoff or relegation cut lines.
+        if (
+            score == 0
+            and full_home_position is not None
+            and full_away_position is not None
+            and (home_position is None) != (away_position is None)
+        ):
+            tracked_position = home_position if home_position is not None else away_position
+            full_gap = abs(full_home_position - full_away_position)
+            if (
+                tracked_position is not None
+                and tracked_position > 2
+                and full_home_position in config.playoff_positions
+                and full_away_position in config.playoff_positions
+                and full_gap <= config.direct_rival_gap_max
+            ):
+                score += weights.playoff_clash
+                tags.append("playoff_clash")
+                reasoning.append(f"playoff_clash:+{weights.playoff_clash}")
+                score += weights.direct_rivalry
+                tags.append("direct_rivalry")
+                reasoning.append(f"direct_rivalry:+{weights.direct_rivalry}")
+            elif (
+                tracked_position is not None
+                and _near_zone(tracked_position, config.bottom_zone_positions, config.near_bottom_margin)
+                and _near_zone(full_home_position, config.bottom_zone_positions, config.near_bottom_margin)
+                and _near_zone(full_away_position, config.bottom_zone_positions, config.near_bottom_margin)
+                and full_gap <= config.direct_rival_gap_max
+            ):
+                score += weights.relegation_clash
+                tags.append("relegation_clash")
+                reasoning.append(f"relegation_clash:+{weights.relegation_clash}")
+                score += weights.direct_rivalry
+                tags.append("direct_rivalry")
+                reasoning.append(f"direct_rivalry:+{weights.direct_rivalry}")
 
         return MatchImportanceRowView(
             competition_slug=competition_slug,
