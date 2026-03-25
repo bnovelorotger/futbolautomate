@@ -10,6 +10,7 @@ La automatizacion de uFutbolBalear es deliberadamente externa. `cron` no contien
 - no hay scheduler interno
 - no hay autopublicacion
 - la exportacion JSON local sigue siendo un paso explicito
+- `export_base` tambien queda como paso manual separado
 
 ## Scripts creados
 
@@ -164,6 +165,7 @@ Esta frecuencia es razonable hoy porque:
 - `publication_dispatch`
 - ejecutar `python -m app.pipelines.editorial_release run --date <fecha>` para generar `export/export_base.json`
 - revisar el JSON exportado y entregarlo al canal final
+- ejecutar `python -m app.pipelines.export_base generate --date <fecha>` si necesitas `exports/export_base.json`
 - edicion final, ajuste fino y programacion en la herramienta externa que toque
 
 ## Checklist diaria recomendada
@@ -184,6 +186,7 @@ Para preparar salida manual:
 4. despachar con `publication_dispatch dispatch --include-unscheduled`
 5. validar con `python -m app.pipelines.editorial_release dry-run --date <fecha>`
 6. generar `export/export_base.json` con `python -m app.pipelines.editorial_release run --date <fecha>`
+7. generar `exports/export_base.json` con `python -m app.pipelines.export_base generate --date <fecha>` si necesitas snapshot estructurado
 
 ### Primer despliegue seguro
 

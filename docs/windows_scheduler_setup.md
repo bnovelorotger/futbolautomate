@@ -9,6 +9,7 @@ Windows es el entorno principal actual de operacion de uFutbolBalear. La automat
 - no hay scheduler interno
 - no hay autopublicacion en X
 - `editorial_release` deja el handoff final en `export/export_base.json`
+- `export_base` genera aparte `exports/export_base.json` como snapshot manual estructurado
 - la produccion v1 congela el scope automatico y no anade nuevas familias de contenido
 
 ## Scripts activos
@@ -124,6 +125,7 @@ python -m app.pipelines.editorial_quality_checks dry-run --date 2026-03-17
 python -m app.pipelines.editorial_approval dry-run --date 2026-03-17
 python -m app.pipelines.editorial_release dry-run --date 2026-03-17
 python -m app.pipelines.editorial_release run --date 2026-03-17
+python -m app.pipelines.export_base generate --date 2026-03-25
 python -m app.pipelines.system_check editorial-readiness
 ```
 
@@ -272,6 +274,14 @@ Con eso, `export/export_base.json` pasa a ser el handoff estable para las piezas
 
 El consumo y publicacion final del JSON siguen siendo externos al scheduler.
 
+## Export base semanal
+
+`python -m app.pipelines.export_base generate --date <fecha>` genera `exports/export_base.json`.
+
+- es un snapshot estructurado por competicion y tipo de contenido
+- no sustituye `editorial_release` ni su `export/export_base.json`
+- hoy queda fuera de Task Scheduler y se lanza solo cuando haga falta ese dataset base
+
 
 ## Tareas que siguen siendo manuales
 
@@ -279,6 +289,7 @@ El consumo y publicacion final del JSON siguen siendo externos al scheduler.
 - `approve/reject` de piezas fuera de la frontera v1
 - `publication_dispatch` de piezas sensibles
 - revisar `export/export_base.json` antes de entregarlo al canal final
+- generar `exports/export_base.json` cuando necesites el snapshot estructurado semanal
 - edicion final y programacion en la herramienta externa que toque
 
 ## Limitaciones abiertas

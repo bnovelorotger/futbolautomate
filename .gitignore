@@ -38,6 +38,7 @@ logs/
 .locks/
 .debug_responses/
 export/
+exports/
 *.log
 *.tmp
 *.temp

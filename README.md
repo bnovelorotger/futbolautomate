@@ -6,7 +6,7 @@ La documentacion detallada de esta iteracion se conserva en [docs/README_detaile
 
 ## Version actual
 
-Snapshot del **22 de marzo de 2026**.
+Snapshot del **25 de marzo de 2026**.
 
 Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolidados:
 
@@ -17,6 +17,7 @@ Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolida
 - agregados editoriales `results_roundup` y `standings_roundup`
 - `editorial_formatter` como capa determinista previa a exportacion
 - `editorial_release` + `export_json_service` para generar `export/export_base.json`
+- `export_base_service` + `export_base` para generar `exports/export_base.json` como snapshot estructurado semanal
 - `viral_formatted_text` como capa compacta para export seguro en resultados, clasificaciones, previas y rankings
 - `team_socials` + `social_enricher` para insertar menciones de clubes sin duplicados
 - `team_name_aliases.json` + `team_name_normalizer` para fijar naming editorial consistente
@@ -30,7 +31,7 @@ Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolida
 - Catalogo de competiciones y reglas editoriales configurables.
 - Persistencia con SQLAlchemy y migraciones con Alembic.
 - Pipelines CLI con Typer para scraping, consultas y operativa editorial.
-- Flujos para aprobacion editorial, exportacion JSON local y publicacion en X.
+- Flujos para aprobacion editorial, exportacion JSON local, snapshots estructurados y publicacion en X.
 - Suite de tests unitarios e integracion.
 
 ## Estructura principal
@@ -75,6 +76,7 @@ python -m app.pipelines.team_form ranking --competition tercera_rfef_g11
 python -m app.pipelines.results_roundup show --competition tercera_rfef_g11
 python -m app.pipelines.editorial_quality_checks dry-run --date 2026-03-22
 python -m app.pipelines.editorial_release dry-run --date 2026-03-22
+python -m app.pipelines.export_base generate --date 2026-03-25
 python -m app.pipelines.x_auth start-auth
 ```
 
@@ -87,7 +89,7 @@ pytest
 ## Estado actual del desarrollo
 
 - La base tecnica de scraping, persistencia y consultas ya existe y tiene tests.
-- El repo contiene capa editorial, cola de aprobacion y release hacia `export/export_base.json`, con publicacion en X todavia desacoplada.
+- El repo contiene capa editorial, cola de aprobacion, release hacia `export/export_base.json` y snapshot estructurado en `exports/export_base.json`, con publicacion en X todavia desacoplada.
 - La operativa real depende de credenciales, base de datos y tareas programadas locales.
 - Falta endurecer el flujo de trabajo de equipo: ramas, CI, politicas de revision y despliegue.
 
@@ -539,6 +541,21 @@ Reglas operativas:
 - bloquea series partidas de `results_roundup` o `standings_roundup` si falta alguna parte o alguna pieza no pasa `quality_checks`
 - el fichero `export/export_base.json` es artefacto local de salida, no fuente editable del sistema
 
+## Export base semanal
+
+Ademas del JSON operativo del release, existe un dataset estructurado independiente generado por `python -m app.pipelines.export_base generate`.
+
+Salida:
+- `exports/export_base.json`
+
+Reglas operativas:
+- genera un `weekly_snapshot` con ventana de lunes a domingo sobre la fecha objetivo
+- agrupa piezas por `competition_slug` y `content_type`
+- usa `rewritten_text`, despues `formatted_text` y por ultimo `text_draft`
+- aplica ventana distinta para previas, post-jornada y piezas semanales
+- deduplica por `content_key` o por marcador estructural derivado de `source_payload`
+- no sustituye `editorial_release`; es un snapshot adicional para consumo externo o analitica
+
 ## Story Importance
 
 La capa `story_importance` puntua `content_candidates` de forma determinista para ordenar prioridad editorial.
@@ -629,6 +646,7 @@ Notas operativas:
 - `match_result` y `standings` se mantienen como fallback/legacy manual
 - `preview` y `ranking` siguen siendo piezas automaticas seguras
 - `editorial_release` genera `export/export_base.json` como artefacto local listo para canalizacion externa o revision manual
+- `export_base generate` deja `exports/export_base.json` como snapshot manual estructurado de la semana
 - no se anaden nuevas features en esta fase; las mejoras futuras quedan para una iteracion posterior
 
 ## Control de versiones
