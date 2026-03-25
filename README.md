@@ -6,7 +6,7 @@ La documentacion detallada de esta iteracion se conserva en [docs/README_detaile
 
 ## Version actual
 
-Snapshot del **25 de marzo de 2026**.
+Snapshot del **26 de marzo de 2026**.
 
 Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolidados:
 
@@ -16,8 +16,8 @@ Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolida
 - scoring de `match_importance` para partidos destacados
 - agregados editoriales `results_roundup` y `standings_roundup`
 - `editorial_formatter` como capa determinista previa a exportacion
-- `editorial_release` + `export_json_service` para generar `export/export_base.json`
-- `export_base_service` + `export_base` para generar `exports/export_base.json` como snapshot estructurado semanal
+- `editorial_release` + `export_base_service` para generar `exports/export_base.json` como salida estructurada por defecto
+- `legacy_export_json_enabled` para reactivar `export/legacy_export.json` via `export_json_service` solo por compatibilidad
 - `viral_formatted_text` como capa compacta para export seguro en resultados, clasificaciones, previas y rankings
 - `team_socials` + `social_enricher` para insertar menciones de clubes sin duplicados
 - `team_name_aliases.json` + `team_name_normalizer` para fijar naming editorial consistente
@@ -75,8 +75,8 @@ python -m app.pipelines.standings_events show --competition tercera_rfef_g11
 python -m app.pipelines.team_form ranking --competition tercera_rfef_g11
 python -m app.pipelines.results_roundup show --competition tercera_rfef_g11
 python -m app.pipelines.editorial_quality_checks dry-run --date 2026-03-22
-python -m app.pipelines.editorial_release dry-run --date 2026-03-22
-python -m app.pipelines.export_base generate --date 2026-03-25
+python -m app.pipelines.editorial_release dry-run --date 2026-03-26
+python -m app.pipelines.export_base generate --date 2026-03-26
 python -m app.pipelines.x_auth start-auth
 ```
 
@@ -89,7 +89,7 @@ pytest
 ## Estado actual del desarrollo
 
 - La base tecnica de scraping, persistencia y consultas ya existe y tiene tests.
-- El repo contiene capa editorial, cola de aprobacion, release hacia `export/export_base.json` y snapshot estructurado en `exports/export_base.json`, con publicacion en X todavia desacoplada.
+- El repo contiene capa editorial, cola de aprobacion y release hacia `exports/export_base.json`, con `export/legacy_export.json` solo como compatibilidad opcional y publicacion en X todavia desacoplada.
 - La operativa real depende de credenciales, base de datos y tareas programadas locales.
 - Falta endurecer el flujo de trabajo de equipo: ramas, CI, politicas de revision y despliegue.
 
@@ -290,7 +290,7 @@ Texto:
 - breve
 - centrado en competicion y marcadores
 - sin analisis inventado
-- apto para `export/export_base.json` y para publicacion posterior en X
+- apto para `exports/export_base.json` y para publicacion posterior en X
 
 Control de longitud:
 - limite por defecto de `280` caracteres
@@ -320,7 +320,7 @@ Integracion editorial:
 - lunes y domingo el planner usa `results_roundup` como bloque principal de resultados
 - `match_result` individual sigue existiendo en el backend y no se elimina en esta fase
 - `results_roundup` sigue generandose primero en `draft`
-- `results_roundup` entra en el carril seguro: `draft -> quality_checks -> autoapproval -> dispatch -> export_json`
+- `results_roundup` entra en el carril seguro: `draft -> quality_checks -> autoapproval -> dispatch -> export_base`
 - en `phase=1` se trata como pieza segura junto a `standings_roundup`, `preview` y `ranking`
 - `match_result` individual sigue existiendo para casos legacy o gestion manual, pero ya no es la salida principal de resultados del planner
 
@@ -350,7 +350,7 @@ Texto:
 - breve
 - centrado en posiciones y puntos
 - sin analisis inventado
-- apto para `export/export_base.json` y para publicacion posterior en X
+- apto para `exports/export_base.json` y para publicacion posterior en X
 
 CLI:
 
@@ -376,7 +376,7 @@ Integracion editorial:
 - lunes el planner usa `results_roundup + standings_roundup`
 - domingo el planner usa `results_roundup + standings_roundup` para las competiciones activas del cierre de jornada
 - `standings_roundup` se genera en `draft`
-- `standings_roundup` entra en el carril seguro: `draft -> quality_checks -> autoapproval -> dispatch -> export_json`
+- `standings_roundup` entra en el carril seguro: `draft -> quality_checks -> autoapproval -> dispatch -> export_base`
 - en `phase=1` se trata como pieza segura junto a `results_roundup`, `preview` y `ranking`
 - `standings` individual sigue existiendo como capa legacy o fallback manual
 
@@ -515,46 +515,39 @@ Uso operativo:
 - el enriquecimiento esta pensado para `results_roundup`, `standings`, `standings_roundup`, `preview`, `ranking` y piezas con equipos identificables en `source_payload`
 - el limite de menciones por post es configurable y se valida otra vez en `quality_checks`
 
-## Export JSON local
+## Export base del release
 
-La salida automatica actual del release no crea drafts en un canal externo. Genera un fichero local `export/export_base.json`.
+La salida automatica actual del release no crea drafts en un canal externo. Genera por defecto `exports/export_base.json`.
 
 Flujo actual:
 - `editorial_quality_checks`
 - `editorial_approval`
 - `publication_dispatch`
-- `export_json_service`
+- `export_base_service`
 
-Que persiste cada fila:
-- `id`
-- `content_type`
-- `competition`
-- `group`
-- `match_date`
-- `tweet`
-- `created_at`
+Que persiste:
+- `scope`, `target_date`, `window_start`, `window_end`, `generated_at` y `total_items`
+- bloques por `competition_slug` y `content_type`
+- por cada item: `id`, `text`, `selected_text_source`, `priority` y `created_at`
 
 Reglas operativas:
-- solo exporta piezas ya `published`
-- respeta la ventana editorial por jornada usando `editorial_candidate_window`
-- usa `editorial_text_selector` para elegir `rewritten_text`, `viral_formatted_text`, `enriched_text`, `formatted_text` o `text_draft`
-- bloquea series partidas de `results_roundup` o `standings_roundup` si falta alguna parte o alguna pieza no pasa `quality_checks`
-- el fichero `export/export_base.json` es artefacto local de salida, no fuente editable del sistema
-
-## Export base semanal
-
-Ademas del JSON operativo del release, existe un dataset estructurado independiente generado por `python -m app.pipelines.export_base generate`.
-
-Salida:
-- `exports/export_base.json`
-
-Reglas operativas:
-- genera un `weekly_snapshot` con ventana de lunes a domingo sobre la fecha objetivo
-- agrupa piezas por `competition_slug` y `content_type`
+- solo exporta piezas con `formatted_text`
+- usa ventana semanal y reglas distintas para previas, post-jornada y piezas semanales
 - usa `rewritten_text`, despues `formatted_text` y por ultimo `text_draft`
-- aplica ventana distinta para previas, post-jornada y piezas semanales
 - deduplica por `content_key` o por marcador estructural derivado de `source_payload`
-- no sustituye `editorial_release`; es un snapshot adicional para consumo externo o analitica
+- el fichero `exports/export_base.json` es artefacto local de salida, no fuente editable del sistema
+
+Regeneracion manual:
+- `python -m app.pipelines.export_base generate --date 2026-03-26`
+
+## Legacy export JSON
+
+Si activas `LEGACY_EXPORT_JSON_ENABLED=true`, el release vuelve a generar ademas `export/legacy_export.json`.
+
+Reglas operativas:
+- usa `export_json_service`
+- queda orientado a compatibilidad con consumidores antiguos
+- su ruta por defecto es `export/legacy_export.json`
 
 ## Story Importance
 
@@ -622,7 +615,7 @@ Flujo automatico v1:
   - `editorial_quality_checks`
   - `editorial_approval`
   - `publication_dispatch`
-  - `export/export_base.json`
+  - `exports/export_base.json`
 
 Flujo final de texto:
 1. `rewritten_text`
@@ -635,9 +628,10 @@ Comandos de validacion manual recomendados:
 
 ```bash
 python -m app.pipelines.editorial_approval dry-run --date 2026-03-17
-python -m app.pipelines.editorial_quality_checks dry-run --date 2026-03-22
-python -m app.pipelines.editorial_release dry-run --date 2026-03-22
-python -m app.pipelines.editorial_release run --date 2026-03-22
+python -m app.pipelines.editorial_quality_checks dry-run --date 2026-03-26
+python -m app.pipelines.editorial_release dry-run --date 2026-03-26
+python -m app.pipelines.editorial_release run --date 2026-03-26
+python -m app.pipelines.export_base generate --date 2026-03-26
 python -m app.pipelines.system_check editorial-readiness
 ```
 
@@ -645,8 +639,9 @@ Notas operativas:
 - `results_roundup` y `standings_roundup` son la salida principal de resultados y clasificacion
 - `match_result` y `standings` se mantienen como fallback/legacy manual
 - `preview` y `ranking` siguen siendo piezas automaticas seguras
-- `editorial_release` genera `export/export_base.json` como artefacto local listo para canalizacion externa o revision manual
-- `export_base generate` deja `exports/export_base.json` como snapshot manual estructurado de la semana
+- `editorial_release` genera `exports/export_base.json` como snapshot estructurado por defecto
+- `export_base generate` regenera ese mismo snapshot de forma manual si lo necesitas fuera del release
+- `LEGACY_EXPORT_JSON_ENABLED=true` reactiva `export/legacy_export.json` solo para compatibilidad
 - no se anaden nuevas features en esta fase; las mejoras futuras quedan para una iteracion posterior
 
 ## Control de versiones

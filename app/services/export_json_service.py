@@ -44,7 +44,7 @@ class ExportJsonService:
     ) -> None:
         self.session = session
         self.settings = settings or get_settings()
-        self.output_path = output_path or (self.settings.app_root / "export" / "export_base.json")
+        self.output_path = output_path or (self.settings.app_root / "export" / "legacy_export.json")
         self.selector = EditorialTextSelectorService(session)
         self.window = EditorialCandidateWindowService(session, settings=self.settings)
         self.quality = EditorialQualityChecksService(session, settings=self.settings)

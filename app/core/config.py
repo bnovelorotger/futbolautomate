@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     editorial_rewrite_max_chars: int = 280
     enable_team_mentions: bool = True
     max_mentions_per_post: int = 3
+    legacy_export_json_enabled: bool = False
     app_root: Path = Field(default_factory=lambda: Path(__file__).resolve().parents[2])
 
     @property

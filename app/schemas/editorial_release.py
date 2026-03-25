@@ -17,10 +17,12 @@ class EditorialReleaseResult(BaseModel):
     autoapproved_count: int
     manual_review_count: int
     dispatched_count: int
-    export_json_count: int
-    export_json_path: str
-    export_blocked_series_count: int = 0
-    export_blocked_series: list[ExportJsonBlockedSeries] = Field(default_factory=list)
+    export_base_total_items: int
+    export_base_path: str
+    legacy_export_json_count: int = 0
+    legacy_export_json_path: str | None = None
+    legacy_export_blocked_series_count: int = 0
+    legacy_export_blocked_series: list[ExportJsonBlockedSeries] = Field(default_factory=list)
     approval_rows: list[EditorialApprovalCandidateView] = Field(default_factory=list)
     dispatched_rows: list[PublicationCandidateView] = Field(default_factory=list)
-    export_json_rows: list[ExportJsonEntry] = Field(default_factory=list)
+    legacy_export_json_rows: list[ExportJsonEntry] = Field(default_factory=list)

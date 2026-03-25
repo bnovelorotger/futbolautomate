@@ -9,8 +9,8 @@ La automatizacion de uFutbolBalear es deliberadamente externa. `cron` no contien
 - la logica editorial sigue en el backend
 - no hay scheduler interno
 - no hay autopublicacion
-- la exportacion JSON local sigue siendo un paso explicito
-- `export_base` tambien queda como paso manual separado
+- la salida estructurada del release sigue siendo un paso explicito
+- el JSON plano legacy queda desactivado salvo que lo reactives
 
 ## Scripts creados
 
@@ -163,9 +163,10 @@ Esta frecuencia es razonable hoy porque:
 - revisar la cola en `editorial_queue`
 - `approve` / `reject`
 - `publication_dispatch`
-- ejecutar `python -m app.pipelines.editorial_release run --date <fecha>` para generar `export/export_base.json`
-- revisar el JSON exportado y entregarlo al canal final
-- ejecutar `python -m app.pipelines.export_base generate --date <fecha>` si necesitas `exports/export_base.json`
+- ejecutar `python -m app.pipelines.editorial_release run --date <fecha>` para generar `exports/export_base.json`
+- revisar el snapshot exportado y entregarlo al canal final
+- ejecutar `python -m app.pipelines.export_base generate --date <fecha>` si necesitas regenerar `exports/export_base.json`
+- revisar `export/legacy_export.json` solo si has activado `LEGACY_EXPORT_JSON_ENABLED=true`
 - edicion final, ajuste fino y programacion en la herramienta externa que toque
 
 ## Checklist diaria recomendada
@@ -185,8 +186,9 @@ Para preparar salida manual:
 3. aprobar manualmente
 4. despachar con `publication_dispatch dispatch --include-unscheduled`
 5. validar con `python -m app.pipelines.editorial_release dry-run --date <fecha>`
-6. generar `export/export_base.json` con `python -m app.pipelines.editorial_release run --date <fecha>`
-7. generar `exports/export_base.json` con `python -m app.pipelines.export_base generate --date <fecha>` si necesitas snapshot estructurado
+6. generar `exports/export_base.json` con `python -m app.pipelines.editorial_release run --date <fecha>`
+7. regenerar `exports/export_base.json` con `python -m app.pipelines.export_base generate --date <fecha>` si necesitas rehacer el snapshot
+8. revisar `export/legacy_export.json` solo si has activado `LEGACY_EXPORT_JSON_ENABLED=true`
 
 ### Primer despliegue seguro
 

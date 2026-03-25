@@ -28,8 +28,8 @@ class EditorialReadinessReport(BaseModel):
     integrated_catalog_count: int
     seeded_integrated_count: int
     planner_ready_count: int
-    export_json_ready: bool
-    export_json_path: str
+    export_base_ready: bool
+    export_base_path: str
     content_candidates_total: int
     content_candidates_pending_export: int
     rows: list[EditorialCompetitionReadinessRow] = Field(default_factory=list)

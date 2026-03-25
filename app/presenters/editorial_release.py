@@ -14,32 +14,42 @@ def render_release_result(result: EditorialReleaseResult) -> str:
         f"autoapproved_count={result.autoapproved_count}",
         f"manual_review_count={result.manual_review_count}",
         f"dispatched_count={result.dispatched_count}",
-        f"export_json_count={result.export_json_count}",
-        f"export_blocked_series_count={result.export_blocked_series_count}",
-        f"export_json_path={result.export_json_path}",
+        f"export_base_total_items={result.export_base_total_items}",
+        f"export_base_path={result.export_base_path}",
+        f"legacy_export_json_count={result.legacy_export_json_count}",
+        f"legacy_export_blocked_series_count={result.legacy_export_blocked_series_count}",
+        f"legacy_export_json_path={result.legacy_export_json_path or '-'}",
     ]
     if result.approval_rows:
         lines.extend(["", "[approval]", render_approval_rows(result.approval_rows)])
     if result.dispatched_rows:
         lines.extend(["", "[dispatch]", render_dispatch_rows(result.dispatched_rows)])
-    if result.export_json_rows:
+    lines.extend(
+        [
+            "",
+            "[export_base]",
+            f"total_items={result.export_base_total_items}",
+            f"path={result.export_base_path}",
+        ]
+    )
+    if result.legacy_export_json_rows:
         lines.extend(
             [
                 "",
-                "[export_json]",
-                f"count={result.export_json_count}",
-                f"blocked_series={result.export_blocked_series_count}",
-                f"path={result.export_json_path}",
+                "[legacy_export_json]",
+                f"count={result.legacy_export_json_count}",
+                f"blocked_series={result.legacy_export_blocked_series_count}",
+                f"path={result.legacy_export_json_path or '-'}",
             ]
         )
-        for row in result.export_json_rows:
+        for row in result.legacy_export_json_rows:
             lines.append(
                 f"{row.id:>3} | {row.content_type} | {row.competition} | "
                 f"group={row.group or '-'} | match_date={row.match_date.isoformat() if row.match_date else '-'}"
             )
-    if result.export_blocked_series:
-        lines.extend(["", "[blocked_series]"])
-        for row in result.export_blocked_series:
+    if result.legacy_export_blocked_series:
+        lines.extend(["", "[legacy_blocked_series]"])
+        for row in result.legacy_export_blocked_series:
             lines.append(
                 f"{row.content_type} | {row.competition} | group={row.group or '-'} | "
                 f"round={row.round_label or '-'} | expected={row.expected_parts} | "

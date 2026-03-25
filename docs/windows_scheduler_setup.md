@@ -8,8 +8,8 @@ Windows es el entorno principal actual de operacion de uFutbolBalear. La automat
 - toda la logica sigue en `app.pipelines.*`
 - no hay scheduler interno
 - no hay autopublicacion en X
-- `editorial_release` deja el handoff final en `export/export_base.json`
-- `export_base` genera aparte `exports/export_base.json` como snapshot manual estructurado
+- `editorial_release` deja por defecto el handoff final en `exports/export_base.json`
+- `export_base` puede regenerar manualmente ese mismo snapshot
 - la produccion v1 congela el scope automatico y no anade nuevas familias de contenido
 
 ## Scripts activos
@@ -39,8 +39,8 @@ Ruta: `scripts/windows/`
   - si no, ejecuta `run-daily`
 - `editorial_release.ps1`
   - ejecuta `editorial_release dry-run` o `run`
-  - el pipeline interno hace `quality_checks -> autoapprove -> dispatch -> export_json`
-  - en produccion v1 solo exporta automaticamente al JSON local:
+  - el pipeline interno hace `quality_checks -> autoapprove -> dispatch -> export_base`
+  - en produccion v1 genera por defecto `exports/export_base.json` para:
     - `results_roundup`
     - `standings_roundup`
     - `preview`
@@ -109,8 +109,8 @@ La frontera automatica real vive en codigo:
 
 - `EditorialApprovalPolicyService` solo autoaprueba `results_roundup`, `standings_roundup`, `preview` y `ranking`
 - `EditorialCandidateWindowService` limita la ventana temporal del release
-- `ExportJsonService` solo exporta piezas `published` sin `external_publication_ref`
-- el artefacto final se escribe en `export/export_base.json`
+- `ExportBaseService` escribe `exports/export_base.json` como snapshot estructurado por defecto
+- `legacy_export_json_enabled` reactiva `ExportJsonService` hacia `export/legacy_export.json` solo si hace falta compatibilidad
 
 ## Ejecucion manual exacta
 
@@ -125,7 +125,7 @@ python -m app.pipelines.editorial_quality_checks dry-run --date 2026-03-17
 python -m app.pipelines.editorial_approval dry-run --date 2026-03-17
 python -m app.pipelines.editorial_release dry-run --date 2026-03-17
 python -m app.pipelines.editorial_release run --date 2026-03-17
-python -m app.pipelines.export_base generate --date 2026-03-25
+python -m app.pipelines.export_base generate --date 2026-03-26
 python -m app.pipelines.system_check editorial-readiness
 ```
 
@@ -241,7 +241,7 @@ Start in: C:\Users\bnove\Documents\futbolbalear
    - `logs\cron_editorial.log`
    - `logs\cron_release.log`
 6. revisar `python -m app.pipelines.system_check editorial-readiness`
-7. revisar `export/export_base.json` tras un `editorial_release run`
+7. revisar `exports/export_base.json` tras un `editorial_release run`
 8. si todo es correcto, crear las tareas en Task Scheduler
 9. quitar `-PreviewOnly` y `-DryRun` cuando el comportamiento ya sea estable
 
@@ -259,28 +259,28 @@ El flujo recomendado es:
 - `editorial_quality_checks`
 - `editorial_approval_policy`
 - `publication_dispatch`
-- `export_json_service`
+- `export_base_service`
 
-Con eso, `export/export_base.json` pasa a ser el handoff estable para las piezas seguras de produccion v1.
+Con eso, `exports/export_base.json` pasa a ser el handoff estable para las piezas seguras de produccion v1.
 
-## Export JSON local
+## Export base del release
 
-`editorial_release run` genera `export/export_base.json` con una lista estable para consumo externo:
+`editorial_release run` genera `exports/export_base.json` con un snapshot estructurado para consumo externo:
 
-- aplica prioridad de texto via `EditorialTextSelectorService`
-- deduplica piezas ya incluidas en el mismo payload
-- bloquea series parciales de `results_roundup` y `standings_roundup`
-- deja trazabilidad con `export_json_count`, `export_json_path` y `blocked_partition_series`
+- agrupa por competicion y tipo de contenido
+- usa `rewritten_text`, despues `formatted_text` y por ultimo `text_draft`
+- deduplica piezas ya incluidas en el mismo snapshot
+- deja trazabilidad con `export_base_total_items` y `export_base_path`
 
 El consumo y publicacion final del JSON siguen siendo externos al scheduler.
 
-## Export base semanal
+## Legacy export JSON
 
-`python -m app.pipelines.export_base generate --date <fecha>` genera `exports/export_base.json`.
+Si necesitas mantener el formato plano anterior, activa `LEGACY_EXPORT_JSON_ENABLED=true`.
 
-- es un snapshot estructurado por competicion y tipo de contenido
-- no sustituye `editorial_release` ni su `export/export_base.json`
-- hoy queda fuera de Task Scheduler y se lanza solo cuando haga falta ese dataset base
+- el release generara ademas `export/legacy_export.json`
+- usa `ExportJsonService`
+- queda pensado solo para compatibilidad con consumidores antiguos
 
 
 ## Tareas que siguen siendo manuales
@@ -288,8 +288,9 @@ El consumo y publicacion final del JSON siguen siendo externos al scheduler.
 - revisar drafts en `editorial_queue`
 - `approve/reject` de piezas fuera de la frontera v1
 - `publication_dispatch` de piezas sensibles
-- revisar `export/export_base.json` antes de entregarlo al canal final
-- generar `exports/export_base.json` cuando necesites el snapshot estructurado semanal
+- revisar `exports/export_base.json` antes de entregarlo al canal final
+- regenerar `exports/export_base.json` con `python -m app.pipelines.export_base generate --date <fecha>` si necesitas rehacer el snapshot
+- revisar `export/legacy_export.json` solo si has activado el modo legacy
 - edicion final y programacion en la herramienta externa que toque
 
 ## Limitaciones abiertas

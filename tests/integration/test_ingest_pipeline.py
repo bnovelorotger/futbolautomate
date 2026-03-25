@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import timedelta
+
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -104,7 +106,7 @@ def test_ingest_standings_persists_historical_snapshots_without_overwriting_prev
     session = build_session()
     try:
         first_scraped_at = utcnow()
-        second_scraped_at = first_scraped_at.replace(hour=(first_scraped_at.hour + 1) % 24)
+        second_scraped_at = first_scraped_at + timedelta(hours=1)
         first = StandingRecord(
             source_name=SourceName.FUTBOLME,
             source_url="https://example.com/standings",
