@@ -11,9 +11,11 @@ from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
 from app.core.enums import ContentType
+from app.core.exceptions import InvalidStateTransitionError
 from app.db.models import ContentCandidate
 from app.schemas.export_base import ExportBaseDocument, ExportBaseItem, ExportBaseResult
 from app.services.editorial_candidate_window import EditorialCandidateWindowService
+from app.services.editorial_text_selector import EditorialTextSelectorService
 from app.utils.time import utcnow
 
 _SNAPSHOT_SCOPE = "weekly_snapshot"
@@ -58,6 +60,7 @@ class ExportBaseService:
         self.settings = settings or get_settings()
         self.output_path = output_path or (self.settings.app_root / "exports" / "export_base.json")
         self.window = EditorialCandidateWindowService(session, settings=self.settings)
+        self.selector = EditorialTextSelectorService(session, settings=self.settings)
 
     def generate_export_file(
         self,
@@ -232,6 +235,18 @@ class ExportBaseService:
         return sorted(set(values))
 
     def _selected_text(self, candidate: ContentCandidate) -> tuple[str, str]:
+        try:
+            content_type = ContentType(candidate.content_type)
+        except ValueError:
+            content_type = None
+
+        if content_type in {ContentType.PREVIEW, ContentType.FEATURED_MATCH_PREVIEW}:
+            try:
+                selection = self.selector.select_text(candidate, prefer_rewrite=True)
+                return selection.text, selection.source
+            except InvalidStateTransitionError:
+                pass
+
         rewrite_text = _usable_text(candidate.rewritten_text)
         if rewrite_text is not None:
             return candidate.rewritten_text or "", "rewritten_text"

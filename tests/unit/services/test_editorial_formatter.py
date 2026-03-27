@@ -361,8 +361,10 @@ def test_build_text_layers_produce_viral_preview_with_key_match_mentions() -> No
 
         assert layers.viral_formatted_text is not None
         assert layers.viral_formatted_text.startswith("🔎 Previa - 2ª RFEF - G3 - J28")
+        assert "Partidos:\nAtlético Baleares vs UD Poblense" in layers.viral_formatted_text
         assert "Partido clave:" in layers.viral_formatted_text
-        assert "@atleticbalears" in layers.viral_formatted_text
+        assert "Partido clave:\n@atleticbalears vs UD Poblense" in layers.viral_formatted_text
+        assert layers.viral_formatted_text.count("@atleticbalears") == 1
         assert layers.viral_formatted_text.endswith("#FutbolBalear #2aRFEF")
     finally:
         session.close()

@@ -4,7 +4,7 @@ import json
 from datetime import date, datetime, time, timezone
 from pathlib import Path
 
-from app.db.models import ContentCandidate
+from app.db.models import ContentCandidate, TeamMention
 from app.services.export_base_service import ExportBaseService
 from tests.unit.services.service_test_support import build_session, build_settings
 from tests.unit.services.test_editorial_narratives import seed_competition
@@ -322,5 +322,72 @@ def test_export_base_service_overwrites_output_file_with_weekly_snapshot(tmp_pat
         assert payload["scope"] == "weekly_snapshot"
         assert payload["total_items"] == 1
         assert payload["competitions"]["segunda_rfef_g3_baleares"]["ranking"][0]["id"] == 10
+    finally:
+        session.close()
+
+
+def test_export_base_service_uses_viral_preview_text_with_team_handle_in_key_match(tmp_path: Path) -> None:
+    session = build_session()
+    try:
+        seed_export_base_context(session)
+        session.add(
+            TeamMention(
+                team_name="Atletico Baleares",
+                twitter_handle="@atleticbalears",
+                competition_slug="segunda_rfef_g3_baleares",
+            )
+        )
+        session.commit()
+        created_at = datetime(2026, 3, 25, 10, 0, tzinfo=timezone.utc)
+
+        add_candidate(
+            session,
+            candidate_id=11,
+            competition_slug="segunda_rfef_g3_baleares",
+            content_type="preview",
+            priority=92,
+            created_at=created_at,
+            formatted_text="formatted preview",
+            text_draft="draft preview",
+            payload_json={
+                "content_key": "preview:j28:mentions",
+                "competition_name": "2a RFEF Grupo 3",
+                "reference_date": "2026-03-25",
+                "source_payload": {
+                    "featured_match": {
+                        "round_name": "Jornada 28",
+                        "match_date": "2026-03-29",
+                        "home_team": "Atletico Baleares",
+                        "away_team": "UE Porreres",
+                    },
+                    "matches": [
+                        {
+                            "round_name": "Jornada 28",
+                            "match_date": "2026-03-29",
+                            "home_team": "Atletico Baleares",
+                            "away_team": "UE Porreres",
+                        },
+                        {
+                            "round_name": "Jornada 28",
+                            "match_date": "2026-03-29",
+                            "home_team": "UD Poblense",
+                            "away_team": "Atletico Baleares",
+                        },
+                    ],
+                },
+            },
+        )
+
+        service, export_path = build_service(session, tmp_path)
+        result = service.generate_export_file(reference_date=date(2026, 3, 25), dry_run=False)
+        payload = json.loads(export_path.read_text(encoding="utf-8"))
+        preview_row = payload["competitions"]["segunda_rfef_g3_baleares"]["preview"][0]
+
+        assert result.total_items == 1
+        assert preview_row["id"] == 11
+        assert preview_row["selected_text_source"] == "viral_formatted_text"
+        assert "Partidos:\nAtlético Baleares vs UE Porreres" in preview_row["text"]
+        assert "Partido clave:\n@atleticbalears vs UE Porreres" in preview_row["text"]
+        assert preview_row["text"].count("@atleticbalears") == 1
     finally:
         session.close()

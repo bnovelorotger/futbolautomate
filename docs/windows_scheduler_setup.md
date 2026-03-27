@@ -269,7 +269,8 @@ Con eso, `exports/export_base.json` pasa a ser el handoff estable para las pieza
 `editorial_release run` genera `exports/export_base.json` con un snapshot estructurado para consumo externo:
 
 - agrupa por competicion y tipo de contenido
-- usa `rewritten_text`, despues `formatted_text` y por ultimo `text_draft`
+- para `preview` y `featured_match_preview` puede elegir `viral_formatted_text` via `EditorialTextSelectorService`
+- en el resto usa `rewritten_text`, despues `formatted_text` y por ultimo `text_draft`
 - deduplica piezas ya incluidas en el mismo snapshot
 - deja trazabilidad con `export_base_total_items` y `export_base_path`
 

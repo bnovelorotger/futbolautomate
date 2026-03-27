@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
+from app.core.config import Settings
 from app.core.exceptions import InvalidStateTransitionError
 from app.db.models import ContentCandidate
 from app.services.editorial_formatter import EditorialFormatterService
@@ -25,9 +26,9 @@ class EditorialTextSelection:
 
 
 class EditorialTextSelectorService:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, *, settings: Settings | None = None) -> None:
         self.session = session
-        self.formatter = EditorialFormatterService(session)
+        self.formatter = EditorialFormatterService(session, settings=settings)
 
     def select_text(
         self,

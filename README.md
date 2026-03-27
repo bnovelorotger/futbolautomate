@@ -6,7 +6,7 @@ La documentacion detallada de esta iteracion se conserva en [docs/README_detaile
 
 ## Version actual
 
-Snapshot del **27 de marzo de 2026**.
+Snapshot del **28 de marzo de 2026**.
 
 Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolidados:
 
@@ -19,6 +19,7 @@ Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolida
 - `editorial_release` + `export_base_service` para generar `exports/export_base.json` como salida estructurada por defecto
 - `legacy_export_json_enabled` para reactivar `export/legacy_export.json` via `export_json_service` solo por compatibilidad
 - `division_honor_mallorca` entra tambien en viernes para `preview` y `featured_match_preview`
+- `export_base_service` usa `editorial_text_selector` en `preview` y `featured_match_preview` para conservar `viral_formatted_text` cuando aporta mejor salida
 - `editorial_formatter` refina branding y titulos narrativos: `DH Mallorca`, `💪🏼 Forma`, `📈 Tendencia` y `🔥 Dato`
 - `viral_formatted_text` como capa compacta para export seguro en resultados, clasificaciones, previas y rankings
 - `team_socials` + `social_enricher` para insertar menciones de clubes sin duplicados
@@ -538,7 +539,8 @@ Que persiste:
 Reglas operativas:
 - solo exporta piezas con `formatted_text`
 - usa ventana semanal y reglas distintas para previas, post-jornada y piezas semanales
-- usa `rewritten_text`, despues `formatted_text` y por ultimo `text_draft`
+- en `preview` y `featured_match_preview` usa `editorial_text_selector`, por lo que puede elegir `rewritten_text`, `viral_formatted_text`, `formatted_text` o `text_draft`
+- en el resto usa `rewritten_text`, despues `formatted_text` y por ultimo `text_draft`
 - deduplica por `content_key` o por marcador estructural derivado de `source_payload`
 - el fichero `exports/export_base.json` es artefacto local de salida, no fuente editable del sistema
 
