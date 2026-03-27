@@ -33,6 +33,7 @@ Ruta: `scripts/cron/`
 - `run_editorial_day.sh`
   - ejecuta `editorial_ops preview-day --date <fecha>`
   - ejecuta `editorial_ops run-daily --date <fecha>`
+  - los viernes ya cubre `division_honor_mallorca` en `preview` y `featured_match_preview`
 - `run_slot.sh`
   - envoltorio opcional
   - soporta `refresh`, `readiness` y `editorial-day`

@@ -85,6 +85,16 @@
         "competition_slug": "segunda_rfef_g3_baleares",
         "content_type": "featured_match_preview",
         "priority": 89
+      },
+      {
+        "competition_slug": "division_honor_mallorca",
+        "content_type": "preview",
+        "priority": 90
+      },
+      {
+        "competition_slug": "division_honor_mallorca",
+        "content_type": "featured_match_preview",
+        "priority": 89
       }
     ],
     "domingo": [

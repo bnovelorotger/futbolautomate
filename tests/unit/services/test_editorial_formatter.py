@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.core.enums import ContentCandidateStatus, ContentType
+from app.core.enums import ContentCandidateStatus, ContentType, NarrativeMetricType, ViralStoryType
 from app.db.base import Base
 from app.db.models import Competition, TeamMention
 from app.schemas.editorial_content import ContentCandidateDraft
@@ -123,6 +123,39 @@ def test_format_standings_summary_keeps_zone_markers_and_new_title() -> None:
         session.close()
 
 
+def test_format_results_summary_uses_dh_mallorca_title_for_division_honor() -> None:
+    session = build_session()
+    try:
+        seed_catalog(session)
+        service = EditorialFormatterService(session)
+        draft = ContentCandidateDraft(
+            competition_slug="division_honor_mallorca",
+            content_type=ContentType.RESULTS_ROUNDUP,
+            priority=88,
+            text_draft="RESULTADOS",
+            source_summary_hash="hash-results-dh-mallorca",
+            status=ContentCandidateStatus.DRAFT,
+            payload_json={
+                "competition_name": "Division Honor Mallorca",
+                "source_payload": {
+                    "group_label": "Jornada 26",
+                    "matches": [
+                        {"home_team": "CE Andratx B", "away_team": "UD Arenal", "home_score": 2, "away_score": 1},
+                        {"home_team": "CD Serverense", "away_team": "UE Collerense", "home_score": 1, "away_score": 1},
+                    ],
+                },
+            },
+        )
+
+        formatted = service.apply_to_draft(draft).formatted_text
+
+        assert formatted is not None
+        assert formatted.startswith("📋 Resultados - DH Mallorca - J26")
+        assert formatted.rstrip().endswith("#FutbolBalear #DH")
+    finally:
+        session.close()
+
+
 def test_resolve_team_mention_uses_normalized_identity() -> None:
     session = build_session()
     try:
@@ -185,14 +218,82 @@ def test_format_narrative_uses_variant_label_and_hashtags() -> None:
             scheduled_at=datetime(2026, 3, 17, 10, 0, tzinfo=timezone.utc),
             payload_json={
                 "competition_name": "3a RFEF Baleares",
-                "source_payload": {"story_type": "win_streak", "team": "CD Manacor", "metric_value": 5},
+                "source_payload": {
+                    "story_type": str(ViralStoryType.WIN_STREAK),
+                    "team": "CD Manacor",
+                    "metric_value": 5,
+                },
             },
         )
 
         formatted = service.apply_to_draft(draft).formatted_text
 
         assert formatted is not None
-        assert formatted.startswith("🔥 Forma")
+        assert formatted.startswith("💪🏼 Forma")
+        assert "#FutbolBalear #3aRFEF" in formatted
+    finally:
+        session.close()
+
+
+def test_format_narrative_uses_trend_emoji_for_trend_variants() -> None:
+    session = build_session()
+    try:
+        seed_catalog(session)
+        service = EditorialFormatterService(session)
+        draft = ContentCandidateDraft(
+            competition_slug="tercera_rfef_g11",
+            content_type=ContentType.VIRAL_STORY,
+            priority=74,
+            text_draft="Los partidos de CE Alpha vienen dejando muchos goles en 3a RFEF Baleares.",
+            source_summary_hash="hash-trend",
+            status=ContentCandidateStatus.DRAFT,
+            scheduled_at=datetime(2026, 3, 17, 11, 0, tzinfo=timezone.utc),
+            payload_json={
+                "competition_name": "3a RFEF Baleares",
+                "source_payload": {
+                    "story_type": str(ViralStoryType.GOALS_TREND),
+                    "team": "CE Alpha",
+                    "metric_value": 4.2,
+                },
+            },
+        )
+
+        formatted = service.apply_to_draft(draft).formatted_text
+
+        assert formatted is not None
+        assert formatted.startswith("📈 Tendencia")
+        assert "#FutbolBalear #3aRFEF" in formatted
+    finally:
+        session.close()
+
+
+def test_format_narrative_keeps_fire_emoji_for_data_variants() -> None:
+    session = build_session()
+    try:
+        seed_catalog(session)
+        service = EditorialFormatterService(session)
+        draft = ContentCandidateDraft(
+            competition_slug="tercera_rfef_g11",
+            content_type=ContentType.METRIC_NARRATIVE,
+            priority=73,
+            text_draft="CD Manacor lidera uno de los apartados estadisticos de 3a RFEF Baleares.",
+            source_summary_hash="hash-data",
+            status=ContentCandidateStatus.DRAFT,
+            scheduled_at=datetime(2026, 3, 17, 12, 0, tzinfo=timezone.utc),
+            payload_json={
+                "competition_name": "3a RFEF Baleares",
+                "source_payload": {
+                    "narrative_type": str(NarrativeMetricType.BEST_ATTACK),
+                    "team": "CD Manacor",
+                    "metric_value": 35,
+                },
+            },
+        )
+
+        formatted = service.apply_to_draft(draft).formatted_text
+
+        assert formatted is not None
+        assert formatted.startswith("🔥 Dato")
         assert "#FutbolBalear #3aRFEF" in formatted
     finally:
         session.close()

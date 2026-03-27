@@ -6,7 +6,7 @@ La documentacion detallada de esta iteracion se conserva en [docs/README_detaile
 
 ## Version actual
 
-Snapshot del **26 de marzo de 2026**.
+Snapshot del **27 de marzo de 2026**.
 
 Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolidados:
 
@@ -18,6 +18,8 @@ Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolida
 - `editorial_formatter` como capa determinista previa a exportacion
 - `editorial_release` + `export_base_service` para generar `exports/export_base.json` como salida estructurada por defecto
 - `legacy_export_json_enabled` para reactivar `export/legacy_export.json` via `export_json_service` solo por compatibilidad
+- `division_honor_mallorca` entra tambien en viernes para `preview` y `featured_match_preview`
+- `editorial_formatter` refina branding y titulos narrativos: `DH Mallorca`, `💪🏼 Forma`, `📈 Tendencia` y `🔥 Dato`
 - `viral_formatted_text` como capa compacta para export seguro en resultados, clasificaciones, previas y rankings
 - `team_socials` + `social_enricher` para insertar menciones de clubes sin duplicados
 - `team_name_aliases.json` + `team_name_normalizer` para fijar naming editorial consistente
@@ -253,6 +255,7 @@ Choque de equipos en forma en 3a RFEF Baleares: CD Manacor y RCD Mallorca B lleg
 
 Estado operativo:
 - los viernes entra en el planner como bloque separado de `featured_match_preview`
+- ya cubre `tercera_rfef_g11`, `segunda_rfef_g3_baleares` y `division_honor_mallorca`
 - genera drafts manuales revisables
 - `featured_match_preview` sigue manual
 - `featured_match_event` sigue manual en produccion v1
@@ -260,6 +263,7 @@ Estado operativo:
 Integracion editorial actual:
 - viernes -> `preview` general por competicion
 - viernes -> `featured_match_preview` como bloque aparte
+- `division_honor_mallorca` queda ya incluida en ambos bloques del viernes
 - el bloque destacado usa `match_importance` y genera dos drafts:
   - `featured_match_preview`
   - `featured_match_event`
@@ -420,7 +424,8 @@ Reglas:
 - todo es determinista
 - no inventa datos
 - normaliza aliases editoriales desde `app/config/team_name_aliases.json` antes de resumir o enriquecer
-- usa solo estos emojis: `📋`, `📊`, `🔥`, `⚽`
+- usa branding corto por competicion, incluido `DH Mallorca` para `division_honor_mallorca`
+- usa titulos narrativos por etiqueta: `💪🏼 Forma`, `📈 Tendencia` y `🔥 Dato`
 - objetivo de longitud `<= 240`
 - si un texto se pasa, reduce secciones opcionales; no corta cadenas arbitrariamente
 

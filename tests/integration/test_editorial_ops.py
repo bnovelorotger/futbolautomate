@@ -9,7 +9,7 @@ from app.db.models import ContentCandidate
 from app.services.competition_catalog_service import CompetitionCatalogService
 from app.services.editorial_ops import EditorialOperationsService
 from tests.unit.services.test_match_importance import add_scheduled_match
-from tests.unit.services.test_editorial_narratives import build_session, seed_narratives_data
+from tests.unit.services.test_editorial_narratives import build_session, seed_competition, seed_narratives_data
 
 
 def test_editorial_ops_preview_and_run_daily_for_real_schedule() -> None:
@@ -71,6 +71,22 @@ def test_editorial_ops_preview_and_run_daily_generate_featured_match_drafts_on_f
     try:
         CompetitionCatalogService(session).seed_competitions(integrated_only=True, missing_only=True)
         seed_narratives_data(session)
+        seed_competition(
+            session,
+            code="division_honor_mallorca",
+            name="Division Honor Mallorca",
+            teams=["Portol FC", "Inter Manacor", "CD Serverense", "CE Esporles"],
+            standings_rows=[
+                {"position": 1, "team": "Portol FC", "played": 12, "wins": 9, "draws": 2, "losses": 1, "goals_for": 21, "goals_against": 9, "goal_difference": 12, "points": 29},
+                {"position": 2, "team": "Inter Manacor", "played": 12, "wins": 9, "draws": 1, "losses": 2, "goals_for": 20, "goals_against": 10, "goal_difference": 10, "points": 28},
+                {"position": 3, "team": "CD Serverense", "played": 12, "wins": 7, "draws": 2, "losses": 3, "goals_for": 16, "goals_against": 12, "goal_difference": 4, "points": 23},
+                {"position": 4, "team": "CE Esporles", "played": 12, "wins": 6, "draws": 2, "losses": 4, "goals_for": 14, "goals_against": 13, "goal_difference": 1, "points": 20},
+            ],
+            match_rows=[
+                {"round_name": "Jornada 12", "match_date": date(2026, 3, 14), "match_time": time(18, 0), "home_team": "Portol FC", "away_team": "CD Serverense", "home_score": 2, "away_score": 1},
+                {"round_name": "Jornada 11", "match_date": date(2026, 3, 7), "match_time": time(17, 0), "home_team": "Inter Manacor", "away_team": "CE Esporles", "home_score": 1, "away_score": 0},
+            ],
+        )
         add_scheduled_match(
             session,
             competition_code="tercera_rfef_g11",
@@ -89,6 +105,15 @@ def test_editorial_ops_preview_and_run_daily_generate_featured_match_drafts_on_f
             home_team="UE Sant Andreu",
             away_team="CD Atletico Baleares",
         )
+        add_scheduled_match(
+            session,
+            competition_code="division_honor_mallorca",
+            external_id="featured-dh-clash",
+            match_date=date(2026, 3, 20),
+            match_time=time(18, 45),
+            home_team="Portol FC",
+            away_team="Inter Manacor",
+        )
         service = EditorialOperationsService(session)
 
         preview = service.preview_day(date(2026, 3, 20))
@@ -103,24 +128,32 @@ def test_editorial_ops_preview_and_run_daily_generate_featured_match_drafts_on_f
             if row.planning_type == EditorialPlanningContent.FEATURED_MATCH_PREVIEW
         ]
 
-        assert preview.total_tasks == 4
-        assert preview.ready_tasks == 3
+        assert preview.total_tasks == 6
+        assert preview.ready_tasks == 5
         assert preview.blocked_tasks == 1
-        assert len(featured_preview_rows) == 2
+        assert len(featured_preview_rows) == 3
         segunda_featured_row = next(
             row for row in featured_preview_rows if row.competition_slug == "segunda_rfef_g3_baleares"
         )
         tercera_featured_row = next(
             row for row in featured_preview_rows if row.competition_slug == "tercera_rfef_g11"
         )
+        division_honor_featured_row = next(
+            row for row in featured_preview_rows if row.competition_slug == "division_honor_mallorca"
+        )
         assert segunda_featured_row.expected_count == 0
         assert segunda_featured_row.missing_dependencies == ["no_candidates_available"]
         assert tercera_featured_row.expected_count == 2
         assert not tercera_featured_row.missing_dependencies
-        assert run.generated_total == 4
+        assert division_honor_featured_row.expected_count == 2
+        assert not division_honor_featured_row.missing_dependencies
+        assert run.generated_total == 7
         assert featured_rows
         assert all(row.status == "draft" for row in featured_rows)
-        assert {row.competition_slug for row in featured_rows} == {"tercera_rfef_g11"}
+        assert {row.competition_slug for row in featured_rows} == {
+            "tercera_rfef_g11",
+            "division_honor_mallorca",
+        }
     finally:
         session.close()
 

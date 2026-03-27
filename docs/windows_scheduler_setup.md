@@ -37,6 +37,7 @@ Ruta: `scripts/windows/`
   - aborta si `preview-day` falla
   - si `PREVIEW_ONLY=true` o `-PreviewOnly`, termina sin `run-daily`
   - si no, ejecuta `run-daily`
+  - los viernes el planner ya incluye `division_honor_mallorca` en `preview` y `featured_match_preview`
 - `editorial_release.ps1`
   - ejecuta `editorial_release dry-run` o `run`
   - el pipeline interno hace `quality_checks -> autoapprove -> dispatch -> export_base`

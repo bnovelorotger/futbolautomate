@@ -20,7 +20,21 @@ def test_default_editorial_schedule_loads_expected_rules() -> None:
     assert any(rule.content_type == EditorialPlanningContent.METRIC_NARRATIVE for rule in wednesday_rules)
     assert any(rule.content_type == EditorialPlanningContent.VIRAL_STORY for rule in wednesday_rules)
     friday_rules = schedule.rules_for_weekday("friday")
+    assert len(friday_rules) == 6
     assert any(rule.content_type == EditorialPlanningContent.FEATURED_MATCH_PREVIEW for rule in friday_rules)
+    assert {
+        rule.competition_slug for rule in friday_rules
+    } == {
+        "tercera_rfef_g11",
+        "segunda_rfef_g3_baleares",
+        "division_honor_mallorca",
+    }
+    assert {
+        rule.content_type for rule in friday_rules
+    } == {
+        EditorialPlanningContent.PREVIEW,
+        EditorialPlanningContent.FEATURED_MATCH_PREVIEW,
+    }
     assert len(sunday_rules) == 4
     assert {rule.competition_slug for rule in sunday_rules} == {
         "tercera_rfef_g11",

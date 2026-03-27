@@ -32,7 +32,7 @@ COMPETITION_HASHTAGS = {
 COMPETITION_SHORT_NAMES = {
     "tercera_rfef_g11": "3ª RFEF",
     "segunda_rfef_g3_baleares": "2ª RFEF",
-    "division_honor_mallorca": "DH",
+    "division_honor_mallorca": "DH Mallorca",
 }
 CURATED_MENTION_TYPES = {
     ContentType.MATCH_RESULT,
@@ -64,6 +64,11 @@ RANKING_TITLE_BY_KEY = {
     "best_attack": "Mejor ataque",
     "best_defense": "Más sólida atrás",
     "most_wins": "Más victorias",
+}
+NARRATIVE_EMOJIS = {
+    "Forma": "💪🏼",
+    "Tendencia": "📈",
+    "Dato": "🔥",
 }
 
 
@@ -564,11 +569,12 @@ class EditorialFormatterService:
         if not normalized_base:
             return None
         hashtags = self._hashtags_line(competition_slug)
+        narrative_title = self._narrative_title(content_type, source_payload)
         for separator in ("\n\n", "\n", " "):
-            text = separator.join((f"🔥 {self._narrative_label(content_type, source_payload)}", normalized_base, hashtags))
+            text = separator.join((narrative_title, normalized_base, hashtags))
             if len(text) <= self.max_characters:
                 return text
-        return f"🔥 {self._narrative_label(content_type, source_payload)}\n{normalized_base}\n{hashtags}"
+        return f"{narrative_title}\n{normalized_base}\n{hashtags}"
 
     def format_match_result(
         self,
@@ -855,7 +861,7 @@ class EditorialFormatterService:
         if "segunda" in lowered_name or "2a rfef" in lowered_name or "2ª rfef" in lowered_name:
             return "2ª RFEF"
         if "division" in lowered_name and "honor" in lowered_name:
-            return "DH"
+            return "DH Mallorca"
         return competition_name.strip()
 
     def _group_title(self, competition_slug: str, competition_name: str, source_payload: dict[str, Any]) -> str | None:
@@ -1030,6 +1036,11 @@ class EditorialFormatterService:
                     return "Forma"
             return "Dato"
         return "Dato"
+
+    def _narrative_title(self, content_type: ContentType, source_payload: dict[str, Any]) -> str:
+        label = self._narrative_label(content_type, source_payload)
+        emoji = NARRATIVE_EMOJIS.get(label, "🔥")
+        return f"{emoji} {label}"
 
     def _zone_suffix(self, zone_tag: str | None) -> str:
         if zone_tag == "playoff":
