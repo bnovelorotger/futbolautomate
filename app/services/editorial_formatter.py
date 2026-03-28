@@ -27,12 +27,20 @@ CLUB_PREFIXES = {"cd", "cf", "ce", "ue", "ud", "rcd", "scr", "atletico", "atl", 
 COMPETITION_HASHTAGS = {
     "tercera_rfef_g11": "#3aRFEF",
     "segunda_rfef_g3_baleares": "#2aRFEF",
+    "primera_rfef_baleares": "#1aRFEF",
+    "tercera_federacion_femenina_g11": "#FutFemBalear",
     "division_honor_mallorca": "#DH",
+    "division_honor_ibiza_form": "#DHIbiza",
+    "division_honor_menorca": "#DHMenorca",
 }
 COMPETITION_SHORT_NAMES = {
     "tercera_rfef_g11": "3ª RFEF",
     "segunda_rfef_g3_baleares": "2ª RFEF",
+    "primera_rfef_baleares": "1ª RFEF",
+    "tercera_federacion_femenina_g11": "3ª RFEF Fem",
     "division_honor_mallorca": "DH Mallorca",
+    "division_honor_ibiza_form": "DH Ibiza/Form",
+    "division_honor_menorca": "DH Menorca",
 }
 CURATED_MENTION_TYPES = {
     ContentType.MATCH_RESULT,

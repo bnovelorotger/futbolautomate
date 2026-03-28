@@ -35,9 +35,27 @@ def test_competition_catalog_tracks_current_status_and_sources() -> None:
         == "https://futbolme.com/resultados-directo/torneo/segunda-federacion-grupo-3/3059/"
     )
 
+    primera = catalog["primera_rfef_baleares"]
+    assert primera.status == CompetitionIntegrationStatus.INTEGRATED
+    assert primera.tracked_teams == ["UD Ibiza"]
+    assert primera.editorial_name == "1a RFEF con UD Ibiza"
+    assert primera.sources[SourceName.FUTBOLME].competition_id == "3056"
+    assert (
+        primera.sources[SourceName.FUTBOLME].urls[TargetType.MATCHES]
+        == "https://futbolme.com/resultados-directo/torneo/000-primera-federacion-grupo-2/3056/calendario"
+    )
+
     femenina = catalog["tercera_federacion_femenina_g11"]
     assert femenina.editorial_name == "Primera Nacional femenina con equipos baleares"
-    assert femenina.status == CompetitionIntegrationStatus.READY_TO_INTEGRATE
+    assert femenina.status == CompetitionIntegrationStatus.INTEGRATED
+
+    ibiza = catalog["division_honor_ibiza_form"]
+    assert ibiza.status == CompetitionIntegrationStatus.INTEGRATED
+    assert ibiza.sources[SourceName.FUTBOLME].competition_id == "4020"
+
+    menorca = catalog["division_honor_menorca"]
+    assert menorca.status == CompetitionIntegrationStatus.INTEGRATED
+    assert menorca.sources[SourceName.FUTBOLME].competition_id == "4019"
 
     juvenil = catalog["juvenil_division_honor_g3"]
     assert juvenil.status == CompetitionIntegrationStatus.DEFERRED

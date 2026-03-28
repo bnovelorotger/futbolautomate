@@ -156,6 +156,39 @@ def test_format_results_summary_uses_dh_mallorca_title_for_division_honor() -> N
         session.close()
 
 
+def test_format_results_summary_uses_specific_title_for_division_honor_ibiza() -> None:
+    session = build_session()
+    try:
+        seed_catalog(session)
+        service = EditorialFormatterService(session)
+        draft = ContentCandidateDraft(
+            competition_slug="division_honor_ibiza_form",
+            content_type=ContentType.RESULTS_ROUNDUP,
+            priority=88,
+            text_draft="RESULTADOS",
+            source_summary_hash="hash-results-dh-ibiza",
+            status=ContentCandidateStatus.DRAFT,
+            payload_json={
+                "competition_name": "Preferente Ibiza",
+                "source_payload": {
+                    "group_label": "Jornada 26",
+                    "matches": [
+                        {"home_team": "PE Sant Jordi", "away_team": "UD Ibiza B", "home_score": 2, "away_score": 1},
+                    ],
+                },
+            },
+        )
+
+        formatted = service.apply_to_draft(draft).formatted_text
+
+        assert formatted is not None
+        assert formatted.startswith("📋 Resultados - DH Ibiza/Form - J26")
+        assert "DH Mallorca" not in formatted
+        assert formatted.rstrip().endswith("#FutbolBalear #DHIbiza")
+    finally:
+        session.close()
+
+
 def test_resolve_team_mention_uses_normalized_identity() -> None:
     session = build_session()
     try:

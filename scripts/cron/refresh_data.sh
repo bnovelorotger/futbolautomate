@@ -14,6 +14,10 @@ COMPETITIONS=(
   "tercera_rfef_g11"
   "segunda_rfef_g3_baleares"
   "division_honor_mallorca"
+  "tercera_federacion_femenina_g11"
+  "primera_rfef_baleares"
+  "division_honor_ibiza_form"
+  "division_honor_menorca"
 )
 TARGETS=("matches" "standings")
 

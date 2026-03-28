@@ -18,6 +18,8 @@ Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolida
 - `editorial_formatter` como capa determinista previa a exportacion
 - `editorial_release` + `export_base_service` para generar `exports/export_base.json` como salida estructurada por defecto
 - `legacy_export_json_enabled` para reactivar `export/legacy_export.json` via `export_json_service` solo por compatibilidad
+- catalogo integrado ampliado con `primera_rfef_baleares`, `tercera_federacion_femenina_g11`, `division_honor_ibiza_form` y `division_honor_menorca`
+- planner semanal ampliado para incluir resultados, clasificacion, previas y rankings en las nuevas competiciones ya validadas
 - `division_honor_mallorca` entra tambien en viernes para `preview` y `featured_match_preview`
 - `export_base_service` usa `editorial_text_selector` en `preview` y `featured_match_preview` para conservar `viral_formatted_text` cuando aporta mejor salida
 - `editorial_formatter` refina branding y titulos narrativos: `DH Mallorca`, `💪🏼 Forma`, `📈 Tendencia` y `🔥 Dato`
@@ -92,6 +94,7 @@ pytest
 ## Estado actual del desarrollo
 
 - La base tecnica de scraping, persistencia y consultas ya existe y tiene tests.
+- El catalogo operativo ya no se limita a tres competiciones: ahora incluye tambien `primera_rfef_baleares`, `tercera_federacion_femenina_g11`, `division_honor_ibiza_form` y `division_honor_menorca`.
 - El repo contiene capa editorial, cola de aprobacion y release hacia `exports/export_base.json`, con `export/legacy_export.json` solo como compatibilidad opcional y publicacion en X todavia desacoplada.
 - La operativa real depende de credenciales, base de datos y tareas programadas locales.
 - Falta endurecer el flujo de trabajo de equipo: ramas, CI, politicas de revision y despliegue.
@@ -256,7 +259,7 @@ Choque de equipos en forma en 3a RFEF Baleares: CD Manacor y RCD Mallorca B lleg
 
 Estado operativo:
 - los viernes entra en el planner como bloque separado de `featured_match_preview`
-- ya cubre `tercera_rfef_g11`, `segunda_rfef_g3_baleares` y `division_honor_mallorca`
+- ya cubre `tercera_rfef_g11`, `segunda_rfef_g3_baleares`, `primera_rfef_baleares`, `tercera_federacion_femenina_g11`, `division_honor_mallorca`, `division_honor_ibiza_form` y `division_honor_menorca`
 - genera drafts manuales revisables
 - `featured_match_preview` sigue manual
 - `featured_match_event` sigue manual en produccion v1

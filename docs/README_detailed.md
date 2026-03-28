@@ -51,8 +51,8 @@ Estado actual del catalogo:
   - `division_honor_mallorca`
   - `tercera_rfef_g11`
   - `segunda_rfef_g3_baleares`
-- `ready_to_integrate`
   - `tercera_federacion_femenina_g11`
+  - `primera_rfef_baleares`
   - `division_honor_ibiza_form`
   - `division_honor_menorca`
 - `deferred`
@@ -63,6 +63,7 @@ Estado actual del catalogo:
 Renombrados tecnicos relevantes:
 
 - backlog `2a RFEF con equipos baleares` -> codigo tecnico `segunda_rfef_g3_baleares`
+- backlog `1a RFEF con UD Ibiza` -> codigo tecnico `primera_rfef_baleares`
 - backlog `Primera Nacional femenina con equipos baleares` -> codigo tecnico `tercera_federacion_femenina_g11`
 - backlog `Preferente Ibiza` -> codigo tecnico `division_honor_ibiza_form`
 - backlog `Preferente Menorca` -> codigo tecnico `division_honor_menorca`

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, time
 
 from sqlalchemy import select
 
@@ -134,5 +134,42 @@ def test_results_roundup_respects_max_characters_and_truncates_cleanly() -> None
         assert len(result.text_draft) <= 90
         assert result.selected_matches_count >= 1
         assert result.omitted_matches_count >= 1
+    finally:
+        session.close()
+
+
+def test_results_roundup_filters_primera_rfef_to_ud_ibiza() -> None:
+    session = build_session()
+    try:
+        seed_competition(
+            session,
+            code="primera_rfef_baleares",
+            name="Primera Federacion Grupo 2",
+            teams=[
+                "UD Ibiza",
+                "AD Ceuta FC",
+                "CE Sabadell FC",
+                "Marbella FC",
+            ],
+            standings_rows=[
+                {"position": 1, "team": "CE Sabadell FC", "played": 29, "wins": 16, "draws": 6, "losses": 7, "goals_for": 40, "goals_against": 23, "goal_difference": 17, "points": 54},
+                {"position": 12, "team": "AD Ceuta FC", "played": 29, "wins": 10, "draws": 9, "losses": 10, "goals_for": 31, "goals_against": 30, "goal_difference": 1, "points": 39},
+                {"position": 13, "team": "UD Ibiza", "played": 29, "wins": 10, "draws": 8, "losses": 11, "goals_for": 28, "goals_against": 30, "goal_difference": -2, "points": 38},
+                {"position": 17, "team": "Marbella FC", "played": 29, "wins": 8, "draws": 8, "losses": 13, "goals_for": 25, "goals_against": 35, "goal_difference": -10, "points": 32},
+            ],
+            match_rows=[
+                {"round_name": "Jornada 29", "match_date": date(2026, 3, 22), "match_time": time(12, 0), "home_team": "UD Ibiza", "away_team": "AD Ceuta FC", "home_score": 1, "away_score": 0},
+                {"round_name": "Jornada 29", "match_date": date(2026, 3, 22), "match_time": time(18, 0), "home_team": "CE Sabadell FC", "away_team": "Marbella FC", "home_score": 2, "away_score": 1},
+            ],
+        )
+        result = ResultsRoundupService(session).show_for_competition(
+            "primera_rfef_baleares",
+            reference_date=date(2026, 3, 23),
+        )
+
+        assert result.text_draft is not None
+        assert "UD Ibiza 1-0 AD Ceuta FC" in result.text_draft
+        assert "CE Sabadell FC" not in result.text_draft
+        assert result.selected_matches_count == 1
     finally:
         session.close()

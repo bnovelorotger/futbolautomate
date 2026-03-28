@@ -15,6 +15,10 @@ def test_competition_relevance_service_resolves_tracked_teams_and_aliases() -> N
     ]
     assert service.is_tracked_team("segunda_rfef_g3_baleares", "CD Atlético Baleares") is True
     assert service.is_tracked_team("segunda_rfef_g3_baleares", "UE Sant Andreu") is False
+    assert service.has_tracked_teams("primera_rfef_baleares") is True
+    assert service.tracked_teams("primera_rfef_baleares") == ["UD Ibiza"]
+    assert service.is_tracked_team("primera_rfef_baleares", "Ibiza UD") is True
+    assert service.is_tracked_team("primera_rfef_baleares", "AD Ceuta FC") is False
 
 
 def test_competition_relevance_service_filters_only_matches_with_tracked_teams() -> None:

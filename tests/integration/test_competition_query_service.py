@@ -503,6 +503,235 @@ def seed_group_with_tracked_teams(session: Session) -> None:
     session.commit()
 
 
+def seed_primera_rfef_with_ud_ibiza(session: Session) -> None:
+    competition = Competition(
+        code="primera_rfef_baleares",
+        name="Primera Federacion Grupo 2",
+        normalized_name="primera federacion grupo 2",
+        category_level=3,
+        gender="male",
+        region="Spain",
+        country="Spain",
+        federation="RFEF",
+        source_name="futbolme",
+        source_competition_id="3056",
+    )
+    ibiza = Team(name="UD Ibiza", normalized_name="ud ibiza", gender="male")
+    sabadell = Team(name="CE Sabadell FC", normalized_name="ce sabadell fc", gender="male")
+    ceuta = Team(name="AD Ceuta FC", normalized_name="ad ceuta fc", gender="male")
+    marbella = Team(name="Marbella FC", normalized_name="marbella fc", gender="male")
+    session.add_all([competition, ibiza, sabadell, ceuta, marbella])
+    session.flush()
+
+    scraped_at = datetime(2026, 3, 28, 10, 0, tzinfo=timezone.utc)
+    session.add_all(
+        [
+            Standing(
+                source_name="futbolme",
+                source_url="https://example.com/primera/standings",
+                competition_id=competition.id,
+                season="2025-26",
+                group_name="Grupo 2",
+                position=1,
+                team_id=sabadell.id,
+                team_raw="CE Sabadell FC",
+                played=29,
+                wins=16,
+                draws=6,
+                losses=7,
+                goals_for=40,
+                goals_against=23,
+                goal_difference=17,
+                points=54,
+                form_text=None,
+                scraped_at=scraped_at,
+                content_hash="primera-standing-1",
+                extra_data=None,
+            ),
+            Standing(
+                source_name="futbolme",
+                source_url="https://example.com/primera/standings",
+                competition_id=competition.id,
+                season="2025-26",
+                group_name="Grupo 2",
+                position=12,
+                team_id=ceuta.id,
+                team_raw="AD Ceuta FC",
+                played=29,
+                wins=10,
+                draws=9,
+                losses=10,
+                goals_for=31,
+                goals_against=30,
+                goal_difference=1,
+                points=39,
+                form_text=None,
+                scraped_at=scraped_at,
+                content_hash="primera-standing-2",
+                extra_data=None,
+            ),
+            Standing(
+                source_name="futbolme",
+                source_url="https://example.com/primera/standings",
+                competition_id=competition.id,
+                season="2025-26",
+                group_name="Grupo 2",
+                position=13,
+                team_id=ibiza.id,
+                team_raw="UD Ibiza",
+                played=29,
+                wins=10,
+                draws=8,
+                losses=11,
+                goals_for=28,
+                goals_against=30,
+                goal_difference=-2,
+                points=38,
+                form_text=None,
+                scraped_at=scraped_at,
+                content_hash="primera-standing-3",
+                extra_data=None,
+            ),
+            Standing(
+                source_name="futbolme",
+                source_url="https://example.com/primera/standings",
+                competition_id=competition.id,
+                season="2025-26",
+                group_name="Grupo 2",
+                position=17,
+                team_id=marbella.id,
+                team_raw="Marbella FC",
+                played=29,
+                wins=8,
+                draws=8,
+                losses=13,
+                goals_for=25,
+                goals_against=35,
+                goal_difference=-10,
+                points=32,
+                form_text=None,
+                scraped_at=scraped_at,
+                content_hash="primera-standing-4",
+                extra_data=None,
+            ),
+        ]
+    )
+
+    session.add_all(
+        [
+            Match(
+                external_id="primera-m1",
+                source_name="futbolme",
+                source_url="https://example.com/primera/m1",
+                competition_id=competition.id,
+                season="2025-26",
+                group_name="Grupo 2",
+                round_name="Jornada 29",
+                raw_match_date="domingo, 22 de marzo de 2026",
+                raw_match_time="12:00",
+                match_date=date(2026, 3, 22),
+                match_time=time(12, 0),
+                kickoff_datetime=datetime(2026, 3, 22, 12, 0, tzinfo=timezone.utc),
+                home_team_id=ibiza.id,
+                away_team_id=ceuta.id,
+                home_team_raw="UD Ibiza",
+                away_team_raw="AD Ceuta FC",
+                home_score=1,
+                away_score=0,
+                status="finished",
+                venue=None,
+                has_lineups=False,
+                has_scorers=False,
+                scraped_at=scraped_at,
+                content_hash="primera-match-1",
+                extra_data=None,
+            ),
+            Match(
+                external_id="primera-m2",
+                source_name="futbolme",
+                source_url="https://example.com/primera/m2",
+                competition_id=competition.id,
+                season="2025-26",
+                group_name="Grupo 2",
+                round_name="Jornada 29",
+                raw_match_date="domingo, 22 de marzo de 2026",
+                raw_match_time="18:00",
+                match_date=date(2026, 3, 22),
+                match_time=time(18, 0),
+                kickoff_datetime=datetime(2026, 3, 22, 18, 0, tzinfo=timezone.utc),
+                home_team_id=sabadell.id,
+                away_team_id=marbella.id,
+                home_team_raw="CE Sabadell FC",
+                away_team_raw="Marbella FC",
+                home_score=2,
+                away_score=1,
+                status="finished",
+                venue=None,
+                has_lineups=False,
+                has_scorers=False,
+                scraped_at=scraped_at,
+                content_hash="primera-match-2",
+                extra_data=None,
+            ),
+            Match(
+                external_id="primera-m3",
+                source_name="futbolme",
+                source_url="https://example.com/primera/m3",
+                competition_id=competition.id,
+                season="2025-26",
+                group_name="Grupo 2",
+                round_name="Jornada 30",
+                raw_match_date="domingo, 29 de marzo de 2026",
+                raw_match_time="12:00",
+                match_date=date(2026, 3, 29),
+                match_time=time(12, 0),
+                kickoff_datetime=datetime(2026, 3, 29, 12, 0, tzinfo=timezone.utc),
+                home_team_id=marbella.id,
+                away_team_id=ibiza.id,
+                home_team_raw="Marbella FC",
+                away_team_raw="UD Ibiza",
+                home_score=None,
+                away_score=None,
+                status="scheduled",
+                venue=None,
+                has_lineups=False,
+                has_scorers=False,
+                scraped_at=scraped_at,
+                content_hash="primera-match-3",
+                extra_data=None,
+            ),
+            Match(
+                external_id="primera-m4",
+                source_name="futbolme",
+                source_url="https://example.com/primera/m4",
+                competition_id=competition.id,
+                season="2025-26",
+                group_name="Grupo 2",
+                round_name="Jornada 30",
+                raw_match_date="domingo, 29 de marzo de 2026",
+                raw_match_time="18:00",
+                match_date=date(2026, 3, 29),
+                match_time=time(18, 0),
+                kickoff_datetime=datetime(2026, 3, 29, 18, 0, tzinfo=timezone.utc),
+                home_team_id=sabadell.id,
+                away_team_id=ceuta.id,
+                home_team_raw="CE Sabadell FC",
+                away_team_raw="AD Ceuta FC",
+                home_score=None,
+                away_score=None,
+                status="scheduled",
+                venue=None,
+                has_lineups=False,
+                has_scorers=False,
+                scraped_at=scraped_at,
+                content_hash="primera-match-4",
+                extra_data=None,
+            ),
+        ]
+    )
+    session.commit()
+
+
 def test_competition_query_service_returns_standings_rankings_and_summary() -> None:
     session = build_session()
     try:
@@ -633,5 +862,38 @@ def test_competition_query_service_filters_relevant_matches_for_tracked_teams() 
             "CE Andratx",
             "UE Porreres",
         ]
+    finally:
+        session.close()
+
+
+def test_competition_query_service_filters_primera_rfef_to_ud_ibiza() -> None:
+    session = build_session()
+    try:
+        seed_primera_rfef_with_ud_ibiza(session)
+        service = CompetitionQueryService(session)
+
+        latest_results = service.latest_results(
+            "primera_rfef_baleares",
+            limit=5,
+            relevant_only=True,
+        )
+        upcoming = service.upcoming_matches(
+            "primera_rfef_baleares",
+            limit=5,
+            relevant_only=True,
+        )
+        round_matches = service.matches_by_round(
+            "primera_rfef_baleares",
+            round_name="30",
+            relevant_only=True,
+        )
+
+        assert [row.home_team for row in latest_results] == ["UD Ibiza"]
+        assert len(upcoming) == 1
+        assert upcoming[0].away_team == "UD Ibiza"
+        assert len(round_matches) == 1
+        assert round_matches[0].away_team == "UD Ibiza"
+        assert service.tracked_teams("primera_rfef_baleares") == ["UD Ibiza"]
+        assert service.relevant_matches_count("primera_rfef_baleares") == 2
     finally:
         session.close()

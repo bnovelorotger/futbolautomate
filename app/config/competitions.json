@@ -182,6 +182,66 @@
     }
   },
   {
+    "code": "primera_rfef_baleares",
+    "name": "Primera Federacion Grupo 2",
+    "editorial_name": "1a RFEF con UD Ibiza",
+    "aliases": [
+      "Primera Federacion Grupo 2",
+      "Primera Federacion - Grupo 2",
+      "Primera RFEF Grupo 2",
+      "1a RFEF Baleares",
+      "1a RFEF con UD Ibiza",
+      "PRIMERA FEDERACION - Grupo 2"
+    ],
+    "historical_backlog_names": [
+      "1a RFEF con UD Ibiza"
+    ],
+    "category_level": 3,
+    "gender": "male",
+    "region": "Spain",
+    "country": "Spain",
+    "federation": "RFEF",
+    "priority": 2,
+    "status": "integrated",
+    "primary_source": "futbolme",
+    "coverage_scope": "Integrar el Grupo 2 completo en base de datos y explotar editorialmente solo a UD Ibiza mediante tracked_teams.",
+    "integration_notes": "Integracion productiva real sobre Futbolme Grupo 2. Revalidada el 28 de marzo de 2026 con parser real de partidos y clasificacion, manteniendo el filtro editorial exclusivo de UD Ibiza.",
+    "group_name": "Grupo 2",
+    "tracked_teams": [
+      "UD Ibiza"
+    ],
+    "references": [
+      {
+        "source_name": "futbolme",
+        "role": "primary",
+        "urls": [
+          "https://futbolme.com/resultados-directo/torneo/000-primera-federacion-grupo-2/3056/",
+          "https://futbolme.com/resultados-directo/torneo/000-primera-federacion-grupo-2/3056/calendario"
+        ],
+        "notes": "Ruta viva revalidada el 28 de marzo de 2026. Futbolme mantiene el Grupo 2 completo y permite filtrar luego solo la capa UD Ibiza."
+      },
+      {
+        "source_name": "rfef",
+        "role": "official",
+        "urls": [
+          "https://rfef.es/es/competiciones/primera-federacion"
+        ],
+        "notes": "Oficial, pero hoy no es una base automatica razonable frente a Futbolme."
+      }
+    ],
+    "sources": {
+      "futbolme": {
+        "competition_id": "3056",
+        "enabled": true,
+        "urls": {
+          "matches": "https://futbolme.com/resultados-directo/torneo/000-primera-federacion-grupo-2/3056/calendario",
+          "standings": "https://futbolme.com/resultados-directo/torneo/000-primera-federacion-grupo-2/3056/"
+        },
+        "notes": "Ruta real revalidada el 28 de marzo de 2026. Se integra el grupo completo y se explota editorialmente solo UD Ibiza."
+      }
+    }
+  },
+  {
     "code": "tercera_federacion_femenina_g11",
     "name": "Tercera Federacion Femenina Grupo 11",
     "editorial_name": "Primera Nacional femenina con equipos baleares",
@@ -200,10 +260,10 @@
     "country": "Spain",
     "federation": "RFEF",
     "priority": 2,
-    "status": "ready_to_integrate",
+    "status": "integrated",
     "primary_source": "futbolme",
     "coverage_scope": "Sustituto tecnico actual del backlog historico de Primera Nacional femenina balear.",
-    "integration_notes": "La realidad competitiva vigente en Futbolme para equipos baleares es Tercera Federacion Femenina Grupo 11.",
+    "integration_notes": "La realidad competitiva vigente en Futbolme para equipos baleares es Tercera Federacion Femenina Grupo 11. Revalidada el 28 de marzo de 2026 con parser real de partidos y clasificacion.",
     "group_name": "Grupo 11",
     "references": [
       {
@@ -232,7 +292,7 @@
           "matches": "https://futbolme.com/resultados-directo/torneo/tercera-federacion-femenina-grupo-11/3246/calendario",
           "standings": "https://futbolme.com/resultados-directo/torneo/tercera-federacion-femenina-grupo-11/3246/"
         },
-        "notes": "Lista para integrar con bajo coste."
+        "notes": "Ruta real revalidada el 28 de marzo de 2026. Compatible con el scraper/parsers actuales sin ajustes adicionales."
       }
     }
   },
@@ -257,10 +317,10 @@
     "country": "Spain",
     "federation": "FFIB",
     "priority": 3,
-    "status": "ready_to_integrate",
+    "status": "integrated",
     "primary_source": "futbolme",
     "coverage_scope": "Sustituto tecnico actual del backlog editorial Preferente Ibiza.",
-    "integration_notes": "Futbolme no expone hoy una liga viva bajo el nombre Preferente Ibiza, sino Division Honor-Ibiza/Form.",
+    "integration_notes": "Futbolme no expone hoy una liga viva bajo el nombre Preferente Ibiza, sino Division Honor-Ibiza/Form. Revalidada el 28 de marzo de 2026 con parser real de partidos y clasificacion.",
     "references": [
       {
         "source_name": "futbolme",
@@ -280,7 +340,7 @@
           "matches": "https://futbolme.com/resultados-directo/torneo/division-honor-ibiza-form/4020/calendario",
           "standings": "https://futbolme.com/resultados-directo/torneo/division-honor-ibiza-form/4020/"
         },
-        "notes": "Lista para integrar cuando toque la expansion insular."
+        "notes": "Ruta real revalidada el 28 de marzo de 2026. Compatible con el scraper/parsers actuales sin ajustes adicionales."
       }
     }
   },
@@ -303,10 +363,10 @@
     "country": "Spain",
     "federation": "FFIB",
     "priority": 3,
-    "status": "ready_to_integrate",
+    "status": "integrated",
     "primary_source": "futbolme",
     "coverage_scope": "Sustituto tecnico actual del backlog editorial Preferente Menorca.",
-    "integration_notes": "Futbolme no expone hoy la liga viva bajo el nombre Preferente Menorca, sino Division Honor-Menorca.",
+    "integration_notes": "Futbolme no expone hoy la liga viva bajo el nombre Preferente Menorca, sino Division Honor-Menorca. Revalidada el 28 de marzo de 2026 con parser real de partidos y clasificacion.",
     "references": [
       {
         "source_name": "futbolme",
@@ -326,7 +386,7 @@
           "matches": "https://futbolme.com/resultados-directo/torneo/division-honor-menorca/4019/calendario",
           "standings": "https://futbolme.com/resultados-directo/torneo/division-honor-menorca/4019/"
         },
-        "notes": "Lista para integrar cuando toque Menorca."
+        "notes": "Ruta real revalidada el 28 de marzo de 2026. Compatible con el scraper/parsers actuales sin ajustes adicionales."
       }
     }
   },

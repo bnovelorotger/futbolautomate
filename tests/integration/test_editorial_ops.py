@@ -25,12 +25,12 @@ def test_editorial_ops_preview_and_run_daily_for_real_schedule() -> None:
 
         rows = session.execute(select(ContentCandidate).order_by(ContentCandidate.id.asc())).scalars().all()
 
-        assert preview.total_tasks == 6
-        assert preview.blocked_tasks == 2
+        assert preview.total_tasks == 12
+        assert preview.blocked_tasks == 8
         assert preview.expected_total == 4
         assert run.generated_total == 4
         assert run.inserted_total == 4
-        assert run.blocked_tasks == 2
+        assert run.blocked_tasks == 8
         assert len(rows) == 4
         assert {row.content_type for row in rows} == {"results_roundup", "standings_roundup"}
     finally:
@@ -51,7 +51,7 @@ def test_editorial_ops_run_daily_generates_metric_narratives_on_wednesday() -> N
         metric_rows = [row for row in rows if row.content_type == "metric_narrative"]
         viral_rows = [row for row in rows if row.content_type == "viral_story"]
 
-        assert run.total_tasks == 6
+        assert run.total_tasks == 7
         assert metric_rows
         assert viral_rows
         assert {row.competition_slug for row in metric_rows} == {
@@ -128,9 +128,9 @@ def test_editorial_ops_preview_and_run_daily_generate_featured_match_drafts_on_f
             if row.planning_type == EditorialPlanningContent.FEATURED_MATCH_PREVIEW
         ]
 
-        assert preview.total_tasks == 6
+        assert preview.total_tasks == 8
         assert preview.ready_tasks == 5
-        assert preview.blocked_tasks == 1
+        assert preview.blocked_tasks == 3
         assert len(featured_preview_rows) == 3
         segunda_featured_row = next(
             row for row in featured_preview_rows if row.competition_slug == "segunda_rfef_g3_baleares"

@@ -12,15 +12,24 @@ def test_default_editorial_schedule_loads_expected_rules() -> None:
     wednesday_rules = schedule.rules_for_weekday("wednesday")
     sunday_rules = schedule.rules_for_weekday("sunday")
 
-    assert len(monday_rules) == 6
+    assert len(monday_rules) == 12
     assert monday_rules[0].competition_slug == "tercera_rfef_g11"
     assert monday_rules[0].content_type == EditorialPlanningContent.RESULTS_ROUNDUP
     assert any(rule.content_type == EditorialPlanningContent.STANDINGS_ROUNDUP for rule in monday_rules)
     assert any(rule.competition_slug == "division_honor_mallorca" for rule in monday_rules)
+    assert any(rule.competition_slug == "primera_rfef_baleares" for rule in monday_rules)
+    assert any(rule.competition_slug == "tercera_federacion_femenina_g11" for rule in monday_rules)
+    assert any(rule.competition_slug == "division_honor_ibiza_form" for rule in monday_rules)
+    assert any(rule.competition_slug == "division_honor_menorca" for rule in monday_rules)
     assert any(rule.content_type == EditorialPlanningContent.METRIC_NARRATIVE for rule in wednesday_rules)
     assert any(rule.content_type == EditorialPlanningContent.VIRAL_STORY for rule in wednesday_rules)
+    assert any(
+        rule.competition_slug == "primera_rfef_baleares"
+        and rule.content_type == EditorialPlanningContent.RANKING
+        for rule in wednesday_rules
+    )
     friday_rules = schedule.rules_for_weekday("friday")
-    assert len(friday_rules) == 6
+    assert len(friday_rules) == 8
     assert any(rule.content_type == EditorialPlanningContent.FEATURED_MATCH_PREVIEW for rule in friday_rules)
     assert {
         rule.competition_slug for rule in friday_rules
@@ -28,6 +37,8 @@ def test_default_editorial_schedule_loads_expected_rules() -> None:
         "tercera_rfef_g11",
         "segunda_rfef_g3_baleares",
         "division_honor_mallorca",
+        "tercera_federacion_femenina_g11",
+        "primera_rfef_baleares",
     }
     assert {
         rule.content_type for rule in friday_rules

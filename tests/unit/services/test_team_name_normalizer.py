@@ -15,3 +15,8 @@ def test_normalize_team_name_keeps_already_correct_name() -> None:
 
 def test_normalize_team_name_keeps_unknown_name() -> None:
     assert normalize_team_name("Equipo Desconocido") == "Equipo Desconocido"
+
+
+def test_normalize_team_name_adds_new_island_aliases() -> None:
+    assert normalize_team_name("CCE Sant Lluis") == "CCE Sant Lluís"
+    assert normalize_team_name("UD Mahon") == "UD Mahón"

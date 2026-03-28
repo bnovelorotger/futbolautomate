@@ -331,5 +331,32 @@
     "activity_level": "media",
     "is_shared_handle": true,
     "is_active": true
+  },
+  {
+    "team_name": "UD Ibiza",
+    "competition_slug": "primera_rfef_baleares",
+    "x_handle": "@ibizaud",
+    "followers_approx": null,
+    "activity_level": "alta",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "UD Collerense",
+    "competition_slug": "tercera_federacion_femenina_g11",
+    "x_handle": "@udcolleoficial",
+    "followers_approx": 1913,
+    "activity_level": "media",
+    "is_shared_handle": false,
+    "is_active": true
+  },
+  {
+    "team_name": "PE Sant Jordi",
+    "competition_slug": "division_honor_ibiza_form",
+    "x_handle": "@pesantjordi",
+    "followers_approx": null,
+    "activity_level": "media",
+    "is_shared_handle": false,
+    "is_active": true
   }
 ]

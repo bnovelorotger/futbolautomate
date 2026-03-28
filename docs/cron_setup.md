@@ -34,6 +34,7 @@ Ruta: `scripts/cron/`
   - ejecuta `editorial_ops preview-day --date <fecha>`
   - ejecuta `editorial_ops run-daily --date <fecha>`
   - los viernes ya cubre `division_honor_mallorca` en `preview` y `featured_match_preview`
+  - `primera_rfef_baleares` y `tercera_federacion_femenina_g11` entran en `preview` sin activar todavia `featured_match_preview`
 - `run_slot.sh`
   - envoltorio opcional
   - soporta `refresh`, `readiness` y `editorial-day`
@@ -103,6 +104,10 @@ Para un cron de produccion mas predecible conviene limitar el refresh a lo que e
 - `tercera_rfef_g11` -> `matches`, `standings`
 - `segunda_rfef_g3_baleares` -> `matches`, `standings`
 - `division_honor_mallorca` -> `matches`, `standings`
+- `tercera_federacion_femenina_g11` -> `matches`, `standings`
+- `primera_rfef_baleares` -> `matches`, `standings`
+- `division_honor_ibiza_form` -> `matches`, `standings`
+- `division_honor_menorca` -> `matches`, `standings`
 
 Eso reduce superficie de fallo y hace mas legible el log de refresh.
 
@@ -110,9 +115,9 @@ Eso reduce superficie de fallo y hace mas legible el log de refresh.
 
 Esta propuesta esta adaptada al estado real actual del sistema:
 
-- competiciones operativas: `tercera_rfef_g11`, `segunda_rfef_g3_baleares`, `division_honor_mallorca`
+- competiciones operativas: `tercera_rfef_g11`, `segunda_rfef_g3_baleares`, `primera_rfef_baleares`, `tercera_federacion_femenina_g11`, `division_honor_mallorca`, `division_honor_ibiza_form`, `division_honor_menorca`
 - planner semanal operativo: lunes, miercoles, viernes y domingo
-- juvenil/femenino: pendiente de integracion end-to-end
+- `featured_match_preview` sigue limitado a las competiciones ya configuradas con `match_importance`
 - sin `editorial_release` automatizado en cron por ahora
 
 ```cron

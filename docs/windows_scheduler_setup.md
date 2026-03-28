@@ -29,6 +29,10 @@ Ruta: `scripts/windows/`
     - `tercera_rfef_g11`
     - `segunda_rfef_g3_baleares`
     - `division_honor_mallorca`
+    - `tercera_federacion_femenina_g11`
+    - `primera_rfef_baleares`
+    - `division_honor_ibiza_form`
+    - `division_honor_menorca`
 - `readiness_check.ps1`
   - ejecuta `competition_catalog status --integrated-only`
   - ejecuta `system_check editorial-readiness`
@@ -38,6 +42,7 @@ Ruta: `scripts/windows/`
   - si `PREVIEW_ONLY=true` o `-PreviewOnly`, termina sin `run-daily`
   - si no, ejecuta `run-daily`
   - los viernes el planner ya incluye `division_honor_mallorca` en `preview` y `featured_match_preview`
+  - `primera_rfef_baleares` y `tercera_federacion_femenina_g11` entran en `preview` sin activar todavia `featured_match_preview`
 - `editorial_release.ps1`
   - ejecuta `editorial_release dry-run` o `run`
   - el pipeline interno hace `quality_checks -> autoapprove -> dispatch -> export_base`

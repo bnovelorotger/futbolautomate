@@ -23,9 +23,9 @@ def test_competition_catalog_service_detects_missing_integrated_competitions_and
         result = service.seed_competitions(integrated_only=True, missing_only=True)
         final = service.status(integrated_only=True)
 
-        assert len(initial) == 3
+        assert len(initial) == 7
         assert all(row.seeded_in_db is False for row in initial)
-        assert result.seeded_count == 3
+        assert result.seeded_count == 7
         assert result.updated_count == 0
         assert result.skipped_count == 0
         assert all(row.seeded_in_db is True for row in final)
