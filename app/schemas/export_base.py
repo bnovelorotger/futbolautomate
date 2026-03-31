@@ -11,6 +11,7 @@ class ExportBaseItem(BaseModel):
     selected_text_source: str
     competition_slug: str
     content_type: str
+    image_path: str | None = None
     priority: int
     created_at: datetime
 

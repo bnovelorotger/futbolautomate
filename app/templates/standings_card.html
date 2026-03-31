@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ title }}</title>
+  <style>
+    :root {
+      --bg: #0F0F0F;
+      --panel: rgba(23, 23, 23, 0.92);
+      --panel-strong: rgba(32, 32, 32, 0.96);
+      --line: rgba(255, 255, 255, 0.08);
+      --text: #F6F2EE;
+      --muted: #B8ACA4;
+      --accent: #E53935;
+      --glow: #FF6A00;
+      --playoff: rgba(229, 57, 53, 0.24);
+      --relegation: rgba(255, 106, 0, 0.24);
+      --shadow: 0 22px 80px rgba(0, 0, 0, 0.42);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: {{ layout.width }}px;
+      height: {{ layout.height }}px;
+      margin: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at top left, rgba(229, 57, 53, 0.22), transparent 34%),
+        radial-gradient(circle at top right, rgba(255, 106, 0, 0.18), transparent 28%),
+        linear-gradient(180deg, #141414 0%, #0F0F0F 52%, #0B0B0B 100%);
+      color: var(--text);
+      font-family: "Inter", "Montserrat", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      padding: 34px;
+    }
+
+    .frame {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      border-radius: 30px;
+      padding: 34px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
+        linear-gradient(135deg, rgba(229, 57, 53, 0.08), transparent 40%),
+        var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .frame::before,
+    .frame::after {
+      content: "";
+      position: absolute;
+      border-radius: 999px;
+      filter: blur(20px);
+      opacity: 0.75;
+      pointer-events: none;
+    }
+
+    .frame::before {
+      top: -80px;
+      right: 70px;
+      width: 220px;
+      height: 220px;
+      background: radial-gradient(circle, rgba(255, 106, 0, 0.36), transparent 70%);
+    }
+
+    .frame::after {
+      bottom: -90px;
+      left: -40px;
+      width: 280px;
+      height: 280px;
+      background: radial-gradient(circle, rgba(229, 57, 53, 0.28), transparent 70%);
+    }
+
+    .content {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      gap: 24px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 24px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      border-radius: 999px;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: #FFFFFF;
+      background: linear-gradient(90deg, rgba(229, 57, 53, 0.78), rgba(255, 106, 0, 0.72));
+      box-shadow: 0 10px 30px rgba(229, 57, 53, 0.22);
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: #FFFFFF;
+      box-shadow: 0 0 18px rgba(255, 255, 255, 0.8);
+    }
+
+    .stamp {
+      min-width: 230px;
+      padding: 16px 20px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      text-align: right;
+      backdrop-filter: blur(8px);
+    }
+
+    .stamp-label {
+      margin: 0 0 8px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .stamp-value {
+      margin: 0;
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+    }
+
+    .title-block {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .competition {
+      margin: 0;
+      font-size: 52px;
+      line-height: 1;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      max-width: 780px;
+      text-wrap: balance;
+    }
+
+    .round {
+      margin: 0;
+      font-size: 24px;
+      color: #FDD1C5;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .meta-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 42px;
+      padding: 10px 16px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      color: var(--muted);
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .dashboard {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 220px;
+      gap: 20px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .table-card,
+    .side-card {
+      background: var(--panel-strong);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    .table-card {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .table-head,
+    .table-row {
+      display: grid;
+      grid-template-columns: 70px minmax(0, 2.4fr) 78px 78px{% if columns.won %} 64px{% endif %}{% if columns.drawn %} 64px{% endif %}{% if columns.lost %} 64px{% endif %}{% if columns.goal_diff %} 78px{% endif %} 96px;
+      align-items: center;
+      gap: 10px;
+      padding: 0 22px;
+    }
+
+    .table-head {
+      min-height: 68px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01));
+    }
+
+    .table-body {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+
+    .table-row {
+      min-height: 88px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      font-size: 24px;
+      font-weight: 700;
+      background: rgba(255, 255, 255, 0.01);
+    }
+
+    .table-row:last-child {
+      border-bottom: 0;
+    }
+
+    .table-row.playoff {
+      background:
+        linear-gradient(90deg, var(--playoff), transparent 38%),
+        rgba(255, 255, 255, 0.01);
+    }
+
+    .table-row.relegation {
+      background:
+        linear-gradient(90deg, var(--relegation), transparent 38%),
+        rgba(255, 255, 255, 0.01);
+    }
+
+    .position {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+    }
+
+    .team {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+    }
+
+    .team-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .zone-mark {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 56px;
+      height: 34px;
+      padding: 0 10px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #FFFFFF;
+    }
+
+    .zone-mark.playoff {
+      background: linear-gradient(90deg, rgba(229, 57, 53, 0.9), rgba(255, 106, 0, 0.75));
+    }
+
+    .zone-mark.relegation {
+      background: linear-gradient(90deg, rgba(255, 106, 0, 0.9), rgba(229, 57, 53, 0.7));
+    }
+
+    .value,
+    .value-center {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .value-center {
+      text-align: center;
+    }
+
+    .points {
+      font-size: 30px;
+      color: #FFFFFF;
+    }
+
+    .side-card {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 24px 22px;
+      gap: 18px;
+    }
+
+    .side-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .side-title {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 14px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .legend-copy {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .legend-copy strong {
+      font-size: 16px;
+    }
+
+    .legend-copy span {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .statline {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 16px 0;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .statline:first-child {
+      border-top: 0;
+      padding-top: 0;
+    }
+
+    .statline-label {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .statline-value {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 800;
+      line-height: 1.1;
+    }
+
+    .empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      padding: 24px;
+      color: var(--muted);
+      font-size: 22px;
+      text-align: center;
+    }
+
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 20px;
+      color: var(--muted);
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: #FFFFFF;
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+    }
+
+    .brand::before {
+      content: "";
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, var(--accent), var(--glow));
+      box-shadow: 0 0 20px rgba(255, 106, 0, 0.5);
+    }
+  </style>
+</head>
+<body>
+  <main class="frame">
+    <section class="content">
+      <header class="topbar">
+        <div class="title-block">
+          <div class="eyebrow">{{ title }}</div>
+          <h1 class="competition">{{ competition_name }}</h1>
+          {% if round_label %}
+          <p class="round">{{ round_label }}</p>
+          {% endif %}
+          <div class="meta">
+            {% if season_label %}
+            <span class="meta-pill">TEMPORADA {{ season_label }}</span>
+            {% endif %}
+            {% if group_label %}
+            <span class="meta-pill">GRUPO {{ group_label }}</span>
+            {% endif %}
+            <span class="meta-pill">{{ rows|length }} EQUIPOS VISIBLES</span>
+          </div>
+        </div>
+        <div class="stamp">
+          <p class="stamp-label">Actualizado</p>
+          <p class="stamp-value">{{ updated_at }}</p>
+        </div>
+      </header>
+
+      <section class="dashboard">
+        <article class="table-card">
+          <div class="table-head">
+            <div>#</div>
+            <div>Equipo</div>
+            <div class="value">PT</div>
+            <div class="value">PJ</div>
+            {% if columns.won %}<div class="value">G</div>{% endif %}
+            {% if columns.drawn %}<div class="value">E</div>{% endif %}
+            {% if columns.lost %}<div class="value">P</div>{% endif %}
+            {% if columns.goal_diff %}<div class="value">DG</div>{% endif %}
+            <div class="value-center">Zona</div>
+          </div>
+          <div class="table-body">
+            {% if rows %}
+              {% for row in rows %}
+              <div class="table-row {{ row.zone or '' }}">
+                <div class="position">{{ row.position }}</div>
+                <div class="team">
+                  <span class="team-name">{{ row.team_name }}</span>
+                </div>
+                <div class="value points">{{ row.points if row.points is not none else "-" }}</div>
+                <div class="value">{{ row.played if row.played is not none else "-" }}</div>
+                {% if columns.won %}<div class="value">{{ row.won if row.won is not none else "-" }}</div>{% endif %}
+                {% if columns.drawn %}<div class="value">{{ row.drawn if row.drawn is not none else "-" }}</div>{% endif %}
+                {% if columns.lost %}<div class="value">{{ row.lost if row.lost is not none else "-" }}</div>{% endif %}
+                {% if columns.goal_diff %}
+                <div class="value">
+                  {% if row.goal_diff is none %}
+                  -
+                  {% elif row.goal_diff > 0 %}
+                  +{{ row.goal_diff }}
+                  {% else %}
+                  {{ row.goal_diff }}
+                  {% endif %}
+                </div>
+                {% endif %}
+                <div class="value-center">
+                  {% if row.zone == "playoff" %}
+                  <span class="zone-mark playoff">{{ legend.playoff.short }}</span>
+                  {% elif row.zone == "relegation" %}
+                  <span class="zone-mark relegation">{{ legend.relegation.short }}</span>
+                  {% else %}
+                  -
+                  {% endif %}
+                </div>
+              </div>
+              {% endfor %}
+            {% else %}
+            <div class="empty">No hay filas disponibles para esta clasificacion.</div>
+            {% endif %}
+          </div>
+        </article>
+
+        <aside class="side-card">
+          <div class="side-group">
+            <h2 class="side-title">Leyenda</h2>
+            <div class="legend-item">
+              <span class="zone-mark playoff">{{ legend.playoff.short }}</span>
+              <div class="legend-copy">
+                <strong>{{ legend.playoff.label }}</strong>
+                <span>Zona alta / objetivo competitivo</span>
+              </div>
+            </div>
+            <div class="legend-item">
+              <span class="zone-mark relegation">{{ legend.relegation.short }}</span>
+              <div class="legend-copy">
+                <strong>{{ legend.relegation.label }}</strong>
+                <span>Zona baja / riesgo de descenso</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="side-group">
+            <h2 class="side-title">Resumen</h2>
+            <div class="statline">
+              <p class="statline-label">Competicion</p>
+              <p class="statline-value">{{ competition_slug }}</p>
+            </div>
+            <div class="statline">
+              <p class="statline-label">Capacidad visual</p>
+              <p class="statline-value">{{ layout.max_rows }} filas max.</p>
+            </div>
+            <div class="statline">
+              <p class="statline-label">Formato</p>
+              <p class="statline-value">{{ layout.width }}x{{ layout.height }} PNG</p>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <footer class="footer">
+        <span>Dashboard editorial para export de standings_roundup</span>
+        <span class="brand">uFutbolBalear</span>
+      </footer>
+    </section>
+  </main>
+</body>
+</html>

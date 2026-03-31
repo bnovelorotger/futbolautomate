@@ -485,3 +485,124 @@ def test_export_base_service_uses_viral_preview_text_with_team_handle_in_key_mat
         assert preview_row["text"].count("@atleticbalears") == 1
     finally:
         session.close()
+
+
+def test_export_base_service_adds_image_path_only_for_standings_roundup(tmp_path: Path, monkeypatch) -> None:
+    session = build_session()
+    try:
+        seed_export_base_context(session)
+        created_at = datetime(2026, 3, 25, 10, 0, tzinfo=timezone.utc)
+        add_candidate(
+            session,
+            candidate_id=21,
+            competition_slug="tercera_rfef_g11",
+            content_type="standings_roundup",
+            priority=90,
+            created_at=created_at,
+            formatted_text="formatted standings",
+            text_draft="draft standings",
+            payload_json={
+                "content_key": "standings:j26",
+                "competition_name": "3a RFEF Grupo 11",
+                "reference_date": "2026-03-24",
+                "source_payload": {
+                    "group_label": "Jornada 26",
+                    "round_name": "Jornada 26",
+                    "rows": [
+                        {"position": 1, "team": "RCD Mallorca B", "played": 27, "points": 59},
+                        {"position": 2, "team": "CD Manacor", "played": 27, "points": 56, "zone_tag": "playoff"},
+                    ],
+                },
+            },
+        )
+        add_candidate(
+            session,
+            candidate_id=22,
+            competition_slug="tercera_rfef_g11",
+            content_type="ranking",
+            priority=80,
+            created_at=created_at,
+            formatted_text="formatted ranking",
+            text_draft="draft ranking",
+            payload_json={
+                "content_key": "ranking:overview",
+                "reference_date": "2026-03-25",
+                "source_payload": {
+                    "best_attack": {"team": "RCD Mallorca B", "value": 52},
+                },
+            },
+        )
+
+        calls: list[tuple[int, Path | None]] = []
+
+        def fake_generate(candidate, output_root=None, width=1200, height=1500, max_rows=10):
+            calls.append((candidate.id, output_root))
+            return "exports/images/tercera_rfef_g11/2026-03-24/standings_roundup_21.png"
+
+        monkeypatch.setattr("app.services.export_base_service.generate_standings_card", fake_generate)
+
+        service, export_path = build_service(session, tmp_path)
+        result = service.generate_export_file(reference_date=date(2026, 3, 25), dry_run=False)
+        payload = json.loads(export_path.read_text(encoding="utf-8"))
+
+        standings_row = payload["competitions"]["tercera_rfef_g11"]["standings_roundup"][0]
+        ranking_row = payload["competitions"]["tercera_rfef_g11"]["ranking"][0]
+
+        assert result.total_items == 2
+        assert standings_row["id"] == 21
+        assert standings_row["image_path"] == "exports/images/tercera_rfef_g11/2026-03-24/standings_roundup_21.png"
+        assert ranking_row["id"] == 22
+        assert ranking_row["image_path"] is None
+        assert calls == [(21, tmp_path / "exports")]
+    finally:
+        session.close()
+
+
+def test_export_base_service_keeps_export_alive_when_standings_image_generation_fails(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    session = build_session()
+    try:
+        seed_export_base_context(session)
+        created_at = datetime(2026, 3, 25, 10, 0, tzinfo=timezone.utc)
+        add_candidate(
+            session,
+            candidate_id=31,
+            competition_slug="tercera_rfef_g11",
+            content_type="standings_roundup",
+            priority=90,
+            created_at=created_at,
+            formatted_text="formatted standings",
+            text_draft="draft standings",
+            payload_json={
+                "content_key": "standings:j26:broken-image",
+                "competition_name": "3a RFEF Grupo 11",
+                "reference_date": "2026-03-24",
+                "source_payload": {
+                    "group_label": "Jornada 26",
+                    "round_name": "Jornada 26",
+                    "rows": [
+                        {"position": 1, "team": "RCD Mallorca B", "played": 27, "points": 59},
+                    ],
+                },
+            },
+        )
+
+        monkeypatch.setattr(
+            "app.services.export_base_service.generate_standings_card",
+            lambda candidate, output_root=None, width=1200, height=1500, max_rows=10: (_ for _ in ()).throw(
+                RuntimeError("png failed")
+            ),
+        )
+
+        service, export_path = build_service(session, tmp_path)
+        result = service.generate_export_file(reference_date=date(2026, 3, 25), dry_run=False)
+        payload = json.loads(export_path.read_text(encoding="utf-8"))
+        standings_row = payload["competitions"]["tercera_rfef_g11"]["standings_roundup"][0]
+
+        assert result.total_items == 1
+        assert standings_row["id"] == 31
+        assert standings_row["image_path"] is None
+    finally:
+        session.close()

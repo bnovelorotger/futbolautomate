@@ -16,6 +16,7 @@ from app.db.models import ContentCandidate
 from app.schemas.export_base import ExportBaseDocument, ExportBaseItem, ExportBaseResult
 from app.services.editorial_candidate_window import EditorialCandidateWindowService
 from app.services.editorial_text_selector import EditorialTextSelectorService
+from app.services.standings_card_service import generate_standings_card
 from app.utils.time import utcnow
 
 _SNAPSHOT_SCOPE = "weekly_snapshot"
@@ -88,12 +89,19 @@ class ExportBaseService:
             selected_topic_keys.add(topic_key)
 
             text, source = self._selected_text(row)
+            image_path: str | None = None
+            if not dry_run and row.content_type == str(ContentType.STANDINGS_ROUNDUP):
+                try:
+                    image_path = generate_standings_card(row, output_root=self.output_path.parent)
+                except Exception:
+                    image_path = None
             item = ExportBaseItem(
                 id=row.id,
                 text=text,
                 selected_text_source=source,
                 competition_slug=row.competition_slug,
                 content_type=row.content_type,
+                image_path=image_path,
                 priority=row.priority,
                 created_at=row.created_at or row.updated_at or utcnow(),
             )

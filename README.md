@@ -544,7 +544,7 @@ Flujo actual:
 Que persiste:
 - `scope`, `target_date`, `window_start`, `window_end`, `generated_at` y `total_items`
 - bloques por `competition_slug` y `content_type`
-- por cada item: `id`, `text`, `selected_text_source`, `priority` y `created_at`
+- por cada item: `id`, `text`, `selected_text_source`, `image_path`, `priority` y `created_at`
 
 Reglas operativas:
 - solo exporta piezas ya `published`, con `published_at` y texto resoluble para salida
@@ -557,6 +557,28 @@ Reglas operativas:
 
 Regeneracion manual:
 - `python -m app.pipelines.export_base generate --date 2026-03-26`
+
+## Export visual standings
+
+`standings_roundup` puede generar una tarjeta PNG adicional durante `export_base` sin tocar planner, scoring, approval ni release.
+
+Piezas:
+- template HTML: `app/templates/standings_card.html`
+- mapper de contexto: `app/services/standings_image_mapper.py`
+- renderer HTML/PNG: `app/services/image_renderer.py`
+- orquestacion: `app/services/standings_card_service.py`
+
+Salida:
+- PNG final en `exports/images/{competition_slug}/{date}/standings_roundup_{id}.png`
+- HTML temporal en `exports/tmp/images/{competition_slug}/{date}/standings_roundup_{id}.html`
+- `export_base.json` incluye `image_path` solo cuando `content_type=standings_roundup`
+- si el render falla, el export sigue y `image_path` queda en `null`
+
+Dependencia operativa:
+
+```bash
+playwright install chromium
+```
 
 ## Legacy export JSON
 
