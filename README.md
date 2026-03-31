@@ -6,7 +6,7 @@ La documentacion detallada de esta iteracion se conserva en [docs/README_detaile
 
 ## Version actual
 
-Snapshot del **31 de marzo de 2026**.
+Release **v1.5**. Snapshot del **31 de marzo de 2026**.
 
 Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolidados:
 
@@ -26,6 +26,7 @@ Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolida
 - `export_base_service` usa `editorial_text_selector` en `preview` y `featured_match_preview` para conservar `viral_formatted_text` cuando aporta mejor salida
 - `editorial_release` respeta `scheduled_at`: autoaprueba piezas seguras, pero solo despacha las ya listas
 - `export_base_service` exporta unicamente candidatas en estado `published`
+- export visual PNG de `standings_roundup` durante `export_base`, con `image_path` por item y tolerancia a fallos de render
 - `editorial_formatter` refina branding y titulos narrativos: `DH Mallorca`, `💪🏼 Forma`, `📈 Tendencia` y `🔥 Dato`
 - `viral_formatted_text` como capa compacta para export seguro en resultados, clasificaciones, previas y rankings
 - `team_socials` + `social_enricher` para insertar menciones de clubes sin duplicados
@@ -101,6 +102,7 @@ pytest
 - El catalogo operativo ya no se limita a tres competiciones: ahora incluye tambien `primera_rfef_baleares`, `tercera_federacion_femenina_g11`, `division_honor_ibiza_form` y `division_honor_menorca`.
 - El repo contiene capa editorial, cola de aprobacion y release hacia `exports/export_base.json`, con `export/legacy_export.json` solo como compatibilidad opcional y publicacion en X todavia desacoplada.
 - El release seguro ya diferencia entre aprobacion y publicacion: una previa futura puede quedar `approved` sin entrar todavia en `published` ni en el snapshot exportado.
+- `export_base` ya puede adjuntar un artefacto visual PNG para `standings_roundup`; el entorno que genere el snapshot necesita `playwright install chromium`.
 - La operativa real depende de credenciales, base de datos y tareas programadas locales.
 - Falta endurecer el flujo de trabajo de equipo: ramas, CI, politicas de revision y despliegue.
 
