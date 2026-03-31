@@ -265,6 +265,50 @@ def add_quality_blocked_candidate(session) -> None:
     session.commit()
 
 
+def add_future_preview_candidate(session) -> None:
+    created_at = datetime(2026, 3, 17, 10, 3, tzinfo=timezone.utc)
+    session.add(
+        ContentCandidate(
+            id=110,
+            competition_slug="tercera_rfef_g11",
+            content_type="preview",
+            priority=90,
+            text_draft=(
+                "PREVIA DE LA JORNADA\n\n"
+                "3a RFEF Grupo 11\n\n"
+                "Jornada 27 | domingo, 21 de marzo de 2099 | CD Llosetense vs SD Portmany\n\n"
+                "Partido destacado: CD Llosetense vs SD Portmany"
+            ),
+            payload_json={
+                "reference_date": REFERENCE_DATE.isoformat(),
+                "content_key": "preview:j27:future",
+                "source_payload": {
+                    "featured_match": {
+                        "round_name": "Jornada 27",
+                        "match_date": "2099-03-21",
+                        "home_team": "CD Llosetense",
+                        "away_team": "SD Portmany",
+                    },
+                    "matches": [
+                        {
+                            "round_name": "Jornada 27",
+                            "match_date": "2099-03-21",
+                            "home_team": "CD Llosetense",
+                            "away_team": "SD Portmany",
+                        }
+                    ],
+                },
+            },
+            source_summary_hash="release-hash-110",
+            scheduled_at=datetime(2099, 3, 21, 12, 0, tzinfo=timezone.utc),
+            status="draft",
+            created_at=created_at,
+            updated_at=created_at,
+        )
+    )
+    session.commit()
+
+
 def build_release_service(session, tmp_path: Path) -> EditorialReleasePipelineService:
     return EditorialReleasePipelineService(
         session,
@@ -417,6 +461,26 @@ def test_editorial_release_pipeline_keeps_narratives_manual_in_v1(tmp_path: Path
         assert session.get(ContentCandidate, 106).status == "published"
         assert session.get(ContentCandidate, 102).status == "published"
         assert session.get(ContentCandidate, 109).status == "published"
+    finally:
+        session.close()
+
+
+def test_editorial_release_pipeline_keeps_future_preview_autoapproved_but_unpublished(tmp_path: Path) -> None:
+    session = build_session()
+    try:
+        seed_release_candidates(session)
+        add_future_preview_candidate(session)
+        service = build_release_service(session, tmp_path)
+
+        result = service.run(reference_date=REFERENCE_DATE, dry_run=False)
+        session.commit()
+
+        assert result.autoapproved_count == 4
+        assert result.dispatched_count == 3
+        assert result.export_base_total_items == 3
+        assert session.get(ContentCandidate, 110).status == "approved"
+        assert session.get(ContentCandidate, 110).published_at is None
+        assert session.get(ContentCandidate, 110).autoapproved is True
     finally:
         session.close()
 

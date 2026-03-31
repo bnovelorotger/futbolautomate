@@ -105,7 +105,7 @@ class CompetitionQueryService:
         return matches
 
     def _window_bounds(self, window: MatchWindow, reference_date: date | None = None) -> WindowBounds:
-        today = reference_date or datetime.now(ZoneInfo(self.timezone_name)).date()
+        today = self._reference_date(reference_date)
         if window == MatchWindow.TODAY:
             return WindowBounds(start_date=today, end_date=today)
         if window == MatchWindow.TOMORROW:
@@ -120,6 +120,9 @@ class CompetitionQueryService:
         saturday = today + timedelta(days=days_until_saturday)
         sunday = saturday + timedelta(days=1)
         return WindowBounds(start_date=saturday, end_date=sunday)
+
+    def _reference_date(self, reference_date: date | None = None) -> date:
+        return reference_date or datetime.now(ZoneInfo(self.timezone_name)).date()
 
     def latest_results(
         self,
@@ -172,7 +175,7 @@ class CompetitionQueryService:
     def upcoming_matches(
         self,
         competition_code: str,
-        limit: int = 10,
+        limit: int | None = 10,
         relevant_only: bool = False,
         reference_date: date | None = None,
     ) -> list[CompetitionMatchView]:
@@ -201,6 +204,49 @@ class CompetitionQueryService:
             relevant_only=relevant_only,
             limit=limit,
         )
+
+    def editorial_upcoming_matches(
+        self,
+        competition_code: str,
+        limit: int | None = 10,
+        relevant_only: bool = False,
+        reference_date: date | None = None,
+        *,
+        max_days_ahead: int = 7,
+    ) -> list[CompetitionMatchView]:
+        current_date = self._reference_date(reference_date)
+        matches = self.upcoming_matches(
+            competition_code=competition_code,
+            limit=None,
+            relevant_only=relevant_only,
+            reference_date=current_date,
+        )
+        if not matches:
+            return []
+
+        anchor = next(
+            (match for match in matches if match.round_name or match.match_date is not None),
+            matches[0],
+        )
+        max_allowed_date = current_date + timedelta(days=max_days_ahead)
+        if anchor.match_date is not None and anchor.match_date > max_allowed_date:
+            return []
+
+        if anchor.round_name:
+            selected = [match for match in matches if match.round_name == anchor.round_name]
+        elif anchor.match_date is not None:
+            selected = [match for match in matches if match.match_date == anchor.match_date]
+        else:
+            selected = [anchor]
+
+        selected = [
+            match
+            for match in selected
+            if match.match_date is None or match.match_date <= max_allowed_date
+        ]
+        if limit is not None:
+            selected = selected[:limit]
+        return selected
 
     def matches_by_round(
         self,

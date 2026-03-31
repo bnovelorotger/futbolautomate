@@ -124,10 +124,7 @@ class ResultsRoundupService:
         if latest_match_date is not None:
             scheduled_at = datetime.combine(latest_match_date, datetime.min.time(), tzinfo=ZoneInfo(self.settings.timezone))
         candidates: list[ContentCandidateDraft] = []
-        match_chunks = [
-            preview.matches[index : index + 4]
-            for index in range(0, len(preview.matches), 4)
-        ]
+        match_chunks = [preview.matches]
         part_total = len(match_chunks)
         for part_index, match_chunk in enumerate(match_chunks, start=1):
             payload_matches = [match.model_dump(mode="json") for match in match_chunk]
@@ -323,6 +320,18 @@ class ResultsRoundupService:
             )
         )
         return selected_views, group_label
+
+    def _partition_matches(
+        self,
+        matches: list[ResultsRoundupMatchView],
+    ) -> list[list[ResultsRoundupMatchView]]:
+        chunks = [
+            matches[index : index + 4]
+            for index in range(0, len(matches), 4)
+        ]
+        if len(chunks) > 1 and len(chunks[-1]) == 1 and len(chunks[-2]) > 1:
+            chunks[-1] = [chunks[-2].pop(), *chunks[-1]]
+        return [chunk for chunk in chunks if chunk]
 
     def _build_part_text(
         self,

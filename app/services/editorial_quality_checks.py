@@ -379,8 +379,6 @@ class EditorialQualityChecksService:
                 errors.append("results_roundup_title_invalid")
             matches = source_payload.get("matches")
             if isinstance(matches, list):
-                if len(matches) > 4:
-                    errors.append("results_roundup_partition_exceeds_max_matches")
                 if source_payload.get("selected_matches_count") != len(matches):
                     errors.append("results_roundup_selected_matches_count_mismatch")
             part_total = source_payload.get("part_total")

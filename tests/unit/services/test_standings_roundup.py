@@ -70,7 +70,7 @@ def test_standings_roundup_generate_persists_candidate() -> None:
         session.close()
 
 
-def test_standings_roundup_partitioned_candidates_keep_round_name_for_formatter() -> None:
+def test_standings_roundup_generates_single_candidate_and_keeps_round_name_for_formatter() -> None:
     session = build_session()
     try:
         teams = [f"Equipo {index}" for index in range(1, 16)]
@@ -107,13 +107,50 @@ def test_standings_roundup_partitioned_candidates_keep_round_name_for_formatter(
         )
         formatted_candidates = EditorialFormatterService(session).apply_to_drafts(candidates)
 
-        assert len(formatted_candidates) == 2
+        assert len(formatted_candidates) == 1
         assert formatted_candidates[0].payload_json["source_payload"]["round_name"] == "Jornada 26"
-        assert formatted_candidates[1].payload_json["source_payload"]["round_name"] == "Jornada 26"
         assert formatted_candidates[0].formatted_text is not None
-        assert formatted_candidates[1].formatted_text is not None
-        assert formatted_candidates[0].formatted_text.startswith("📊 Clasificación - 3ª RFEF - G11 - J26 (1/2)")
-        assert formatted_candidates[1].formatted_text.startswith("📊 Clasificación - 3ª RFEF - G11 - J26 (2/2)")
+        assert formatted_candidates[0].formatted_text.startswith("📊 Clasificación - 3ª RFEF - G11 - J26")
+        assert "(1/2)" not in formatted_candidates[0].formatted_text
+        assert "(2/2)" not in formatted_candidates[0].formatted_text
+    finally:
+        session.close()
+
+
+def test_standings_roundup_supports_new_integrated_competitions() -> None:
+    session = build_session()
+    try:
+        cases = [
+            ("division_honor_ibiza_form", "Division Honor Ibiza/Form"),
+            ("division_honor_menorca", "Division Honor Menorca"),
+            ("tercera_federacion_femenina_g11", "3a RFEF Femenina Grupo 11"),
+        ]
+        for competition_code, competition_name in cases:
+            seed_competition(
+                session,
+                code=competition_code,
+                name=competition_name,
+                teams=["Equipo 1", "Equipo 2", "Equipo 3", "Equipo 4", "Equipo 5", "Equipo 6"],
+                standings_rows=[
+                    {"position": 1, "team": "Equipo 1", "played": 12, "wins": 9, "draws": 2, "losses": 1, "goals_for": 21, "goals_against": 9, "goal_difference": 12, "points": 29},
+                    {"position": 2, "team": "Equipo 2", "played": 12, "wins": 8, "draws": 2, "losses": 2, "goals_for": 19, "goals_against": 10, "goal_difference": 9, "points": 26},
+                    {"position": 3, "team": "Equipo 3", "played": 12, "wins": 7, "draws": 2, "losses": 3, "goals_for": 18, "goals_against": 12, "goal_difference": 6, "points": 23},
+                    {"position": 4, "team": "Equipo 4", "played": 12, "wins": 6, "draws": 2, "losses": 4, "goals_for": 15, "goals_against": 13, "goal_difference": 2, "points": 20},
+                    {"position": 5, "team": "Equipo 5", "played": 12, "wins": 4, "draws": 3, "losses": 5, "goals_for": 12, "goals_against": 14, "goal_difference": -2, "points": 15},
+                    {"position": 6, "team": "Equipo 6", "played": 12, "wins": 3, "draws": 1, "losses": 8, "goals_for": 10, "goals_against": 21, "goal_difference": -11, "points": 10},
+                ],
+                match_rows=[],
+            )
+
+            result = StandingsRoundupService(session).generate_for_competition(
+                competition_code,
+                reference_date=date(2026, 3, 17),
+            )
+
+            assert len(result.generated_candidates) == 1
+            assert result.generated_candidates[0].selected_rows_count >= 1
+            assert "(1/2)" not in result.generated_candidates[0].text_draft
+            assert "(2/2)" not in result.generated_candidates[0].text_draft
     finally:
         session.close()
 

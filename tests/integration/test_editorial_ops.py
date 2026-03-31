@@ -25,12 +25,12 @@ def test_editorial_ops_preview_and_run_daily_for_real_schedule() -> None:
 
         rows = session.execute(select(ContentCandidate).order_by(ContentCandidate.id.asc())).scalars().all()
 
-        assert preview.total_tasks == 12
-        assert preview.blocked_tasks == 8
+        assert preview.total_tasks == 14
+        assert preview.blocked_tasks == 10
         assert preview.expected_total == 4
         assert run.generated_total == 4
         assert run.inserted_total == 4
-        assert run.blocked_tasks == 8
+        assert run.blocked_tasks == 10
         assert len(rows) == 4
         assert {row.content_type for row in rows} == {"results_roundup", "standings_roundup"}
     finally:

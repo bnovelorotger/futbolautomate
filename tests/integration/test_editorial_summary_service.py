@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime, time, timezone
 
 from sqlalchemy import create_engine
+from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.db.base import Base
@@ -1054,5 +1055,61 @@ def test_competition_editorial_summary_service_filters_primera_rfef_to_ud_ibiza(
         assert payload.rankings.most_wins is not None
         assert payload.rankings.most_wins.team == "UD Ibiza"
         assert payload.editorial_news[0].title == "UD Ibiza prepara una visita clave en Primera Federacion"
+    finally:
+        session.close()
+
+
+def test_competition_editorial_summary_service_skips_far_future_preview_window() -> None:
+    session = build_session()
+    try:
+        seed_primera_rfef_with_ud_ibiza(session)
+        competition = session.scalar(select(Competition).where(Competition.code == "primera_rfef_baleares"))
+        ibiza = session.scalar(select(Team).where(Team.name == "UD Ibiza"))
+        ceuta = session.scalar(select(Team).where(Team.name == "AD Ceuta FC"))
+        assert competition is not None
+        assert ibiza is not None
+        assert ceuta is not None
+
+        session.add(
+            Match(
+                external_id="primera-summary-m5",
+                source_name="futbolme",
+                source_url="https://example.com/primera-summary/m5",
+                competition_id=competition.id,
+                season="2025-26",
+                group_name="Grupo 2",
+                round_name="Jornada 31",
+                raw_match_date="domingo, 12 de abril de 2026",
+                raw_match_time="12:00",
+                match_date=date(2026, 4, 12),
+                match_time=time(12, 0),
+                kickoff_datetime=datetime(2026, 4, 12, 12, 0, tzinfo=timezone.utc),
+                home_team_id=ibiza.id,
+                away_team_id=ceuta.id,
+                home_team_raw="UD Ibiza",
+                away_team_raw="AD Ceuta FC",
+                home_score=None,
+                away_score=None,
+                status="scheduled",
+                venue=None,
+                has_lineups=False,
+                has_scorers=False,
+                scraped_at=datetime(2026, 3, 31, 10, 0, tzinfo=timezone.utc),
+                content_hash="primera-summary-match-5",
+                extra_data=None,
+            )
+        )
+        session.commit()
+
+        payload = CompetitionEditorialSummaryService(session).build_competition_summary(
+            competition_code="primera_rfef_baleares",
+            reference_date=date(2026, 3, 31),
+            results_limit=3,
+            upcoming_limit=3,
+            news_limit=3,
+            standings_limit=5,
+        )
+
+        assert payload.upcoming_matches == []
     finally:
         session.close()

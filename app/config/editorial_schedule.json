@@ -58,9 +58,19 @@
         "priority": 70
       },
       {
+        "competition_slug": "division_honor_ibiza_form",
+        "content_type": "standings_roundup",
+        "priority": 68
+      },
+      {
         "competition_slug": "division_honor_menorca",
         "content_type": "results_roundup",
         "priority": 69
+      },
+      {
+        "competition_slug": "division_honor_menorca",
+        "content_type": "standings_roundup",
+        "priority": 67
       }
     ],
     "miercoles": [

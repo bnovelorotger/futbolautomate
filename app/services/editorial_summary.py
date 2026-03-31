@@ -171,7 +171,7 @@ class CompetitionEditorialSummaryService:
             limit=results_limit,
             relevant_only=relevant_only,
         )
-        upcoming_matches = self.competition_queries.upcoming_matches(
+        upcoming_matches = self.competition_queries.editorial_upcoming_matches(
             competition_code,
             limit=upcoming_limit,
             relevant_only=relevant_only,

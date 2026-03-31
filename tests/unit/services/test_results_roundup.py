@@ -173,3 +173,55 @@ def test_results_roundup_filters_primera_rfef_to_ud_ibiza() -> None:
         assert result.selected_matches_count == 1
     finally:
         session.close()
+
+
+def test_results_roundup_generates_single_candidate_for_five_match_round() -> None:
+    session = build_session()
+    try:
+        seed_competition(
+            session,
+            code="division_honor_mallorca",
+            name="Division Honor Mallorca",
+            teams=[
+                "CE Uno",
+                "CE Dos",
+                "CE Tres",
+                "CE Cuatro",
+                "CE Cinco",
+                "CE Seis",
+                "CE Siete",
+                "CE Ocho",
+                "CE Nueve",
+                "CE Diez",
+            ],
+            standings_rows=[
+                {"position": 1, "team": "CE Uno", "played": 10, "wins": 8, "draws": 1, "losses": 1, "goals_for": 20, "goals_against": 6, "goal_difference": 14, "points": 25},
+                {"position": 2, "team": "CE Dos", "played": 10, "wins": 7, "draws": 1, "losses": 2, "goals_for": 18, "goals_against": 8, "goal_difference": 10, "points": 22},
+                {"position": 3, "team": "CE Tres", "played": 10, "wins": 6, "draws": 2, "losses": 2, "goals_for": 17, "goals_against": 10, "goal_difference": 7, "points": 20},
+                {"position": 4, "team": "CE Cuatro", "played": 10, "wins": 6, "draws": 1, "losses": 3, "goals_for": 15, "goals_against": 11, "goal_difference": 4, "points": 19},
+                {"position": 5, "team": "CE Cinco", "played": 10, "wins": 5, "draws": 2, "losses": 3, "goals_for": 14, "goals_against": 12, "goal_difference": 2, "points": 17},
+                {"position": 6, "team": "CE Seis", "played": 10, "wins": 4, "draws": 3, "losses": 3, "goals_for": 13, "goals_against": 13, "goal_difference": 0, "points": 15},
+                {"position": 7, "team": "CE Siete", "played": 10, "wins": 4, "draws": 1, "losses": 5, "goals_for": 12, "goals_against": 14, "goal_difference": -2, "points": 13},
+                {"position": 8, "team": "CE Ocho", "played": 10, "wins": 3, "draws": 2, "losses": 5, "goals_for": 11, "goals_against": 15, "goal_difference": -4, "points": 11},
+                {"position": 9, "team": "CE Nueve", "played": 10, "wins": 2, "draws": 2, "losses": 6, "goals_for": 10, "goals_against": 18, "goal_difference": -8, "points": 8},
+                {"position": 10, "team": "CE Diez", "played": 10, "wins": 1, "draws": 1, "losses": 8, "goals_for": 8, "goals_against": 21, "goal_difference": -13, "points": 4},
+            ],
+            match_rows=[
+                {"round_name": "Jornada 10", "match_date": date(2026, 3, 15), "match_time": time(10, 0), "home_team": "CE Uno", "away_team": "CE Dos", "home_score": 2, "away_score": 1},
+                {"round_name": "Jornada 10", "match_date": date(2026, 3, 15), "match_time": time(11, 0), "home_team": "CE Tres", "away_team": "CE Cuatro", "home_score": 1, "away_score": 0},
+                {"round_name": "Jornada 10", "match_date": date(2026, 3, 15), "match_time": time(12, 0), "home_team": "CE Cinco", "away_team": "CE Seis", "home_score": 3, "away_score": 2},
+                {"round_name": "Jornada 10", "match_date": date(2026, 3, 15), "match_time": time(13, 0), "home_team": "CE Siete", "away_team": "CE Ocho", "home_score": 0, "away_score": 0},
+                {"round_name": "Jornada 10", "match_date": date(2026, 3, 15), "match_time": time(14, 0), "home_team": "CE Nueve", "away_team": "CE Diez", "home_score": 1, "away_score": 1},
+            ],
+        )
+        result = ResultsRoundupService(session).generate_for_competition(
+            "division_honor_mallorca",
+            reference_date=date(2026, 3, 16),
+        )
+
+        assert len(result.generated_candidates) == 1
+        assert result.generated_candidates[0].selected_matches_count == 5
+        assert "(1/2)" not in result.generated_candidates[0].text_draft
+        assert "(2/2)" not in result.generated_candidates[0].text_draft
+    finally:
+        session.close()

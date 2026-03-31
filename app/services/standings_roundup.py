@@ -120,11 +120,7 @@ class StandingsRoundupService:
         preview = self._preview(competition_code, reference_date=reference_date)
         if not preview.rows:
             return []
-        top_rows = [row for row in preview.rows if row.zone_tag != "relegation"]
-        relegation_rows = [row for row in preview.rows if row.zone_tag == "relegation"]
-        row_groups: list[tuple[str, list[StandingsRoundupRowView]]] = [("top", top_rows)]
-        if relegation_rows:
-            row_groups.append(("relegation", relegation_rows))
+        row_groups: list[tuple[str, list[StandingsRoundupRowView]]] = [("full", preview.rows)]
 
         candidates: list[ContentCandidateDraft] = []
         part_total = len(row_groups)

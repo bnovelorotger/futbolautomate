@@ -6,7 +6,7 @@ La documentacion detallada de esta iteracion se conserva en [docs/README_detaile
 
 ## Version actual
 
-Snapshot del **28 de marzo de 2026**.
+Snapshot del **31 de marzo de 2026**.
 
 Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolidados:
 
@@ -19,9 +19,13 @@ Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolida
 - `editorial_release` + `export_base_service` para generar `exports/export_base.json` como salida estructurada por defecto
 - `legacy_export_json_enabled` para reactivar `export/legacy_export.json` via `export_json_service` solo por compatibilidad
 - catalogo integrado ampliado con `primera_rfef_baleares`, `tercera_federacion_femenina_g11`, `division_honor_ibiza_form` y `division_honor_menorca`
-- planner semanal ampliado para incluir resultados, clasificacion, previas y rankings en las nuevas competiciones ya validadas
+- planner semanal afinado: lunes cubre `results_roundup + standings_roundup` en las siete integradas, miercoles anade `ranking` en `primera_rfef_baleares` y viernes suma `preview` para `primera_rfef_baleares` y `tercera_federacion_femenina_g11`
 - `division_honor_mallorca` entra tambien en viernes para `preview` y `featured_match_preview`
+- `editorial_summary` usa una ventana editorial corta para previas: se queda con la ronda inmediata y descarta jornadas demasiado lejanas
+- `results_roundup` y `standings_roundup` pasan a priorizar una pieza unica completa; el formatter quita hashtags y compacta el titulo antes de recortar marcadores o filas
 - `export_base_service` usa `editorial_text_selector` en `preview` y `featured_match_preview` para conservar `viral_formatted_text` cuando aporta mejor salida
+- `editorial_release` respeta `scheduled_at`: autoaprueba piezas seguras, pero solo despacha las ya listas
+- `export_base_service` exporta unicamente candidatas en estado `published`
 - `editorial_formatter` refina branding y titulos narrativos: `DH Mallorca`, `💪🏼 Forma`, `📈 Tendencia` y `🔥 Dato`
 - `viral_formatted_text` como capa compacta para export seguro en resultados, clasificaciones, previas y rankings
 - `team_socials` + `social_enricher` para insertar menciones de clubes sin duplicados
@@ -96,6 +100,7 @@ pytest
 - La base tecnica de scraping, persistencia y consultas ya existe y tiene tests.
 - El catalogo operativo ya no se limita a tres competiciones: ahora incluye tambien `primera_rfef_baleares`, `tercera_federacion_femenina_g11`, `division_honor_ibiza_form` y `division_honor_menorca`.
 - El repo contiene capa editorial, cola de aprobacion y release hacia `exports/export_base.json`, con `export/legacy_export.json` solo como compatibilidad opcional y publicacion en X todavia desacoplada.
+- El release seguro ya diferencia entre aprobacion y publicacion: una previa futura puede quedar `approved` sin entrar todavia en `published` ni en el snapshot exportado.
 - La operativa real depende de credenciales, base de datos y tareas programadas locales.
 - Falta endurecer el flujo de trabajo de equipo: ramas, CI, politicas de revision y despliegue.
 
@@ -284,7 +289,7 @@ La capa `results_roundup` agrega resultados finales de una misma competicion en 
 
 Que genera:
 - `content_type=results_roundup`
-- una pieza por competicion y bloque natural de resultados
+- una sola pieza por competicion y bloque natural de resultados
 - prioridad editorial alta para los slots de resultados del planner
 
 Como agrupa:
@@ -302,6 +307,7 @@ Texto:
 
 Control de longitud:
 - limite por defecto de `280` caracteres
+- antes de cortar marcadores intenta quitar hashtags y compactar el titulo
 - incluye tantos marcadores como quepan
 - si no caben todos, recorta y anade una linea final tipo `+N resultados mas`
 
@@ -343,7 +349,7 @@ La capa `standings_roundup` aplica el mismo patron de agregacion a la clasificac
 
 Que genera:
 - `content_type=standings_roundup`
-- una pieza compacta por competicion usando `standings` actuales
+- una sola pieza compacta por competicion usando `standings` actuales
 - una salida editorial mas densa que la pieza `standings` simple
 
 Como se construye:
@@ -359,6 +365,7 @@ Texto:
 - centrado en posiciones y puntos
 - sin analisis inventado
 - apto para `exports/export_base.json` y para publicacion posterior en X
+- si aprieta la longitud, intenta quitar hashtags y compactar el titulo antes de recortar filas
 
 CLI:
 
@@ -540,8 +547,9 @@ Que persiste:
 - por cada item: `id`, `text`, `selected_text_source`, `priority` y `created_at`
 
 Reglas operativas:
-- solo exporta piezas con `formatted_text`
+- solo exporta piezas ya `published`, con `published_at` y texto resoluble para salida
 - usa ventana semanal y reglas distintas para previas, post-jornada y piezas semanales
+- `publication_dispatch` solo publica piezas listas segun `scheduled_at`; una previa futura puede quedar autoaprobada sin entrar todavia en `exports/export_base.json`
 - en `preview` y `featured_match_preview` usa `editorial_text_selector`, por lo que puede elegir `rewritten_text`, `viral_formatted_text`, `formatted_text` o `text_draft`
 - en el resto usa `rewritten_text`, despues `formatted_text` y por ultimo `text_draft`
 - deduplica por `content_key` o por marcador estructural derivado de `source_payload`

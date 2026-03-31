@@ -92,6 +92,8 @@ class EditorialReleasePipelineService:
         dispatch_result = self.dispatch_service.dispatch_candidates(
             autoapproved_ids,
             dry_run=False,
+            only_ready=True,
+            include_unscheduled=True,
         )
         self._hydrate_formatted_text(published_ids=[row.id for row in dispatch_result.rows])
         export_base_result = self.export_base_service.generate_export_file(

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session
@@ -23,6 +23,12 @@ def _excerpt(text: str, limit: int = 90) -> str:
     return f"{compact[: limit - 3]}..."
 
 
+def _normalized_datetime(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
 def is_candidate_ready_for_dispatch(
     candidate: ContentCandidate,
     now: datetime,
@@ -36,7 +42,7 @@ def is_candidate_ready_for_dispatch(
         return False
     if candidate.scheduled_at is None:
         return include_unscheduled
-    return candidate.scheduled_at <= now
+    return _normalized_datetime(candidate.scheduled_at) <= _normalized_datetime(now)
 
 
 def validate_candidate_can_publish(candidate: ContentCandidate) -> None:
@@ -150,6 +156,8 @@ class PublicationDispatcherService:
         *,
         published_at: datetime | None = None,
         dry_run: bool = False,
+        only_ready: bool = False,
+        include_unscheduled: bool = True,
     ) -> PublicationDispatchResult:
         if not candidate_ids:
             return PublicationDispatchResult(dry_run=dry_run, dispatched_count=0, rows=[])
@@ -162,6 +170,16 @@ class PublicationDispatcherService:
                 ContentCandidate.created_at.asc(),
             )
         ).scalars().all()
+        if only_ready:
+            rows = [
+                row
+                for row in rows
+                if is_candidate_ready_for_dispatch(
+                    row,
+                    dispatch_at,
+                    include_unscheduled=include_unscheduled,
+                )
+            ]
         for row in rows:
             validate_candidate_can_publish(row)
         if not dry_run:

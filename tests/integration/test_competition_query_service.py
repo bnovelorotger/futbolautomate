@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime, time, timezone
 
 from sqlalchemy import create_engine
+from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.enums import MatchWindow
@@ -895,5 +896,93 @@ def test_competition_query_service_filters_primera_rfef_to_ud_ibiza() -> None:
         assert round_matches[0].away_team == "UD Ibiza"
         assert service.tracked_teams("primera_rfef_baleares") == ["UD Ibiza"]
         assert service.relevant_matches_count("primera_rfef_baleares") == 2
+    finally:
+        session.close()
+
+
+def test_competition_query_service_editorial_upcoming_matches_stays_on_immediate_round() -> None:
+    session = build_session()
+    try:
+        seed_primera_rfef_with_ud_ibiza(session)
+        competition = session.scalar(select(Competition).where(Competition.code == "primera_rfef_baleares"))
+        ibiza = session.scalar(select(Team).where(Team.name == "UD Ibiza"))
+        ceuta = session.scalar(select(Team).where(Team.name == "AD Ceuta FC"))
+        sabadell = session.scalar(select(Team).where(Team.name == "CE Sabadell FC"))
+        assert competition is not None
+        assert ibiza is not None
+        assert ceuta is not None
+        assert sabadell is not None
+
+        session.add_all(
+            [
+                Match(
+                    external_id="primera-m5",
+                    source_name="futbolme",
+                    source_url="https://example.com/primera/m5",
+                    competition_id=competition.id,
+                    season="2025-26",
+                    group_name="Grupo 2",
+                    round_name="Jornada 31",
+                    raw_match_date="viernes, 03 de abril de 2026",
+                    raw_match_time="12:00",
+                    match_date=date(2026, 4, 3),
+                    match_time=time(12, 0),
+                    kickoff_datetime=datetime(2026, 4, 3, 12, 0, tzinfo=timezone.utc),
+                    home_team_id=sabadell.id,
+                    away_team_id=ibiza.id,
+                    home_team_raw="CE Sabadell FC",
+                    away_team_raw="UD Ibiza",
+                    home_score=None,
+                    away_score=None,
+                    status="scheduled",
+                    venue=None,
+                    has_lineups=False,
+                    has_scorers=False,
+                    scraped_at=datetime(2026, 3, 31, 10, 0, tzinfo=timezone.utc),
+                    content_hash="primera-match-5",
+                    extra_data=None,
+                ),
+                Match(
+                    external_id="primera-m6",
+                    source_name="futbolme",
+                    source_url="https://example.com/primera/m6",
+                    competition_id=competition.id,
+                    season="2025-26",
+                    group_name="Grupo 2",
+                    round_name="Jornada 32",
+                    raw_match_date="domingo, 12 de abril de 2026",
+                    raw_match_time="12:00",
+                    match_date=date(2026, 4, 12),
+                    match_time=time(12, 0),
+                    kickoff_datetime=datetime(2026, 4, 12, 12, 0, tzinfo=timezone.utc),
+                    home_team_id=ibiza.id,
+                    away_team_id=ceuta.id,
+                    home_team_raw="UD Ibiza",
+                    away_team_raw="AD Ceuta FC",
+                    home_score=None,
+                    away_score=None,
+                    status="scheduled",
+                    venue=None,
+                    has_lineups=False,
+                    has_scorers=False,
+                    scraped_at=datetime(2026, 3, 31, 10, 0, tzinfo=timezone.utc),
+                    content_hash="primera-match-6",
+                    extra_data=None,
+                ),
+            ]
+        )
+        session.commit()
+
+        service = CompetitionQueryService(session)
+        upcoming = service.editorial_upcoming_matches(
+            "primera_rfef_baleares",
+            limit=5,
+            relevant_only=True,
+            reference_date=date(2026, 3, 31),
+        )
+
+        assert len(upcoming) == 1
+        assert upcoming[0].round_name == "Jornada 31"
+        assert upcoming[0].away_team == "UD Ibiza"
     finally:
         session.close()

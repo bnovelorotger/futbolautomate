@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import re
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -51,6 +52,12 @@ def seed_catalog(session: Session) -> None:
         ]
     )
     session.commit()
+
+
+def _score_lines(text: str | None) -> list[str]:
+    if not text:
+        return []
+    return [line for line in text.splitlines() if re.search(r"\b\d+-\d+\b", line)]
 
 
 def test_format_results_summary_uses_new_editorial_title_and_hashtags() -> None:
@@ -231,7 +238,168 @@ def test_formatter_reduces_results_summary_when_limit_is_small() -> None:
 
         assert formatted is not None
         assert len(formatted) <= 120
-        assert "Inter Ibiza CD 3-0 SD Portmany" not in formatted
+        assert "#FutbolBalear" not in formatted
+        assert "#3aRFEF" not in formatted
+        assert len(_score_lines(formatted)) == 3
+        assert "Inter Ibiza CD 3-0 SD Portmany" in formatted
+    finally:
+        session.close()
+
+
+def test_formatter_drops_hashtags_for_tercera_rfef_results_roundup_when_needed() -> None:
+    session = build_session()
+    try:
+        seed_catalog(session)
+        service = EditorialFormatterService(session, max_characters=80)
+        draft = ContentCandidateDraft(
+            competition_slug="tercera_rfef_g11",
+            content_type=ContentType.RESULTS_ROUNDUP,
+            priority=99,
+            text_draft="RESULTADOS",
+            source_summary_hash="hash-results-no-hashtags",
+            status=ContentCandidateStatus.DRAFT,
+            payload_json={
+                "competition_name": "3a RFEF Baleares",
+                "source_payload": {
+                    "group_label": "Jornada 26",
+                    "matches": [
+                        {"home_team": "CD Manacor", "away_team": "RCD Mallorca B", "home_score": 2, "away_score": 1},
+                        {"home_team": "CE Felanitx", "away_team": "CD Llosetense", "home_score": 1, "away_score": 1},
+                    ],
+                },
+            },
+        )
+
+        formatted = service.apply_to_draft(draft).formatted_text
+
+        assert formatted is not None
+        assert len(formatted) <= 80
+        assert "#FutbolBalear" not in formatted
+        assert "#3aRFEF" not in formatted
+    finally:
+        session.close()
+
+
+def test_formatter_keeps_five_match_results_roundup_in_final_output() -> None:
+    session = build_session()
+    try:
+        seed_catalog(session)
+        service = EditorialFormatterService(session)
+        draft = ContentCandidateDraft(
+            competition_slug="division_honor_ibiza_form",
+            content_type=ContentType.RESULTS_ROUNDUP,
+            priority=99,
+            text_draft="RESULTADOS",
+            source_summary_hash="hash-results-five-matches",
+            status=ContentCandidateStatus.DRAFT,
+            payload_json={
+                "competition_name": "Division Honor Ibiza/Form",
+                "source_payload": {
+                    "group_label": "Jornada 16",
+                    "matches": [
+                        {"home_team": "PE Sant Jordi", "away_team": "UD Ibiza B", "home_score": 2, "away_score": 1},
+                        {"home_team": "SD Portmany", "away_team": "CF Sant Rafel", "home_score": 0, "away_score": 0},
+                        {
+                            "home_team": "Inter Ibiza",
+                            "away_team": "CD Ibiza Islas Pitiusas B",
+                            "home_score": 1,
+                            "away_score": 3,
+                        },
+                        {"home_team": "UE Sant Josep", "away_team": "Atl Sant Agusti", "home_score": 4, "away_score": 2},
+                        {"home_team": "CF Rapid", "away_team": "Penya Independent B", "home_score": 1, "away_score": 1},
+                    ],
+                },
+            },
+        )
+
+        layers = service.build_text_layers_for_draft(draft)
+
+        assert layers.formatted_text is not None
+        assert len(_score_lines(layers.formatted_text)) == 5
+        assert "CF Rapid 1-1 Penya Independent B" in layers.formatted_text
+        assert layers.viral_formatted_text is not None
+        assert len(_score_lines(layers.viral_formatted_text)) == 5
+        assert "CF Rapid 1-1 Penya Independent B" in layers.viral_formatted_text
+    finally:
+        session.close()
+
+
+def test_formatter_drops_hashtags_before_cutting_tercera_rfef_results_roundup() -> None:
+    session = build_session()
+    try:
+        seed_catalog(session)
+        service = EditorialFormatterService(session, max_characters=180)
+        draft = ContentCandidateDraft(
+            competition_slug="tercera_rfef_g11",
+            content_type=ContentType.RESULTS_ROUNDUP,
+            priority=99,
+            text_draft="RESULTADOS",
+            source_summary_hash="hash-results-keep-more-matches",
+            status=ContentCandidateStatus.DRAFT,
+            payload_json={
+                "competition_name": "3a RFEF Baleares",
+                "source_payload": {
+                    "group_label": "Jornada 26",
+                    "matches": [
+                        {"home_team": "RCD Mallorca B", "away_team": "CE Constancia", "home_score": 2, "away_score": 1},
+                        {"home_team": "CD Manacor", "away_team": "SD Portmany", "home_score": 3, "away_score": 0},
+                        {"home_team": "CE Felanitx", "away_team": "CD Binissalem", "home_score": 1, "away_score": 1},
+                        {"home_team": "Inter Ibiza CD", "away_team": "Platges de Calvia", "home_score": 0, "away_score": 2},
+                        {"home_team": "CE Mercadal", "away_team": "UD Collerense", "home_score": 2, "away_score": 2},
+                        {"home_team": "PE Sant Jordi", "away_team": "CD Llosetense", "home_score": 1, "away_score": 0},
+                        {"home_team": "Rotlet Molinar", "away_team": "CE Campos", "home_score": 2, "away_score": 3},
+                    ],
+                },
+            },
+        )
+
+        layers = service.build_text_layers_for_draft(draft)
+
+        assert layers.formatted_text is not None
+        assert len(layers.formatted_text) <= 180
+        assert "#FutbolBalear" not in layers.formatted_text
+        assert "#3aRFEF" not in layers.formatted_text
+        assert len(_score_lines(layers.formatted_text)) >= 5
+        assert "CE Mercadal 2-2 UD Collerense" in layers.formatted_text
+        assert layers.viral_formatted_text is not None
+        assert len(layers.viral_formatted_text) <= 180
+        assert "#FutbolBalear" not in layers.viral_formatted_text
+        assert "#3aRFEF" not in layers.viral_formatted_text
+        assert len(_score_lines(layers.viral_formatted_text)) >= 5
+        assert "CE Mercadal 2-2 UD Collerense" in layers.viral_formatted_text
+    finally:
+        session.close()
+
+
+def test_formatter_drops_hashtags_for_tercera_rfef_standings_roundup_when_needed() -> None:
+    session = build_session()
+    try:
+        seed_catalog(session)
+        service = EditorialFormatterService(session, max_characters=70)
+        draft = ContentCandidateDraft(
+            competition_slug="tercera_rfef_g11",
+            content_type=ContentType.STANDINGS_ROUNDUP,
+            priority=82,
+            text_draft="CLASIFICACION",
+            source_summary_hash="hash-standings-no-hashtags",
+            status=ContentCandidateStatus.DRAFT,
+            payload_json={
+                "competition_name": "3a RFEF Baleares",
+                "source_payload": {
+                    "group_label": "Jornada 26",
+                    "rows": [
+                        {"position": 1, "team": "RCD Mallorca B", "points": 66},
+                    ],
+                },
+            },
+        )
+
+        formatted = service.apply_to_draft(draft).formatted_text
+
+        assert formatted is not None
+        assert len(formatted) <= 70
+        assert "#FutbolBalear" not in formatted
+        assert "#3aRFEF" not in formatted
     finally:
         session.close()
 

@@ -188,6 +188,29 @@ def test_publication_dispatcher_dry_run_and_dispatch() -> None:
         session.close()
 
 
+def test_publication_dispatcher_dispatch_candidates_respects_future_schedule_when_requested() -> None:
+    session = build_session()
+    try:
+        seed_candidates(session)
+        service = PublicationDispatcherService(session)
+        now = datetime(2026, 3, 14, 12, 0, tzinfo=timezone.utc)
+
+        dispatched = service.dispatch_candidates(
+            [1, 2, 3, 4],
+            published_at=now,
+            only_ready=True,
+            include_unscheduled=True,
+            dry_run=False,
+        )
+        session.commit()
+
+        assert [row.id for row in dispatched.rows] == [2, 1, 3]
+        assert session.get(ContentCandidate, 4).status == "approved"
+        assert session.get(ContentCandidate, 4).published_at is None
+    finally:
+        session.close()
+
+
 def test_publication_dispatcher_publish_by_id_validates_state() -> None:
     session = build_session()
     try:

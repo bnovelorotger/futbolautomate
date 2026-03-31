@@ -56,7 +56,12 @@ def add_candidate(
     text_draft: str,
     payload_json: dict,
     rewritten_text: str | None = None,
+    status: str = "published",
+    published_at: datetime | None = None,
 ) -> None:
+    candidate_published_at = published_at
+    if candidate_published_at is None and status == "published":
+        candidate_published_at = created_at
     session.add(
         ContentCandidate(
             id=candidate_id,
@@ -68,7 +73,10 @@ def add_candidate(
             rewritten_text=rewritten_text,
             payload_json=payload_json,
             source_summary_hash=f"export-base-{candidate_id}",
-            status="draft",
+            status=status,
+            reviewed_at=created_at if status in {"approved", "published"} else None,
+            approved_at=created_at if status in {"approved", "published"} else None,
+            published_at=candidate_published_at,
             created_at=created_at,
             updated_at=created_at,
         )
@@ -262,6 +270,7 @@ def test_export_base_service_builds_weekly_snapshot_from_editorial_window(tmp_pa
                     "story_type": "hot_form",
                 },
             },
+            status="draft",
         )
 
         service, export_path = build_service(session, tmp_path)
@@ -286,6 +295,91 @@ def test_export_base_service_builds_weekly_snapshot_from_editorial_window(tmp_pa
         assert payload["competitions"]["segunda_rfef_g3_baleares"]["ranking"][0]["text"] == "draft ranking fallback"
         assert [row["id"] for row in payload["competitions"]["tercera_rfef_g11"]["results_roundup"]] == [4]
         assert [row["id"] for row in payload["competitions"]["tercera_rfef_g11"]["ranking"]] == [8]
+    finally:
+        session.close()
+
+
+def test_export_base_service_excludes_non_published_candidates(tmp_path: Path) -> None:
+    session = build_session()
+    try:
+        seed_export_base_context(session)
+        created_at = datetime(2026, 3, 25, 10, 0, tzinfo=timezone.utc)
+        add_candidate(
+            session,
+            candidate_id=12,
+            competition_slug="segunda_rfef_g3_baleares",
+            content_type="ranking",
+            priority=90,
+            created_at=created_at,
+            formatted_text="published ranking",
+            text_draft="published ranking",
+            payload_json={
+                "content_key": "ranking:published",
+                "reference_date": "2026-03-25",
+                "source_payload": {"best_attack": {"team": "Atletico Baleares", "value": 39}},
+            },
+            status="published",
+        )
+        add_candidate(
+            session,
+            candidate_id=13,
+            competition_slug="segunda_rfef_g3_baleares",
+            content_type="ranking",
+            priority=95,
+            created_at=created_at,
+            formatted_text="draft ranking",
+            text_draft="draft ranking",
+            payload_json={
+                "content_key": "ranking:draft",
+                "reference_date": "2026-03-25",
+                "source_payload": {"best_attack": {"team": "Atletico Baleares", "value": 40}},
+            },
+            status="draft",
+        )
+        add_candidate(
+            session,
+            candidate_id=14,
+            competition_slug="segunda_rfef_g3_baleares",
+            content_type="preview",
+            priority=96,
+            created_at=created_at,
+            formatted_text="approved preview",
+            text_draft="approved preview",
+            payload_json={
+                "content_key": "preview:approved",
+                "reference_date": "2026-03-25",
+                "source_payload": {
+                    "featured_match": {
+                        "round_name": "Jornada 28",
+                        "match_date": "2026-03-29",
+                        "home_team": "Atletico Baleares",
+                        "away_team": "UE Porreres",
+                    },
+                    "matches": [
+                        {
+                            "round_name": "Jornada 28",
+                            "match_date": "2026-03-29",
+                            "home_team": "Atletico Baleares",
+                            "away_team": "UE Porreres",
+                        }
+                    ],
+                },
+            },
+            status="approved",
+        )
+
+        service, export_path = build_service(session, tmp_path)
+        result = service.generate_export_file(reference_date=date(2026, 3, 25), dry_run=False)
+        payload = json.loads(export_path.read_text(encoding="utf-8"))
+
+        assert result.total_items == 1
+        assert payload["competitions"]["segunda_rfef_g3_baleares"]["ranking"][0]["id"] == 12
+        exported_ids = {
+            item["id"]
+            for items in payload["competitions"]["segunda_rfef_g3_baleares"].values()
+            for item in items
+        }
+        assert exported_ids == {12}
     finally:
         session.close()
 

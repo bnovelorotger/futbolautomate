@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
-from app.core.enums import ContentType
+from app.core.enums import ContentCandidateStatus, ContentType
 from app.core.exceptions import InvalidStateTransitionError
 from app.db.models import ContentCandidate
 from app.schemas.export_base import ExportBaseDocument, ExportBaseItem, ExportBaseResult
@@ -131,11 +131,15 @@ class ExportBaseService:
     def _candidates_for_snapshot(self) -> list[ContentCandidate]:
         query = (
             select(ContentCandidate)
-            .where(ContentCandidate.formatted_text.is_not(None))
+            .where(
+                ContentCandidate.status == str(ContentCandidateStatus.PUBLISHED),
+                ContentCandidate.published_at.is_not(None),
+            )
             .order_by(
                 ContentCandidate.competition_slug.asc(),
                 ContentCandidate.content_type.asc(),
                 ContentCandidate.priority.desc(),
+                ContentCandidate.published_at.desc().nullslast(),
                 ContentCandidate.created_at.desc(),
                 ContentCandidate.id.desc(),
             )

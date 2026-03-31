@@ -6,7 +6,7 @@ from app.db.models import ContentCandidate
 from app.services.editorial_narratives import EditorialNarrativesService
 from app.services.editorial_quality_checks import EditorialQualityChecksService
 from app.services.editorial_viral_stories import EditorialViralStoriesService
-from tests.unit.services.test_editorial_narratives import build_session, seed_narratives_data
+from tests.unit.services.test_editorial_narratives import build_session, seed_competition, seed_narratives_data
 from tests.unit.services.service_test_support import build_export_policy, build_settings
 
 
@@ -242,6 +242,76 @@ def test_quality_checks_accept_results_roundup_with_normalized_team_names() -> N
                 },
             },
             source_summary_hash="quality-normalized-teams",
+            status="published",
+            reviewed_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+            approved_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+            published_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+        )
+        session.add(candidate)
+        session.commit()
+
+        result = EditorialQualityChecksService(
+            session,
+            settings=build_settings(),
+            policy=build_export_policy(),
+        ).check_candidate(candidate.id, dry_run=False)
+
+        assert result.candidate.passed is True
+        assert result.candidate.errors == []
+    finally:
+        session.close()
+
+
+def test_quality_checks_accept_single_results_roundup_with_five_matches() -> None:
+    session = build_session()
+    try:
+        seed_competition(
+            session,
+            code="division_honor_mallorca",
+            name="Division Honor Mallorca",
+            teams=["CE Alpha", "CE Beta", "CE Gamma", "CE Delta", "CE Epsilon", "CE Foxtrot", "CE Hotel", "CE India", "CE Juliet", "CE Kilo"],
+            standings_rows=[
+                {"position": 1, "team": "CE Alpha", "played": 12, "wins": 9, "draws": 2, "losses": 1, "goals_for": 21, "goals_against": 9, "goal_difference": 12, "points": 29},
+                {"position": 2, "team": "CE Beta", "played": 12, "wins": 8, "draws": 2, "losses": 2, "goals_for": 19, "goals_against": 10, "goal_difference": 9, "points": 26},
+                {"position": 3, "team": "CE Gamma", "played": 12, "wins": 7, "draws": 2, "losses": 3, "goals_for": 18, "goals_against": 12, "goal_difference": 6, "points": 23},
+                {"position": 4, "team": "CE Delta", "played": 12, "wins": 6, "draws": 2, "losses": 4, "goals_for": 15, "goals_against": 13, "goal_difference": 2, "points": 20},
+                {"position": 5, "team": "CE Epsilon", "played": 12, "wins": 5, "draws": 2, "losses": 5, "goals_for": 14, "goals_against": 14, "goal_difference": 0, "points": 17},
+                {"position": 6, "team": "CE Foxtrot", "played": 12, "wins": 4, "draws": 3, "losses": 5, "goals_for": 13, "goals_against": 15, "goal_difference": -2, "points": 15},
+                {"position": 7, "team": "CE Hotel", "played": 12, "wins": 4, "draws": 1, "losses": 7, "goals_for": 12, "goals_against": 16, "goal_difference": -4, "points": 13},
+                {"position": 8, "team": "CE India", "played": 12, "wins": 3, "draws": 2, "losses": 7, "goals_for": 11, "goals_against": 17, "goal_difference": -6, "points": 11},
+                {"position": 9, "team": "CE Juliet", "played": 12, "wins": 2, "draws": 2, "losses": 8, "goals_for": 10, "goals_against": 19, "goal_difference": -9, "points": 8},
+                {"position": 10, "team": "CE Kilo", "played": 12, "wins": 1, "draws": 1, "losses": 10, "goals_for": 8, "goals_against": 22, "goal_difference": -14, "points": 4},
+            ],
+            match_rows=[],
+        )
+        candidate = ContentCandidate(
+            competition_slug="division_honor_mallorca",
+            content_type="results_roundup",
+            priority=99,
+            text_draft=(
+                "RESULTADOS | Division Honor Mallorca | Jornada 26\n\n"
+                "CE Alpha 2-0 CE Beta\n"
+                "CE Gamma 1-1 CE Delta\n"
+                "CE Epsilon 3-2 CE Foxtrot\n"
+                "CE Hotel 0-0 CE India\n"
+                "CE Juliet 4-1 CE Kilo"
+            ),
+            payload_json={
+                "content_key": "results_roundup:j26:single",
+                "source_payload": {
+                    "group_label": "Jornada 26",
+                    "selected_matches_count": 5,
+                    "omitted_matches_count": 0,
+                    "matches": [
+                        {"home_team": "CE Alpha", "away_team": "CE Beta", "home_score": 2, "away_score": 0},
+                        {"home_team": "CE Gamma", "away_team": "CE Delta", "home_score": 1, "away_score": 1},
+                        {"home_team": "CE Epsilon", "away_team": "CE Foxtrot", "home_score": 3, "away_score": 2},
+                        {"home_team": "CE Hotel", "away_team": "CE India", "home_score": 0, "away_score": 0},
+                        {"home_team": "CE Juliet", "away_team": "CE Kilo", "home_score": 4, "away_score": 1},
+                    ],
+                },
+            },
+            source_summary_hash="quality-five-match-roundup",
             status="published",
             reviewed_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
             approved_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),

@@ -12,7 +12,7 @@ def test_default_editorial_schedule_loads_expected_rules() -> None:
     wednesday_rules = schedule.rules_for_weekday("wednesday")
     sunday_rules = schedule.rules_for_weekday("sunday")
 
-    assert len(monday_rules) == 12
+    assert len(monday_rules) == 14
     assert monday_rules[0].competition_slug == "tercera_rfef_g11"
     assert monday_rules[0].content_type == EditorialPlanningContent.RESULTS_ROUNDUP
     assert any(rule.content_type == EditorialPlanningContent.STANDINGS_ROUNDUP for rule in monday_rules)
@@ -21,6 +21,21 @@ def test_default_editorial_schedule_loads_expected_rules() -> None:
     assert any(rule.competition_slug == "tercera_federacion_femenina_g11" for rule in monday_rules)
     assert any(rule.competition_slug == "division_honor_ibiza_form" for rule in monday_rules)
     assert any(rule.competition_slug == "division_honor_menorca" for rule in monday_rules)
+    assert any(
+        rule.competition_slug == "tercera_federacion_femenina_g11"
+        and rule.content_type == EditorialPlanningContent.STANDINGS_ROUNDUP
+        for rule in monday_rules
+    )
+    assert any(
+        rule.competition_slug == "division_honor_ibiza_form"
+        and rule.content_type == EditorialPlanningContent.STANDINGS_ROUNDUP
+        for rule in monday_rules
+    )
+    assert any(
+        rule.competition_slug == "division_honor_menorca"
+        and rule.content_type == EditorialPlanningContent.STANDINGS_ROUNDUP
+        for rule in monday_rules
+    )
     assert any(rule.content_type == EditorialPlanningContent.METRIC_NARRATIVE for rule in wednesday_rules)
     assert any(rule.content_type == EditorialPlanningContent.VIRAL_STORY for rule in wednesday_rules)
     assert any(

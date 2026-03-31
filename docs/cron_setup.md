@@ -33,6 +33,7 @@ Ruta: `scripts/cron/`
 - `run_editorial_day.sh`
   - ejecuta `editorial_ops preview-day --date <fecha>`
   - ejecuta `editorial_ops run-daily --date <fecha>`
+  - los lunes el planner ya cubre `results_roundup + standings_roundup` para las siete competiciones integradas
   - los viernes ya cubre `division_honor_mallorca` en `preview` y `featured_match_preview`
   - `primera_rfef_baleares` y `tercera_federacion_femenina_g11` entran en `preview` sin activar todavia `featured_match_preview`
 - `run_slot.sh`
@@ -169,6 +170,7 @@ Esta frecuencia es razonable hoy porque:
 - revisar la cola en `editorial_queue`
 - `approve` / `reject`
 - `publication_dispatch`
+- `publication_dispatch` solo debe sacar piezas realmente listas; las previas futuras pueden quedarse `approved` hasta su ventana
 - ejecutar `python -m app.pipelines.editorial_release run --date <fecha>` para generar `exports/export_base.json`
 - revisar el snapshot exportado y entregarlo al canal final
 - ejecutar `python -m app.pipelines.export_base generate --date <fecha>` si necesitas regenerar `exports/export_base.json`
@@ -192,7 +194,7 @@ Para preparar salida manual:
 3. aprobar manualmente
 4. despachar con `publication_dispatch dispatch --include-unscheduled`
 5. validar con `python -m app.pipelines.editorial_release dry-run --date <fecha>`
-6. generar `exports/export_base.json` con `python -m app.pipelines.editorial_release run --date <fecha>`
+6. generar `exports/export_base.json` con `python -m app.pipelines.editorial_release run --date <fecha>` sabiendo que solo entraran piezas `published`
 7. regenerar `exports/export_base.json` con `python -m app.pipelines.export_base generate --date <fecha>` si necesitas rehacer el snapshot
 8. revisar `export/legacy_export.json` solo si has activado `LEGACY_EXPORT_JSON_ENABLED=true`
 

@@ -17,7 +17,6 @@ from app.services.social_identity_service import SocialIdentityService
 from app.services.team_name_normalizer import load_team_name_aliases, normalize_team_name
 
 MAX_FORMATTED_CHARACTERS = 240
-MAX_RESULTS_MATCHES = 4
 MAX_PREVIEW_MATCHES = 3
 MAX_RANKING_ROWS = 3
 IDEAL_MENTION_LIMIT = 2
@@ -279,9 +278,13 @@ class EditorialFormatterService:
         competition_name: str,
         source_payload: dict[str, Any],
     ) -> str | None:
-        matches = [match for match in list(source_payload.get("matches") or []) if isinstance(match, dict)][:MAX_RESULTS_MATCHES]
+        matches = [match for match in list(source_payload.get("matches") or []) if isinstance(match, dict)]
         if not matches:
             return None
+        allow_hashtag_drop = self._allow_roundup_hashtag_drop(
+            competition_slug=competition_slug,
+            content_type=ContentType.RESULTS_ROUNDUP,
+        )
         for selected_count in range(len(matches), 0, -1):
             text = self._render_results_summary(
                 competition_slug=competition_slug,
@@ -289,15 +292,42 @@ class EditorialFormatterService:
                 source_payload=source_payload,
                 matches=matches[:selected_count],
                 mention_limit=0,
+                include_hashtags=True,
+                compact_title=False,
             )
             if len(text) <= self.max_characters:
                 return text
+            if allow_hashtag_drop:
+                text_without_hashtags = self._render_results_summary(
+                    competition_slug=competition_slug,
+                    competition_name=competition_name,
+                    source_payload=source_payload,
+                    matches=matches[:selected_count],
+                    mention_limit=0,
+                    include_hashtags=False,
+                    compact_title=False,
+                )
+                if len(text_without_hashtags) <= self.max_characters:
+                    return text_without_hashtags
+                compact_text = self._render_results_summary(
+                    competition_slug=competition_slug,
+                    competition_name=competition_name,
+                    source_payload=source_payload,
+                    matches=matches[:selected_count],
+                    mention_limit=0,
+                    include_hashtags=False,
+                    compact_title=True,
+                )
+                if len(compact_text) <= self.max_characters:
+                    return compact_text
         return self._render_results_summary(
             competition_slug=competition_slug,
             competition_name=competition_name,
             source_payload=source_payload,
             matches=matches[:1],
             mention_limit=0,
+            include_hashtags=False,
+            compact_title=True,
         )
 
     def _render_results_summary(
@@ -308,6 +338,8 @@ class EditorialFormatterService:
         source_payload: dict[str, Any],
         matches: list[dict[str, Any]],
         mention_limit: int,
+        include_hashtags: bool,
+        compact_title: bool,
     ) -> str:
         team_names = self._unique(
             team_name
@@ -317,14 +349,16 @@ class EditorialFormatterService:
         )
         mention_map = self._mention_map(team_names, competition_slug, limit=mention_limit)
         lines = [
-            self._standard_title(
+            self._roundup_title(
                 content_type=ContentType.RESULTS_ROUNDUP,
                 competition_slug=competition_slug,
                 competition_name=competition_name,
                 source_payload=source_payload,
-            ),
-            "",
+                compact=compact_title,
+            )
         ]
+        if not compact_title:
+            lines.append("")
         for match in matches:
             home_team = self._string(match.get("home_team")) or "-"
             away_team = self._string(match.get("away_team")) or "-"
@@ -332,7 +366,11 @@ class EditorialFormatterService:
                 f"{self._render_team_label(home_team, mention_map)} {int(match.get('home_score') or 0)}-"
                 f"{int(match.get('away_score') or 0)} {self._render_team_label(away_team, mention_map)}"
             )
-        lines.extend(["", self._hashtags_line(competition_slug)])
+        if include_hashtags:
+            if compact_title:
+                lines.append(self._hashtags_line(competition_slug))
+            else:
+                lines.extend(["", self._hashtags_line(competition_slug)])
         return self._compact_blank_lines("\n".join(lines))
 
     def format_standings_summary(
@@ -347,6 +385,10 @@ class EditorialFormatterService:
         if not rows:
             return None
         ordered_rows = sorted(rows, key=lambda row: int(row.get("position") or 999))
+        allow_hashtag_drop = self._allow_roundup_hashtag_drop(
+            competition_slug=competition_slug,
+            content_type=content_type,
+        )
         for selected_count in range(len(ordered_rows), 0, -1):
             text = self._render_standings_summary(
                 competition_slug=competition_slug,
@@ -355,9 +397,36 @@ class EditorialFormatterService:
                 rows=ordered_rows[:selected_count],
                 content_type=content_type,
                 mention_limit=0,
+                include_hashtags=True,
+                compact_title=False,
             )
             if len(text) <= self.max_characters:
                 return text
+            if allow_hashtag_drop:
+                text_without_hashtags = self._render_standings_summary(
+                    competition_slug=competition_slug,
+                    competition_name=competition_name,
+                    source_payload=source_payload,
+                    rows=ordered_rows[:selected_count],
+                    content_type=content_type,
+                    mention_limit=0,
+                    include_hashtags=False,
+                    compact_title=False,
+                )
+                if len(text_without_hashtags) <= self.max_characters:
+                    return text_without_hashtags
+                compact_text = self._render_standings_summary(
+                    competition_slug=competition_slug,
+                    competition_name=competition_name,
+                    source_payload=source_payload,
+                    rows=ordered_rows[:selected_count],
+                    content_type=content_type,
+                    mention_limit=0,
+                    include_hashtags=False,
+                    compact_title=True,
+                )
+                if len(compact_text) <= self.max_characters:
+                    return compact_text
         return self._render_standings_summary(
             competition_slug=competition_slug,
             competition_name=competition_name,
@@ -365,6 +434,8 @@ class EditorialFormatterService:
             rows=ordered_rows[:1],
             content_type=content_type,
             mention_limit=0,
+            include_hashtags=False,
+            compact_title=True,
         )
 
     def _render_standings_summary(
@@ -376,6 +447,8 @@ class EditorialFormatterService:
         rows: list[dict[str, Any]],
         content_type: ContentType,
         mention_limit: int,
+        include_hashtags: bool,
+        compact_title: bool,
     ) -> str:
         ordered_rows = sorted(rows, key=lambda row: int(row.get("position") or 999))
         mention_map = self._mention_map(
@@ -384,14 +457,16 @@ class EditorialFormatterService:
             limit=mention_limit,
         )
         lines = [
-            self._standard_title(
+            self._roundup_title(
                 content_type=content_type,
                 competition_slug=competition_slug,
                 competition_name=competition_name,
                 source_payload=source_payload,
-            ),
-            "",
+                compact=compact_title,
+            )
         ]
+        if not compact_title:
+            lines.append("")
         for row in ordered_rows:
             position = int(row.get("position") or 0)
             team_name = self._string(row.get("team")) or "-"
@@ -400,7 +475,11 @@ class EditorialFormatterService:
                 f"{position}. {self._render_team_label(team_name, mention_map)} - {points} pts"
                 f"{self._zone_suffix(self._string(row.get('zone_tag')))}"
             )
-        lines.extend(["", self._hashtags_line(competition_slug)])
+        if include_hashtags:
+            if compact_title:
+                lines.append(self._hashtags_line(competition_slug))
+            else:
+                lines.extend(["", self._hashtags_line(competition_slug)])
         return self._compact_blank_lines("\n".join(lines))
 
     def format_preview_summary(
@@ -654,9 +733,13 @@ class EditorialFormatterService:
         source_payload: dict[str, Any],
         fallback_text: str | None,
     ) -> str | None:
-        matches = [match for match in list(source_payload.get("matches") or []) if isinstance(match, dict)][:MAX_RESULTS_MATCHES]
+        matches = [match for match in list(source_payload.get("matches") or []) if isinstance(match, dict)]
         if not matches:
             return fallback_text
+        allow_hashtag_drop = self._allow_roundup_hashtag_drop(
+            competition_slug=competition_slug,
+            content_type=ContentType.RESULTS_ROUNDUP,
+        )
         for selected_count in range(len(matches), 0, -1):
             for mention_limit in range(min(IDEAL_MENTION_LIMIT, self.settings.max_mentions_per_post), -1, -1):
                 text = self._render_results_summary(
@@ -665,9 +748,34 @@ class EditorialFormatterService:
                     source_payload=source_payload,
                     matches=matches[:selected_count],
                     mention_limit=mention_limit,
+                    include_hashtags=True,
+                    compact_title=False,
                 )
                 if len(text) <= self.max_characters:
                     return text
+                if allow_hashtag_drop:
+                    text_without_hashtags = self._render_results_summary(
+                        competition_slug=competition_slug,
+                        competition_name=competition_name,
+                        source_payload=source_payload,
+                        matches=matches[:selected_count],
+                        mention_limit=mention_limit,
+                        include_hashtags=False,
+                        compact_title=False,
+                    )
+                    if len(text_without_hashtags) <= self.max_characters:
+                        return text_without_hashtags
+                    compact_text = self._render_results_summary(
+                        competition_slug=competition_slug,
+                        competition_name=competition_name,
+                        source_payload=source_payload,
+                        matches=matches[:selected_count],
+                        mention_limit=mention_limit,
+                        include_hashtags=False,
+                        compact_title=True,
+                    )
+                    if len(compact_text) <= self.max_characters:
+                        return compact_text
         return fallback_text
 
     def _viral_standings_summary(
@@ -684,6 +792,10 @@ class EditorialFormatterService:
         )
         if not rows:
             return fallback_text
+        allow_hashtag_drop = self._allow_roundup_hashtag_drop(
+            competition_slug=competition_slug,
+            content_type=content_type,
+        )
         for selected_count in range(len(rows), 0, -1):
             for mention_limit in range(min(IDEAL_MENTION_LIMIT, self.settings.max_mentions_per_post), -1, -1):
                 text = self._render_standings_summary(
@@ -693,9 +805,36 @@ class EditorialFormatterService:
                     rows=rows[:selected_count],
                     content_type=content_type,
                     mention_limit=mention_limit,
+                    include_hashtags=True,
+                    compact_title=False,
                 )
                 if len(text) <= self.max_characters:
                     return text
+                if allow_hashtag_drop:
+                    text_without_hashtags = self._render_standings_summary(
+                        competition_slug=competition_slug,
+                        competition_name=competition_name,
+                        source_payload=source_payload,
+                        rows=rows[:selected_count],
+                        content_type=content_type,
+                        mention_limit=mention_limit,
+                        include_hashtags=False,
+                        compact_title=False,
+                    )
+                    if len(text_without_hashtags) <= self.max_characters:
+                        return text_without_hashtags
+                    compact_text = self._render_standings_summary(
+                        competition_slug=competition_slug,
+                        competition_name=competition_name,
+                        source_payload=source_payload,
+                        rows=rows[:selected_count],
+                        content_type=content_type,
+                        mention_limit=mention_limit,
+                        include_hashtags=False,
+                        compact_title=True,
+                    )
+                    if len(compact_text) <= self.max_characters:
+                        return compact_text
         return fallback_text
 
     def _viral_preview_summary(
@@ -830,6 +969,15 @@ class EditorialFormatterService:
             hashtags.append(competition_hashtag)
         return hashtags[:2]
 
+    def _allow_roundup_hashtag_drop(
+        self,
+        *,
+        competition_slug: str,
+        content_type: ContentType,
+    ) -> bool:
+        del competition_slug
+        return content_type in {ContentType.RESULTS_ROUNDUP, ContentType.STANDINGS_ROUNDUP}
+
     def resolve_team_mention(self, team_name: str | None, competition_slug: str | None) -> str:
         if not team_name:
             return ""
@@ -952,6 +1100,35 @@ class EditorialFormatterService:
             round_title = self._round_title(source_payload)
             if round_title:
                 parts.append(round_title)
+        title = " - ".join(parts)
+        part_suffix = self._part_suffix(source_payload)
+        if part_suffix:
+            title = f"{title} {part_suffix}"
+        return title
+
+    def _roundup_title(
+        self,
+        *,
+        content_type: ContentType,
+        competition_slug: str,
+        competition_name: str,
+        source_payload: dict[str, Any],
+        compact: bool,
+    ) -> str:
+        if not compact:
+            return self._standard_title(
+                content_type=content_type,
+                competition_slug=competition_slug,
+                competition_name=competition_name,
+                source_payload=source_payload,
+            )
+        parts = [self._competition_title(competition_slug, competition_name)]
+        group_title = self._group_title(competition_slug, competition_name, source_payload)
+        if group_title:
+            parts.append(group_title)
+        round_title = self._round_title(source_payload)
+        if round_title and round_title != group_title:
+            parts.append(round_title)
         title = " - ".join(parts)
         part_suffix = self._part_suffix(source_payload)
         if part_suffix:

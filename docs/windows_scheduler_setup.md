@@ -41,16 +41,19 @@ Ruta: `scripts/windows/`
   - aborta si `preview-day` falla
   - si `PREVIEW_ONLY=true` o `-PreviewOnly`, termina sin `run-daily`
   - si no, ejecuta `run-daily`
+  - los lunes el planner ya cubre `results_roundup + standings_roundup` para las siete competiciones integradas
   - los viernes el planner ya incluye `division_honor_mallorca` en `preview` y `featured_match_preview`
   - `primera_rfef_baleares` y `tercera_federacion_femenina_g11` entran en `preview` sin activar todavia `featured_match_preview`
 - `editorial_release.ps1`
   - ejecuta `editorial_release dry-run` o `run`
   - el pipeline interno hace `quality_checks -> autoapprove -> dispatch -> export_base`
+  - `dispatch` solo publica piezas ya listas segun `scheduled_at`; una previa futura puede quedar `approved` sin pasar todavia a `published`
   - en produccion v1 genera por defecto `exports/export_base.json` para:
     - `results_roundup`
     - `standings_roundup`
     - `preview`
     - `ranking`
+  - `export_base` solo recoge piezas ya `published`
 - `run_slot.ps1`
   - wrapper opcional para `refresh`, `readiness`, `editorial-day` y `editorial-release`
 
@@ -115,6 +118,7 @@ La frontera automatica real vive en codigo:
 
 - `EditorialApprovalPolicyService` solo autoaprueba `results_roundup`, `standings_roundup`, `preview` y `ranking`
 - `EditorialCandidateWindowService` limita la ventana temporal del release
+- `PublicationDispatcherService` filtra por readiness real antes de publicar
 - `ExportBaseService` escribe `exports/export_base.json` como snapshot estructurado por defecto
 - `legacy_export_json_enabled` reactiva `ExportJsonService` hacia `export/legacy_export.json` solo si hace falta compatibilidad
 
