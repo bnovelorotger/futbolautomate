@@ -6,7 +6,7 @@ La documentacion detallada de esta iteracion se conserva en [docs/README_detaile
 
 ## Version actual
 
-Release **v1.5**. Snapshot del **31 de marzo de 2026**.
+Release **v1.5**. Snapshot del **1 de abril de 2026**.
 
 Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolidados:
 
@@ -27,6 +27,8 @@ Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolida
 - `editorial_release` respeta `scheduled_at`: autoaprueba piezas seguras, pero solo despacha las ya listas
 - `export_base_service` exporta unicamente candidatas en estado `published`
 - export visual PNG de `standings_roundup` durante `export_base`, con `image_path` por item y tolerancia a fallos de render
+- `standings_image_mapper` intenta reconstruir la clasificacion completa desde BD, no solo desde el payload resumido, y resalta lider, zonas y equipos seguidos cuando aplica
+- la tarjeta visual ajusta altura, densidad de tabla y columnas de forma automatica segun filas y estadisticas disponibles
 - `editorial_formatter` refina branding y titulos narrativos: `DH Mallorca`, `💪🏼 Forma`, `📈 Tendencia` y `🔥 Dato`
 - `viral_formatted_text` como capa compacta para export seguro en resultados, clasificaciones, previas y rankings
 - `team_socials` + `social_enricher` para insertar menciones de clubes sin duplicados
@@ -575,6 +577,12 @@ Salida:
 - HTML temporal en `exports/tmp/images/{competition_slug}/{date}/standings_roundup_{id}.html`
 - `export_base.json` incluye `image_path` solo cuando `content_type=standings_roundup`
 - si el render falla, el export sigue y `image_path` queda en `null`
+
+Comportamiento actual:
+- intenta usar la clasificacion completa de `current_standings` cuando la candidata esta ligada a una sesion de BD; si no puede, cae al `source_payload`
+- marca visualmente lider, playoff, descenso y equipos seguidos en competiciones con `tracked_teams`
+- ajusta altura final, tamanos tipograficos y grid de columnas segun numero real de filas y estadisticas presentes
+- ya no fuerza `10` filas ni una altura fija si el mapper resuelve mejor el layout
 
 Dependencia operativa:
 

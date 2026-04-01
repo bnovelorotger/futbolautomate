@@ -17,16 +17,19 @@ def generate_standings_card(
     candidate: ContentCandidate,
     output_root: Path | None = None,
     width: int = 1200,
-    height: int = 1500,
-    max_rows: int = 10,
+    height: int | None = None,
+    max_rows: int | None = None,
 ) -> str | None:
     try:
         export_root = output_root or (get_settings().app_root / "exports")
         context = build_standings_image_context(candidate, max_rows=max_rows)
+        layout = dict(context.get("layout") or {})
+        resolved_height = height or int(layout.get("height") or 1500)
         context["layout"] = {
+            **layout,
             "width": width,
-            "height": height,
-            "max_rows": max(0, int(max_rows)),
+            "height": resolved_height,
+            "max_rows": int(layout.get("max_rows") or len(context.get("rows") or [])),
         }
 
         competition_slug = _safe_path_segment(context.get("competition_slug") or candidate.competition_slug)
@@ -41,7 +44,7 @@ def generate_standings_card(
         png_path = export_root / png_relative
 
         render_standings_html(context, html_path)
-        html_to_png(html_path, png_path, width=width, height=height)
+        html_to_png(html_path, png_path, width=width, height=resolved_height)
 
         return (Path("exports") / png_relative).as_posix()
     except Exception:
