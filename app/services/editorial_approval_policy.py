@@ -26,6 +26,12 @@ AUTOAPPROVABLE_CONTENT_TYPES = (
     ContentType.PREVIEW,
     ContentType.RANKING,
 )
+TUE_WED_AUTOAPPROVABLE_CONTENT_TYPES = (
+    ContentType.VIRAL_STORY,
+    ContentType.METRIC_NARRATIVE,
+    ContentType.STAT_NARRATIVE,
+    ContentType.RANKING,
+)
 CONDITIONAL_AUTOAPPROVABLE_CONTENT_TYPES: tuple[ContentType, ...] = ()
 MANUAL_REVIEW_CONTENT_TYPES = (
     ContentType.MATCH_RESULT,
@@ -62,15 +68,25 @@ class EditorialApprovalPolicyService:
         reference_date: date | None = None,
         limit: int = 200,
     ) -> EditorialApprovalStatusView:
-        rows = self._pending_drafts(reference_date=reference_date, limit=limit)
-        quality_snapshot = self._quality_snapshot(rows)
-        views = self._evaluate_rows(rows, quality_snapshot=quality_snapshot)
+        selected_date = reference_date or datetime.now(ZoneInfo(self.settings.timezone)).date()
+        rows = self._pending_drafts(reference_date=selected_date, limit=limit)
+        quality_snapshot = self._quality_snapshot(rows, reference_date=selected_date)
+        views = self._evaluate_rows(
+            rows,
+            quality_snapshot=quality_snapshot,
+            reference_date=selected_date,
+        )
         autoapprovable_count = sum(1 for view in views if view.autoapprovable)
+        autoapprovable_types = list(self._autoapprovable_types_for_date(selected_date))
         return EditorialApprovalStatusView(
             enabled=True,
-            autoapprovable_content_types=list(AUTOAPPROVABLE_CONTENT_TYPES),
+            autoapprovable_content_types=autoapprovable_types,
             conditional_autoapprovable_content_types=list(CONDITIONAL_AUTOAPPROVABLE_CONTENT_TYPES),
-            manual_review_content_types=list(MANUAL_REVIEW_CONTENT_TYPES),
+            manual_review_content_types=[
+                content_type
+                for content_type in MANUAL_REVIEW_CONTENT_TYPES
+                if content_type not in autoapprovable_types
+            ],
             drafts_found=len(rows),
             autoapprovable_count=autoapprovable_count,
             manual_review_count=len(rows) - autoapprovable_count,
@@ -83,10 +99,16 @@ class EditorialApprovalPolicyService:
         limit: int = 200,
         dry_run: bool = False,
     ) -> EditorialApprovalRunResult:
-        rows = self._pending_drafts(reference_date=reference_date, limit=limit)
-        quality_snapshot = self._quality_snapshot(rows)
+        selected_date = reference_date or datetime.now(ZoneInfo(self.settings.timezone)).date()
+        rows = self._pending_drafts(reference_date=selected_date, limit=limit)
+        quality_snapshot = self._quality_snapshot(rows, reference_date=selected_date)
         evaluated_rows = {
-            view.id: view for view in self._evaluate_rows(rows, quality_snapshot=quality_snapshot)
+            view.id: view
+            for view in self._evaluate_rows(
+                rows,
+                quality_snapshot=quality_snapshot,
+                reference_date=selected_date,
+            )
         }
         result_rows: list[EditorialApprovalCandidateView] = []
         autoapprovable_count = 0
@@ -121,7 +143,7 @@ class EditorialApprovalPolicyService:
 
         return EditorialApprovalRunResult(
             dry_run=dry_run,
-            reference_date=reference_date,
+            reference_date=selected_date,
             drafts_found=len(rows),
             autoapprovable_count=autoapprovable_count,
             autoapproved_count=autoapproved_count,
@@ -135,14 +157,16 @@ class EditorialApprovalPolicyService:
         reference_date: date | None = None,
         limit: int = 200,
     ) -> list[int]:
-        rows = self._pending_drafts(reference_date=reference_date, limit=limit)
-        return [row.id for row in rows if self._is_potential_autoapprovable(row)]
+        selected_date = reference_date or datetime.now(ZoneInfo(self.settings.timezone)).date()
+        rows = self._pending_drafts(reference_date=selected_date, limit=limit)
+        return [row.id for row in rows if self._is_potential_autoapprovable(row, reference_date=selected_date)]
 
     def _evaluate_rows(
         self,
         candidates: list[ContentCandidate],
         *,
         quality_snapshot: dict[int, tuple[bool, list[str]]] | None = None,
+        reference_date: date,
     ) -> list[EditorialApprovalCandidateView]:
         views_by_id: dict[int, EditorialApprovalCandidateView] = {}
         conditional_candidates: list[ContentCandidate] = []
@@ -150,6 +174,7 @@ class EditorialApprovalPolicyService:
             autoapprovable, policy_reason = self._base_policy(
                 candidate,
                 quality_snapshot=quality_snapshot,
+                reference_date=reference_date,
             )
             if policy_reason == "story_importance_pending":
                 conditional_candidates.append(candidate)
@@ -182,6 +207,7 @@ class EditorialApprovalPolicyService:
         candidate: ContentCandidate,
         *,
         quality_snapshot: dict[int, tuple[bool, list[str]]] | None = None,
+        reference_date: date,
     ) -> tuple[bool, str]:
         status = ContentCandidateStatus(candidate.status)
         quality_passed, quality_errors = self._quality_state(
@@ -198,7 +224,7 @@ class EditorialApprovalPolicyService:
             return False, "quality_errors_present"
         else:
             content_type = ContentType(candidate.content_type)
-            if content_type in AUTOAPPROVABLE_CONTENT_TYPES:
+            if content_type in self._autoapprovable_types_for_date(reference_date):
                 return True, "policy_autoapprove_safe_type"
             if content_type in CONDITIONAL_AUTOAPPROVABLE_CONTENT_TYPES:
                 return False, "story_importance_pending"
@@ -207,7 +233,7 @@ class EditorialApprovalPolicyService:
             else:
                 return False, "content_type_not_configured"
 
-    def _is_potential_autoapprovable(self, candidate: ContentCandidate) -> bool:
+    def _is_potential_autoapprovable(self, candidate: ContentCandidate, *, reference_date: date) -> bool:
         status = ContentCandidateStatus(candidate.status)
         if status != ContentCandidateStatus.DRAFT:
             return False
@@ -217,15 +243,21 @@ class EditorialApprovalPolicyService:
             return False
         content_type = ContentType(candidate.content_type)
         return (
-            content_type in AUTOAPPROVABLE_CONTENT_TYPES
+            content_type in self._autoapprovable_types_for_date(reference_date)
             or content_type in CONDITIONAL_AUTOAPPROVABLE_CONTENT_TYPES
         )
 
     def _quality_snapshot(
         self,
         rows: list[ContentCandidate],
+        *,
+        reference_date: date,
     ) -> dict[int, tuple[bool, list[str]]]:
-        candidate_ids = [row.id for row in rows if self._is_potential_autoapprovable(row)]
+        candidate_ids = [
+            row.id
+            for row in rows
+            if self._is_potential_autoapprovable(row, reference_date=reference_date)
+        ]
         if not candidate_ids:
             return {}
         batch = self.quality_service.check_candidates(
@@ -237,6 +269,20 @@ class EditorialApprovalPolicyService:
             row.id: (row.passed, list(row.errors))
             for row in batch.rows
         }
+
+    def _autoapprovable_types_for_date(self, target_date: date) -> tuple[ContentType, ...]:
+        ordered_unique = dict.fromkeys(
+            (
+                *AUTOAPPROVABLE_CONTENT_TYPES,
+                *self._weekday_autoapprovable_types(target_date),
+            )
+        )
+        return tuple(ordered_unique.keys())
+
+    def _weekday_autoapprovable_types(self, target_date: date) -> tuple[ContentType, ...]:
+        if target_date.weekday() in {1, 2}:  # Tuesday, Wednesday
+            return TUE_WED_AUTOAPPROVABLE_CONTENT_TYPES
+        return ()
 
     def _quality_state(
         self,

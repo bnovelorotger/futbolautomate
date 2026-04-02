@@ -6,7 +6,7 @@ La documentacion detallada de esta iteracion se conserva en [docs/README_detaile
 
 ## Version actual
 
-Release **v1.5**. Snapshot del **1 de abril de 2026**.
+Release **v1.5**. Snapshot del **2 de abril de 2026**.
 
 Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolidados:
 
@@ -19,13 +19,14 @@ Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolida
 - `editorial_release` + `export_base_service` para generar `exports/export_base.json` como salida estructurada por defecto
 - `legacy_export_json_enabled` para reactivar `export/legacy_export.json` via `export_json_service` solo por compatibilidad
 - catalogo integrado ampliado con `primera_rfef_baleares`, `tercera_federacion_femenina_g11`, `division_honor_ibiza_form` y `division_honor_menorca`
-- planner semanal afinado: lunes cubre `results_roundup + standings_roundup` en las siete integradas, miercoles anade `ranking` en `primera_rfef_baleares` y viernes suma `preview` para `primera_rfef_baleares` y `tercera_federacion_femenina_g11`
+- planner semanal afinado: lunes cubre `results_roundup + standings_roundup` en las siete integradas, miercoles anade la triada narrativa (`stat_narrative`, `metric_narrative`, `viral_story`) para `tercera_rfef_g11`, `segunda_rfef_g3_baleares` y `tercera_federacion_femenina_g11`, mantiene `ranking` en `primera_rfef_baleares`, y viernes suma `preview` para `primera_rfef_baleares` y `tercera_federacion_femenina_g11`
 - `division_honor_mallorca` entra tambien en viernes para `preview` y `featured_match_preview`
 - `editorial_summary` usa una ventana editorial corta para previas: se queda con la ronda inmediata y descarta jornadas demasiado lejanas
 - `results_roundup` y `standings_roundup` pasan a priorizar una pieza unica completa; el formatter quita hashtags y compacta el titulo antes de recortar marcadores o filas
 - `export_base_service` usa `editorial_text_selector` en `preview` y `featured_match_preview` para conservar `viral_formatted_text` cuando aporta mejor salida
 - `editorial_release` respeta `scheduled_at`: autoaprueba piezas seguras, pero solo despacha las ya listas
 - `export_base_service` exporta unicamente candidatas en estado `published`
+- `editorial_approval_policy` pasa a ser sensible al dia: martes/miercoles puede autoaprobar `stat_narrative`, `metric_narrative` y `viral_story` solo si pasan `quality_checks`
 - export visual PNG de `standings_roundup` durante `export_base`, con `image_path` por item y tolerancia a fallos de render
 - `standings_image_mapper` intenta reconstruir la clasificacion completa desde BD, no solo desde el payload resumido, y resalta lider, zonas y equipos seguidos cuando aplica
 - la tarjeta visual ajusta altura, densidad de tabla y columnas de forma automatica segun filas y estadisticas disponibles
@@ -35,7 +36,7 @@ Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolida
 - `team_name_aliases.json` + `team_name_normalizer` para fijar naming editorial consistente
 - dataset curado `scripts/team_socials_dataset.json` para poblar `team_socials`
 - `story_importance` para ordenar prioridad dentro del release seguro
-- scope automatico v1 acotado a piezas seguras y reversibles
+- scope automatico v1 controlado por dia, calidad y reversibilidad de la pieza
 
 ## Que incluye ahora
 
@@ -628,24 +629,29 @@ python -m app.pipelines.story_importance rank-pending
 ```
 
 Uso actual en produccion v1:
-- se mantiene como scoring CLI y como base para futuras politicas condicionales
-- no amplia la policy automatica v1 por si solo
-- hoy el carril seguro sigue cerrado a los tipos autoaprobables definidos en `editorial_approval_policy`
+- se mantiene como scoring CLI y como base para politicas condicionales
+- no abre carril automatico por si solo; necesita policy activa y `quality_checks` en verde
+- el carril seguro se decide por `editorial_approval_policy`, que ahora incluye reglas por dia de semana
 
 Limitaciones:
 - no persiste `importance_score` en BD; el calculo es al vuelo
 - la penalizacion de repeticion es estructural, no semantica
-- en produccion v1 no abre todavia el carril automatico para narrativas
+- no sustituye la validacion editorial ni los quality checks sobre narrativas
 
 ## Produccion v1
 
-Esta iteracion cierra una produccion v1 y congela el scope editorial automatico.
+Esta iteracion mantiene una produccion v1 con automatizacion controlada por tipo de pieza y por dia.
 
-Automatico v1:
+Automatico v1 (base):
 - `results_roundup`
 - `standings_roundup`
 - `preview`
 - `ranking`
+
+Automatico v1 (condicional martes/miercoles + quality checks):
+- `stat_narrative`
+- `metric_narrative`
+- `viral_story`
 
 Manual v1:
 - `match_result`
@@ -655,9 +661,6 @@ Manual v1:
 - `standings_event`
 - `form_event`
 - `form_ranking`
-- `stat_narrative`
-- `metric_narrative`
-- `viral_story`
 
 Flujo automatico v1:
 - `editorial_ops run-daily`
@@ -689,6 +692,7 @@ Notas operativas:
 - `results_roundup` y `standings_roundup` son la salida principal de resultados y clasificacion
 - `match_result` y `standings` se mantienen como fallback/legacy manual
 - `preview` y `ranking` siguen siendo piezas automaticas seguras
+- `stat_narrative`, `metric_narrative` y `viral_story` pueden salir en automatico solo martes/miercoles y solo con quality checks en verde
 - `editorial_release` genera `exports/export_base.json` como snapshot estructurado por defecto
 - `export_base generate` regenera ese mismo snapshot de forma manual si lo necesitas fuera del release
 - `LEGACY_EXPORT_JSON_ENABLED=true` reactiva `export/legacy_export.json` solo para compatibilidad

@@ -334,22 +334,22 @@ def test_editorial_approval_policy_marks_safe_types_and_blocks_sensitive(tmp_pat
 
         rows = {row.id: row for row in result.rows}
         assert result.drafts_found == 6
-        assert result.autoapprovable_count == 3
-        assert result.manual_review_count == 3
+        assert result.autoapprovable_count == 4
+        assert result.manual_review_count == 2
         assert rows[101].autoapprovable is False
         assert rows[101].policy_reason == "manual_review_policy"
         assert rows[102].autoapprovable is True
         assert rows[109].autoapprovable is True
         assert rows[106].autoapprovable is True
-        assert rows[103].autoapprovable is False
-        assert rows[103].policy_reason == "manual_review_policy"
+        assert rows[103].autoapprovable is True
+        assert rows[103].policy_reason == "policy_autoapprove_safe_type"
         assert rows[104].autoapprovable is False
         assert rows[104].policy_reason == "text_draft_empty"
     finally:
         session.close()
 
 
-def test_editorial_approval_policy_keeps_narratives_in_manual_review(tmp_path: Path) -> None:
+def test_editorial_approval_policy_blocks_narratives_with_quality_errors(tmp_path: Path) -> None:
     session = build_session()
     try:
         seed_release_candidates(session)
@@ -364,7 +364,7 @@ def test_editorial_approval_policy_keeps_narratives_in_manual_review(tmp_path: P
         assert rows[107].autoapprovable is False
         assert rows[107].policy_reason == "manual_review_policy"
         assert rows[108].autoapprovable is False
-        assert rows[108].policy_reason == "manual_review_policy"
+        assert rows[108].policy_reason == "quality_errors_present"
     finally:
         session.close()
 
@@ -383,31 +383,35 @@ def test_editorial_release_pipeline_real_run_generates_export_base_snapshot(tmp_
         payload = json.loads(export_path.read_text(encoding="utf-8"))
 
         assert result.drafts_found == 7
-        assert result.autoapprovable_count == 3
-        assert result.autoapproved_count == 3
-        assert result.manual_review_count == 4
-        assert result.dispatched_count == 3
-        assert result.export_base_total_items == 3
+        assert result.autoapprovable_count == 4
+        assert result.autoapproved_count == 4
+        assert result.manual_review_count == 3
+        assert result.dispatched_count == 4
+        assert result.export_base_total_items == 4
         assert result.export_base_path == str(export_path)
         assert result.legacy_export_json_count == 0
         assert result.legacy_export_blocked_series_count == 0
         assert result.legacy_export_json_path is None
         assert payload["scope"] == "weekly_snapshot"
-        assert payload["total_items"] == 3
+        assert payload["total_items"] == 4
         assert set(payload["competitions"]) == {"tercera_rfef_g11"}
-        assert set(payload["competitions"]["tercera_rfef_g11"]) == {"results_roundup", "standings_roundup"}
+        assert set(payload["competitions"]["tercera_rfef_g11"]) == {
+            "results_roundup",
+            "standings_roundup",
+            "viral_story",
+        }
         exported_ids = {
             item["id"]
             for items in payload["competitions"]["tercera_rfef_g11"].values()
             for item in items
         }
-        assert exported_ids == {102, 106, 109}
+        assert exported_ids == {102, 103, 106, 109}
         assert not (tmp_path / "export" / "legacy_export.json").exists()
         assert session.get(ContentCandidate, 101).status == "draft"
         assert session.get(ContentCandidate, 102).status == "published"
         assert session.get(ContentCandidate, 109).status == "published"
         assert session.get(ContentCandidate, 106).status == "published"
-        assert session.get(ContentCandidate, 103).status == "draft"
+        assert session.get(ContentCandidate, 103).status == "published"
         assert session.get(ContentCandidate, 104).status == "draft"
         assert session.get(ContentCandidate, 105).status == "draft"
         assert session.get(ContentCandidate, 105).quality_check_passed is False
@@ -424,9 +428,9 @@ def test_editorial_release_pipeline_dry_run_does_not_persist_changes(tmp_path: P
 
         result = service.run(reference_date=REFERENCE_DATE, dry_run=True)
 
-        assert result.autoapproved_count == 3
-        assert result.dispatched_count == 3
-        assert result.export_base_total_items == 3
+        assert result.autoapproved_count == 4
+        assert result.dispatched_count == 4
+        assert result.export_base_total_items == 4
         assert result.legacy_export_json_count == 0
         assert result.legacy_export_blocked_series_count == 0
         assert session.get(ContentCandidate, 101).status == "draft"
@@ -440,7 +444,7 @@ def test_editorial_release_pipeline_dry_run_does_not_persist_changes(tmp_path: P
         session.close()
 
 
-def test_editorial_release_pipeline_keeps_narratives_manual_in_v1(tmp_path: Path) -> None:
+def test_editorial_release_pipeline_keeps_sensitive_narratives_manual_in_v1(tmp_path: Path) -> None:
     session = build_session()
     try:
         seed_release_candidates(session)
@@ -450,14 +454,15 @@ def test_editorial_release_pipeline_keeps_narratives_manual_in_v1(tmp_path: Path
         result = service.run(reference_date=REFERENCE_DATE, dry_run=False)
         session.commit()
 
-        assert result.autoapprovable_count == 3
-        assert result.autoapproved_count == 3
-        assert result.dispatched_count == 3
-        assert result.export_base_total_items == 3
+        assert result.autoapprovable_count == 4
+        assert result.autoapproved_count == 4
+        assert result.dispatched_count == 4
+        assert result.export_base_total_items == 4
         assert result.legacy_export_json_count == 0
         assert result.legacy_export_blocked_series_count == 0
         assert session.get(ContentCandidate, 107).status == "draft"
         assert session.get(ContentCandidate, 108).status == "draft"
+        assert session.get(ContentCandidate, 103).status == "published"
         assert session.get(ContentCandidate, 106).status == "published"
         assert session.get(ContentCandidate, 102).status == "published"
         assert session.get(ContentCandidate, 109).status == "published"
@@ -475,9 +480,9 @@ def test_editorial_release_pipeline_keeps_future_preview_autoapproved_but_unpubl
         result = service.run(reference_date=REFERENCE_DATE, dry_run=False)
         session.commit()
 
-        assert result.autoapproved_count == 4
-        assert result.dispatched_count == 3
-        assert result.export_base_total_items == 3
+        assert result.autoapproved_count == 5
+        assert result.dispatched_count == 4
+        assert result.export_base_total_items == 4
         assert session.get(ContentCandidate, 110).status == "approved"
         assert session.get(ContentCandidate, 110).published_at is None
         assert session.get(ContentCandidate, 110).autoapproved is True
@@ -498,10 +503,10 @@ def test_editorial_release_pipeline_can_generate_legacy_export_when_enabled(tmp_
         legacy_path = tmp_path / "export" / "legacy_export.json"
         payload = json.loads(legacy_path.read_text(encoding="utf-8"))
 
-        assert result.export_base_total_items == 3
-        assert result.legacy_export_json_count == 3
+        assert result.export_base_total_items == 4
+        assert result.legacy_export_json_count == 4
         assert result.legacy_export_blocked_series_count == 0
         assert result.legacy_export_json_path == str(legacy_path)
-        assert {row["id"] for row in payload} == {102, 106, 109}
+        assert {row["id"] for row in payload} == {102, 103, 106, 109}
     finally:
         session.close()

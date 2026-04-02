@@ -10,7 +10,7 @@ Windows es el entorno principal actual de operacion de uFutbolBalear. La automat
 - no hay autopublicacion en X
 - `editorial_release` deja por defecto el handoff final en `exports/export_base.json`
 - `export_base` puede regenerar manualmente ese mismo snapshot
-- la produccion v1 congela el scope automatico y no anade nuevas familias de contenido
+- la produccion v1 mantiene automatizacion controlada por tipo de pieza, dia de semana y quality checks
 
 ## Scripts activos
 
@@ -42,6 +42,7 @@ Ruta: `scripts/windows/`
   - si `PREVIEW_ONLY=true` o `-PreviewOnly`, termina sin `run-daily`
   - si no, ejecuta `run-daily`
   - los lunes el planner ya cubre `results_roundup + standings_roundup` para las siete competiciones integradas
+  - los miercoles el planner incluye triada narrativa (`stat_narrative`, `metric_narrative`, `viral_story`) para `tercera_rfef_g11`, `segunda_rfef_g3_baleares` y `tercera_federacion_femenina_g11`
   - los viernes el planner ya incluye `division_honor_mallorca` en `preview` y `featured_match_preview`
   - `primera_rfef_baleares` y `tercera_federacion_femenina_g11` entran en `preview` sin activar todavia `featured_match_preview`
 - `editorial_release.ps1`
@@ -94,12 +95,18 @@ Cada linea incluye:
 
 ## Produccion v1
 
-Frontera automatica cerrada:
+Frontera automatica base:
 
 - `results_roundup`
 - `standings_roundup`
 - `preview`
 - `ranking`
+
+Autoaprobacion condicional (martes/miercoles + quality checks):
+
+- `stat_narrative`
+- `metric_narrative`
+- `viral_story`
 
 Todo lo demas queda manual en esta fase:
 
@@ -110,13 +117,10 @@ Todo lo demas queda manual en esta fase:
 - `standings_event`
 - `form_event`
 - `form_ranking`
-- `stat_narrative`
-- `metric_narrative`
-- `viral_story`
 
 La frontera automatica real vive en codigo:
 
-- `EditorialApprovalPolicyService` solo autoaprueba `results_roundup`, `standings_roundup`, `preview` y `ranking`
+- `EditorialApprovalPolicyService` autoaprueba por defecto `results_roundup`, `standings_roundup`, `preview` y `ranking`, y en martes/miercoles puede incluir `stat_narrative`, `metric_narrative` y `viral_story` si pasan quality checks
 - `EditorialCandidateWindowService` limita la ventana temporal del release
 - `PublicationDispatcherService` filtra por readiness real antes de publicar
 - `ExportBaseService` escribe `exports/export_base.json` como snapshot estructurado por defecto

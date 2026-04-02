@@ -37,7 +37,7 @@ def test_editorial_ops_preview_and_run_daily_for_real_schedule() -> None:
         session.close()
 
 
-def test_editorial_ops_run_daily_generates_metric_narratives_on_wednesday() -> None:
+def test_editorial_ops_run_daily_generates_narrative_triad_for_available_wednesday_data() -> None:
     session = build_session()
     try:
         CompetitionCatalogService(session).seed_competitions(integrated_only=True, missing_only=True)
@@ -48,20 +48,21 @@ def test_editorial_ops_run_daily_generates_metric_narratives_on_wednesday() -> N
         session.commit()
 
         rows = session.execute(select(ContentCandidate).order_by(ContentCandidate.id.asc())).scalars().all()
+        stat_rows = [row for row in rows if row.content_type == "stat_narrative"]
         metric_rows = [row for row in rows if row.content_type == "metric_narrative"]
         viral_rows = [row for row in rows if row.content_type == "viral_story"]
+        generated_competitions = {
+            "tercera_rfef_g11",
+            "segunda_rfef_g3_baleares",
+        }
 
-        assert run.total_tasks == 7
+        assert run.total_tasks == 11
+        assert stat_rows
         assert metric_rows
         assert viral_rows
-        assert {row.competition_slug for row in metric_rows} == {
-            "tercera_rfef_g11",
-            "segunda_rfef_g3_baleares",
-        }
-        assert {row.competition_slug for row in viral_rows} == {
-            "tercera_rfef_g11",
-            "segunda_rfef_g3_baleares",
-        }
+        assert {row.competition_slug for row in stat_rows} == generated_competitions
+        assert {row.competition_slug for row in metric_rows} == generated_competitions
+        assert {row.competition_slug for row in viral_rows} == generated_competitions
     finally:
         session.close()
 

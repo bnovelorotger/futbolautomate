@@ -90,6 +90,11 @@
         "priority": 68
       },
       {
+        "competition_slug": "tercera_rfef_g11",
+        "content_type": "stat_narrative",
+        "priority": 65
+      },
+      {
         "competition_slug": "segunda_rfef_g3_baleares",
         "content_type": "stat_narrative",
         "priority": 65
@@ -103,6 +108,21 @@
         "competition_slug": "segunda_rfef_g3_baleares",
         "content_type": "metric_narrative",
         "priority": 68
+      },
+      {
+        "competition_slug": "tercera_federacion_femenina_g11",
+        "content_type": "viral_story",
+        "priority": 69
+      },
+      {
+        "competition_slug": "tercera_federacion_femenina_g11",
+        "content_type": "metric_narrative",
+        "priority": 68
+      },
+      {
+        "competition_slug": "tercera_federacion_femenina_g11",
+        "content_type": "stat_narrative",
+        "priority": 65
       },
       {
         "competition_slug": "primera_rfef_baleares",

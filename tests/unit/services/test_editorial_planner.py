@@ -244,6 +244,38 @@ def test_editorial_planner_resolves_campaign_plan_for_date() -> None:
         session.close()
 
 
+def test_editorial_planner_default_wednesday_plan_includes_narrative_triad_for_three_competitions() -> None:
+    session = build_session()
+    try:
+        service = EditorialPlannerService(
+            session,
+            settings=build_settings(),
+        )
+
+        plan = service.plan_for_date(date(2026, 4, 1))
+        task_pairs = {
+            (task.competition_slug, task.planning_type)
+            for task in plan.tasks
+        }
+        expected_pairs = {
+            ("tercera_rfef_g11", EditorialPlanningContent.STAT_NARRATIVE),
+            ("tercera_rfef_g11", EditorialPlanningContent.METRIC_NARRATIVE),
+            ("tercera_rfef_g11", EditorialPlanningContent.VIRAL_STORY),
+            ("segunda_rfef_g3_baleares", EditorialPlanningContent.STAT_NARRATIVE),
+            ("segunda_rfef_g3_baleares", EditorialPlanningContent.METRIC_NARRATIVE),
+            ("segunda_rfef_g3_baleares", EditorialPlanningContent.VIRAL_STORY),
+            ("tercera_federacion_femenina_g11", EditorialPlanningContent.STAT_NARRATIVE),
+            ("tercera_federacion_femenina_g11", EditorialPlanningContent.METRIC_NARRATIVE),
+            ("tercera_federacion_femenina_g11", EditorialPlanningContent.VIRAL_STORY),
+        }
+
+        assert plan.weekday_key == "wednesday"
+        assert plan.total_tasks >= len(expected_pairs)
+        assert expected_pairs.issubset(task_pairs)
+    finally:
+        session.close()
+
+
 def test_editorial_planner_week_plan_spans_monday_to_sunday() -> None:
     session = build_session()
     try:

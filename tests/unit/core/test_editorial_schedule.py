@@ -72,3 +72,27 @@ def test_default_editorial_schedule_loads_expected_rules() -> None:
         EditorialPlanningContent.RESULTS_ROUNDUP,
         EditorialPlanningContent.STANDINGS_ROUNDUP,
     }
+
+
+def test_wednesday_schedule_includes_narrative_triad_for_three_main_competitions() -> None:
+    load_editorial_schedule.cache_clear()
+    schedule = load_editorial_schedule()
+    wednesday_rules = schedule.rules_for_weekday("wednesday")
+    wednesday_pairs = {
+        (rule.competition_slug, rule.content_type)
+        for rule in wednesday_rules
+    }
+
+    expected_pairs = {
+        ("tercera_rfef_g11", EditorialPlanningContent.STAT_NARRATIVE),
+        ("tercera_rfef_g11", EditorialPlanningContent.METRIC_NARRATIVE),
+        ("tercera_rfef_g11", EditorialPlanningContent.VIRAL_STORY),
+        ("segunda_rfef_g3_baleares", EditorialPlanningContent.STAT_NARRATIVE),
+        ("segunda_rfef_g3_baleares", EditorialPlanningContent.METRIC_NARRATIVE),
+        ("segunda_rfef_g3_baleares", EditorialPlanningContent.VIRAL_STORY),
+        ("tercera_federacion_femenina_g11", EditorialPlanningContent.STAT_NARRATIVE),
+        ("tercera_federacion_femenina_g11", EditorialPlanningContent.METRIC_NARRATIVE),
+        ("tercera_federacion_femenina_g11", EditorialPlanningContent.VIRAL_STORY),
+    }
+
+    assert expected_pairs.issubset(wednesday_pairs)
