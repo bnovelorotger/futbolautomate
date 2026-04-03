@@ -236,3 +236,68 @@ def test_editorial_content_generator_resets_rewrite_fields_when_base_draft_chang
         assert refreshed.rewrite_error is None
     finally:
         session.close()
+
+
+def test_editorial_content_generator_updates_legacy_preview_draft_with_new_anchor_key() -> None:
+    session = build_session()
+    try:
+        session.add(
+            Competition(
+                code="division_honor_mallorca",
+                name="Division Honor Mallorca",
+                normalized_name="division honor mallorca",
+                category_level=6,
+                gender="male",
+                region="Mallorca",
+                country="Spain",
+                federation="FFIB",
+                source_name="futbolme",
+                source_competition_id="4018",
+            )
+        )
+        session.commit()
+
+        generator = EditorialContentGenerator(session)
+        summary = build_summary()
+        preview_candidate = next(
+            candidate
+            for candidate in generator.generate_from_summary(summary)
+            if candidate.content_type == "preview"
+        )
+        session.add(
+            ContentCandidate(
+                competition_slug="division_honor_mallorca",
+                content_type="preview",
+                priority=preview_candidate.priority,
+                text_draft=preview_candidate.text_draft,
+                formatted_text=preview_candidate.formatted_text,
+                payload_json={
+                    "content_key": "preview:upcoming",
+                    "template_name": "preview_v1",
+                    "competition_name": summary.metadata.competition_name,
+                    "reference_date": summary.metadata.reference_date.isoformat(),
+                    "source_payload": preview_candidate.payload_json["source_payload"],
+                },
+                source_summary_hash="legacy-preview-hash",
+                scheduled_at=preview_candidate.scheduled_at,
+                status="draft",
+            )
+        )
+        session.commit()
+
+        stats = generator.store_candidates([preview_candidate])
+        session.commit()
+
+        rows = session.execute(
+            select(ContentCandidate)
+            .where(ContentCandidate.competition_slug == "division_honor_mallorca")
+            .where(ContentCandidate.content_type == "preview")
+        ).scalars().all()
+
+        assert stats.inserted == 0
+        assert stats.updated == 1
+        assert len(rows) == 1
+        assert rows[0].payload_json["content_key"] == "preview:jornada-25:2026-03-14:ce-andratx-b:cd-ferriolense"
+        assert rows[0].source_summary_hash == preview_candidate.source_summary_hash
+    finally:
+        session.close()

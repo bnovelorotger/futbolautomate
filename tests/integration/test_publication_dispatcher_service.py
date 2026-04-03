@@ -211,6 +211,36 @@ def test_publication_dispatcher_dispatch_candidates_respects_future_schedule_whe
         session.close()
 
 
+def test_publication_dispatcher_treats_future_preview_as_ready_before_kickoff() -> None:
+    session = build_session()
+    try:
+        seed_candidates(session)
+        preview = session.get(ContentCandidate, 2)
+        assert preview is not None
+        preview.scheduled_at = datetime(2026, 3, 15, 10, 0, tzinfo=timezone.utc)
+        session.add(preview)
+        session.commit()
+
+        service = PublicationDispatcherService(session)
+        now = datetime(2026, 3, 14, 12, 0, tzinfo=timezone.utc)
+
+        ready = service.list_ready(now=now, include_unscheduled=False)
+        dispatched = service.dispatch_candidates(
+            [2],
+            published_at=now,
+            only_ready=True,
+            include_unscheduled=False,
+            dry_run=False,
+        )
+        session.commit()
+
+        assert 2 in [row.id for row in ready]
+        assert [row.id for row in dispatched.rows] == [2]
+        assert session.get(ContentCandidate, 2).status == "published"
+    finally:
+        session.close()
+
+
 def test_publication_dispatcher_publish_by_id_validates_state() -> None:
     session = build_session()
     try:

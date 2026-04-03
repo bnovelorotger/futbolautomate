@@ -18,12 +18,13 @@ def build_candidate(
     status: str,
     scheduled_at: datetime | None,
     published_at: datetime | None = None,
+    content_type: str = "match_result",
 ) -> ContentCandidate:
     now = datetime(2026, 3, 14, 12, 0, tzinfo=timezone.utc)
     return ContentCandidate(
         id=1,
         competition_slug="tercera_rfef_g11",
-        content_type="match_result",
+        content_type=content_type,
         priority=99,
         text_draft="RESULTADO FINAL",
         payload_json={},
@@ -49,12 +50,18 @@ def test_publication_dispatcher_detects_ready_candidates() -> None:
         status="approved",
         scheduled_at=datetime(2026, 3, 15, 12, 0, tzinfo=timezone.utc),
     )
+    future_preview = build_candidate(
+        status="approved",
+        scheduled_at=datetime(2026, 3, 15, 12, 0, tzinfo=timezone.utc),
+        content_type="preview",
+    )
     draft = build_candidate(status="draft", scheduled_at=now)
 
     assert is_candidate_ready_for_dispatch(due, now, include_unscheduled=False) is True
     assert is_candidate_ready_for_dispatch(unscheduled, now, include_unscheduled=False) is False
     assert is_candidate_ready_for_dispatch(unscheduled, now, include_unscheduled=True) is True
     assert is_candidate_ready_for_dispatch(future, now, include_unscheduled=True) is False
+    assert is_candidate_ready_for_dispatch(future_preview, now, include_unscheduled=True) is True
     assert is_candidate_ready_for_dispatch(draft, now, include_unscheduled=True) is False
 
 

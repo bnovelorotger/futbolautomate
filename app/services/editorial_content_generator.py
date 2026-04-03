@@ -11,6 +11,7 @@ from app.schemas.common import IngestStats
 from app.schemas.editorial_content import ContentCandidateDraft, ContentGenerationResult
 from app.schemas.editorial_summary import CompetitionEditorialSummary
 from app.schemas.reporting import CompetitionMatchView, StandingView
+from app.normalizers.text import normalize_token
 from app.services.editorial_formatter import EditorialFormatterService
 from app.services.editorial_summary import CompetitionEditorialSummaryService
 from app.utils.hashing import stable_hash
@@ -29,6 +30,19 @@ def _match_label(match: CompetitionMatchView) -> str:
         parts.append(match.match_time_raw)
     parts.append(f"{match.home_team} vs {match.away_team}")
     return " | ".join(parts)
+
+
+def _preview_key_part(value: str | None, *, fallback: str) -> str:
+    normalized = normalize_token(value or "")
+    return normalized.replace(" ", "-") or fallback
+
+
+def _preview_content_key(match: CompetitionMatchView) -> str:
+    round_part = _preview_key_part(match.round_name, fallback="round")
+    date_part = match.match_date.isoformat() if match.match_date is not None else "date-unknown"
+    home_part = _preview_key_part(match.home_team, fallback="home")
+    away_part = _preview_key_part(match.away_team, fallback="away")
+    return f"preview:{round_part}:{date_part}:{home_part}:{away_part}"
 
 
 def _candidate_hash(
@@ -172,7 +186,7 @@ class EditorialContentGenerator:
             summary=summary,
             content_type=ContentType.PREVIEW,
             priority=90,
-            content_key="preview:upcoming",
+            content_key=_preview_content_key(featured_match),
             text_draft="\n".join(lines),
             source_payload=source_payload,
             scheduled_at=featured_match.kickoff_datetime,

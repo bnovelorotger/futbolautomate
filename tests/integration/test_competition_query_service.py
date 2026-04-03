@@ -1055,3 +1055,72 @@ def test_competition_query_service_editorial_upcoming_matches_extends_scope_on_t
         assert upcoming[0].away_team == "UD Ibiza"
     finally:
         session.close()
+
+
+def test_competition_query_service_editorial_upcoming_matches_reaches_next_sunday_on_thursday_and_friday() -> None:
+    session = build_session()
+    try:
+        seed_primera_rfef_with_ud_ibiza(session)
+        competition = session.scalar(select(Competition).where(Competition.code == "primera_rfef_baleares"))
+        ibiza = session.scalar(select(Team).where(Team.name == "UD Ibiza"))
+        ceuta = session.scalar(select(Team).where(Team.name == "AD Ceuta FC"))
+        assert competition is not None
+        assert ibiza is not None
+        assert ceuta is not None
+
+        scheduled_rows = session.execute(
+            select(Match)
+            .where(Match.competition_id == competition.id)
+            .where(Match.status == "scheduled")
+        ).scalars().all()
+        for row in scheduled_rows:
+            row.status = "finished"
+            row.home_score = row.home_score or 1
+            row.away_score = row.away_score or 0
+
+        session.add(
+            Match(
+                external_id="primera-next-sunday-preview",
+                source_name="futbolme",
+                source_url="https://example.com/primera/next-sunday-preview",
+                competition_id=competition.id,
+                season="2025-26",
+                group_name="Grupo 2",
+                round_name="Jornada 32",
+                raw_match_date="domingo, 12 de abril de 2026",
+                raw_match_time="12:00",
+                match_date=date(2026, 4, 12),
+                match_time=time(12, 0),
+                kickoff_datetime=datetime(2026, 4, 12, 12, 0, tzinfo=timezone.utc),
+                home_team_id=ibiza.id,
+                away_team_id=ceuta.id,
+                home_team_raw="UD Ibiza",
+                away_team_raw="AD Ceuta FC",
+                home_score=None,
+                away_score=None,
+                status="scheduled",
+                venue=None,
+                has_lineups=False,
+                has_scorers=False,
+                scraped_at=datetime(2026, 3, 31, 10, 0, tzinfo=timezone.utc),
+                content_hash="primera-next-sunday-preview",
+                extra_data=None,
+            )
+        )
+        session.commit()
+
+        service = CompetitionQueryService(session)
+        for reference_date in (date(2026, 4, 2), date(2026, 4, 3)):
+            upcoming = service.editorial_upcoming_matches(
+                "primera_rfef_baleares",
+                limit=5,
+                relevant_only=True,
+                reference_date=reference_date,
+            )
+
+            assert len(upcoming) == 1
+            assert upcoming[0].round_name == "Jornada 32"
+            assert upcoming[0].match_date == date(2026, 4, 12)
+            assert upcoming[0].home_team == "UD Ibiza"
+    finally:
+        session.close()

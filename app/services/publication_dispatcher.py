@@ -40,6 +40,8 @@ def is_candidate_ready_for_dispatch(
         return False
     if candidate.published_at is not None:
         return False
+    if candidate.content_type == str(ContentType.PREVIEW):
+        return True
     if candidate.scheduled_at is None:
         return include_unscheduled
     return _normalized_datetime(candidate.scheduled_at) <= _normalized_datetime(now)
@@ -66,9 +68,17 @@ class PublicationDispatcherService:
         return candidate
 
     def _ready_condition(self, now: datetime, include_unscheduled: bool):
+        preview_ready = ContentCandidate.content_type == str(ContentType.PREVIEW)
         if include_unscheduled:
-            return or_(ContentCandidate.scheduled_at.is_(None), ContentCandidate.scheduled_at <= now)
-        return and_(ContentCandidate.scheduled_at.is_not(None), ContentCandidate.scheduled_at <= now)
+            return or_(
+                preview_ready,
+                ContentCandidate.scheduled_at.is_(None),
+                ContentCandidate.scheduled_at <= now,
+            )
+        return or_(
+            preview_ready,
+            and_(ContentCandidate.scheduled_at.is_not(None), ContentCandidate.scheduled_at <= now),
+        )
 
     def _row_to_view(self, row: ContentCandidate) -> PublicationCandidateView:
         return PublicationCandidateView(

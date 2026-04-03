@@ -519,7 +519,7 @@ def test_editorial_release_pipeline_keeps_sensitive_narratives_manual_in_v1(tmp_
         session.close()
 
 
-def test_editorial_release_pipeline_keeps_future_preview_autoapproved_but_unpublished(tmp_path: Path) -> None:
+def test_editorial_release_pipeline_dispatches_future_preview_before_kickoff(tmp_path: Path) -> None:
     session = build_session()
     try:
         seed_release_candidates(session)
@@ -530,10 +530,10 @@ def test_editorial_release_pipeline_keeps_future_preview_autoapproved_but_unpubl
         session.commit()
 
         assert result.autoapproved_count == 5
-        assert result.dispatched_count == 4
+        assert result.dispatched_count == 5
         assert result.export_base_total_items == 4
-        assert session.get(ContentCandidate, 110).status == "approved"
-        assert session.get(ContentCandidate, 110).published_at is None
+        assert session.get(ContentCandidate, 110).status == "published"
+        assert session.get(ContentCandidate, 110).published_at is not None
         assert session.get(ContentCandidate, 110).autoapproved is True
     finally:
         session.close()

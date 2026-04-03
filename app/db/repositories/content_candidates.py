@@ -4,9 +4,10 @@ from datetime import datetime, timezone
 
 from sqlalchemy import select
 
-from app.core.enums import ContentCandidateStatus
+from app.core.enums import ContentCandidateStatus, ContentType
 from app.db.models import ContentCandidate
 from app.db.repositories.base import BaseRepository
+from app.normalizers.text import normalize_token
 
 
 def _normalized_datetime(value: datetime | None) -> datetime | None:
@@ -15,6 +16,24 @@ def _normalized_datetime(value: datetime | None) -> datetime | None:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc)
+
+
+def _preview_anchor(payload_json: dict | None) -> tuple[str, str, str, str] | None:
+    if not isinstance(payload_json, dict):
+        return None
+    source_payload = payload_json.get("source_payload")
+    if not isinstance(source_payload, dict):
+        return None
+    featured_match = source_payload.get("featured_match")
+    if not isinstance(featured_match, dict):
+        return None
+    round_name = normalize_token(str(featured_match.get("round_name") or ""))
+    match_date = str(featured_match.get("match_date") or "").strip()
+    home_team = normalize_token(str(featured_match.get("home_team") or ""))
+    away_team = normalize_token(str(featured_match.get("away_team") or ""))
+    if not all((round_name, match_date, home_team, away_team)):
+        return None
+    return round_name, match_date, home_team, away_team
 
 
 class ContentCandidateRepository(BaseRepository[ContentCandidate]):
@@ -32,12 +51,34 @@ class ContentCandidateRepository(BaseRepository[ContentCandidate]):
             )
         )
 
+    def _get_matching_preview_draft(self, payload: dict) -> ContentCandidate | None:
+        if str(payload.get("content_type")) != str(ContentType.PREVIEW):
+            return None
+        anchor = _preview_anchor(payload.get("payload_json"))
+        if anchor is None:
+            return None
+        rows = self.session.execute(
+            select(ContentCandidate)
+            .where(
+                ContentCandidate.competition_slug == payload["competition_slug"],
+                ContentCandidate.content_type == str(ContentType.PREVIEW),
+                ContentCandidate.status == str(ContentCandidateStatus.DRAFT),
+            )
+            .order_by(ContentCandidate.created_at.desc(), ContentCandidate.id.desc())
+        ).scalars().all()
+        for row in rows:
+            if _preview_anchor(row.payload_json) == anchor:
+                return row
+        return None
+
     def upsert(self, payload: dict) -> tuple[ContentCandidate, bool, bool]:
         item = self.get_by_hash(
             competition_slug=payload["competition_slug"],
             content_type=payload["content_type"],
             source_summary_hash=payload["source_summary_hash"],
         )
+        if item is None:
+            item = self._get_matching_preview_draft(payload)
         if item is None:
             item = ContentCandidate(**payload)
             self.session.add(item)
@@ -49,6 +90,9 @@ class ContentCandidateRepository(BaseRepository[ContentCandidate]):
 
         updated = False
         should_reset_rewrite = False
+        if item.source_summary_hash != payload["source_summary_hash"]:
+            item.source_summary_hash = payload["source_summary_hash"]
+            updated = True
         for field in ("priority", "text_draft", "formatted_text", "payload_json", "scheduled_at"):
             value = payload.get(field)
             current_value = getattr(item, field)

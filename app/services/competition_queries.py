@@ -258,9 +258,14 @@ class CompetitionQueryService:
         reference_date: date,
         max_days_ahead: int,
     ) -> int:
-        # Thursday runs one day earlier than Friday; extend one day so both use equivalent preview scope.
-        if max_days_ahead == 7 and reference_date.weekday() == 3:
-            return 8
+        if max_days_ahead == 7:
+            weekday = reference_date.weekday()
+            # Thursday and Friday preview runs should still reach the next Sunday.
+            # This avoids leaving competitions without preview when the immediate weekend is empty.
+            if weekday == 3:
+                return 10
+            if weekday == 4:
+                return 9
         return max_days_ahead
 
     def matches_by_round(

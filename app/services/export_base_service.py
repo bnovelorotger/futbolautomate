@@ -192,18 +192,25 @@ class ExportBaseService:
         window_start: date,
         window_end: date,
     ) -> bool:
+        preview_window_end = window_end
+        if candidate.content_type == str(ContentType.PREVIEW):
+            preview_window_end = self._effective_preview_window_end(target_date)
         context = self.window.competition_window(candidate.competition_slug, reference_date=target_date)
         candidate_round = self.window._candidate_round(candidate)
         match_dates = self.window._candidate_match_dates(candidate)
         if match_dates:
             earliest_date = min(match_dates)
-            if earliest_date < target_date or earliest_date > window_end:
+            if earliest_date < target_date or earliest_date > preview_window_end:
                 return False
             if context.next_match_date is not None and earliest_date == context.next_match_date:
                 return True
         if candidate_round and context.next_round and candidate_round == context.next_round:
             return True
-        return self._matches_weekly_window(candidate, window_start=window_start, window_end=window_end)
+        return self._matches_date_window(
+            candidate,
+            start_date=target_date,
+            end_date=preview_window_end,
+        )
 
     def _matches_post_window(
         self,
@@ -233,8 +240,17 @@ class ExportBaseService:
         window_start: date,
         window_end: date,
     ) -> bool:
+        return self._matches_date_window(candidate, start_date=window_start, end_date=window_end)
+
+    def _matches_date_window(
+        self,
+        candidate: ContentCandidate,
+        *,
+        start_date: date,
+        end_date: date,
+    ) -> bool:
         editorial_dates = self._editorial_dates(candidate)
-        return any(window_start <= value <= window_end for value in editorial_dates)
+        return any(start_date <= value <= end_date for value in editorial_dates)
 
     def _editorial_dates(self, candidate: ContentCandidate) -> list[date]:
         values: list[date] = []
@@ -312,3 +328,11 @@ class ExportBaseService:
         window_start = target_date - timedelta(days=target_date.weekday())
         window_end = window_start + timedelta(days=6)
         return window_start, window_end
+
+    def _effective_preview_window_end(self, target_date: date) -> date:
+        days_ahead = 7
+        if target_date.weekday() == 3:
+            days_ahead = 10
+        elif target_date.weekday() == 4:
+            days_ahead = 9
+        return target_date + timedelta(days=days_ahead)

@@ -133,4 +133,4 @@ def test_editorial_content_generator_hashes_source_payload_not_template_text() -
 
     assert isinstance(draft, ContentCandidateDraft)
     assert draft.source_summary_hash
-    assert draft.payload_json["content_key"] == "preview:upcoming"
+    assert draft.payload_json["content_key"] == "preview:jornada-26:2026-03-14:rcd-mallorca-b:ce-santanyi"

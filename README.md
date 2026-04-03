@@ -22,14 +22,16 @@ Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolida
 - planner semanal afinado: lunes cubre `results_roundup + standings_roundup` en las siete integradas, miercoles anade la triada narrativa (`stat_narrative`, `metric_narrative`, `viral_story`) para `tercera_rfef_g11`, `segunda_rfef_g3_baleares` y `tercera_federacion_femenina_g11`, jueves abre un bloque de `preview` para las cinco competiciones principales con una ventana equivalente al viernes, mantiene `ranking` en `primera_rfef_baleares`, y viernes conserva `preview` mas el bloque destacado donde aplica
 - `division_honor_mallorca` entra tambien en viernes para `preview` y `featured_match_preview`
 - `editorial_summary` usa una ventana editorial corta para previas: se queda con la ronda inmediata y descarta jornadas demasiado lejanas
-- `competition_queries.editorial_upcoming_matches` extiende el ancla de previa a `8` dias los jueves para no perder la jornada inmediata cuando el planner corre un dia antes
+- `competition_queries.editorial_upcoming_matches` extiende el alcance de previa hasta el siguiente domingo cuando el planner corre jueves o viernes
 - `results_roundup` y `standings_roundup` pasan a priorizar una pieza unica completa; el formatter quita hashtags y compacta el titulo antes de recortar marcadores o filas
+- `editorial_content_generator` deja de usar `preview:upcoming` y genera `content_key` anclado a jornada, fecha y equipos para evitar previews duplicadas o ambiguas
 - `export_base_service` usa `editorial_text_selector` en `preview` y `featured_match_preview` para conservar `viral_formatted_text` cuando aporta mejor salida
 - `editorial_release` respeta `scheduled_at`: autoaprueba piezas seguras, pero solo despacha las ya listas
 - `editorial_release` recupera tambien candidatas `approved` de ejecuciones anteriores si ya han entrado en ventana y estan listas para publicarse
 - `export_base_service` exporta unicamente candidatas en estado `published`
 - `editorial_approval_policy` pasa a ser sensible al dia: martes/miercoles puede autoaprobar `stat_narrative`, `metric_narrative` y `viral_story` solo si pasan `quality_checks`
 - `editorial_approval_policy` deja de depender de que el draft se haya creado el mismo dia y toma por ventana real las piezas antiguas que siguen siendo elegibles
+- `publication_dispatch` trata `preview` como pieza lista antes del kickoff y el repositorio puede actualizar drafts legacy de previa aunque cambie el `source_summary_hash`
 - export visual PNG de `standings_roundup` durante `export_base`, con `image_path` por item y tolerancia a fallos de render
 - `standings_image_mapper` intenta reconstruir la clasificacion completa desde BD, no solo desde el payload resumido, y resalta lider, zonas y equipos seguidos cuando aplica
 - la tarjeta visual ajusta altura, densidad de tabla y columnas de forma automatica segun filas y estadisticas disponibles
@@ -558,7 +560,7 @@ Que persiste:
 Reglas operativas:
 - solo exporta piezas ya `published`, con `published_at` y texto resoluble para salida
 - usa ventana semanal y reglas distintas para previas, post-jornada y piezas semanales
-- `publication_dispatch` solo publica piezas listas segun `scheduled_at`; una previa futura puede quedar autoaprobada sin entrar todavia en `exports/export_base.json`
+- `publication_dispatch` publica `preview` antes del kickoff y usa `scheduled_at` como gating para el resto de piezas
 - `editorial_release` puede despachar tanto las autoaprobadas del run actual como piezas `approved` de runs anteriores que ya esten listas
 - en `preview` y `featured_match_preview` usa `editorial_text_selector`, por lo que puede elegir `rewritten_text`, `viral_formatted_text`, `formatted_text` o `text_draft`
 - en el resto usa `rewritten_text`, despues `formatted_text` y por ultimo `text_draft`
@@ -697,7 +699,7 @@ Notas operativas:
 - `results_roundup` y `standings_roundup` son la salida principal de resultados y clasificacion
 - `match_result` y `standings` se mantienen como fallback/legacy manual
 - `preview` y `ranking` siguen siendo piezas automaticas seguras
-- el planner puede adelantar `preview` al jueves sin perder la jornada inmediata gracias a la ventana editorial extendida de ese dia
+- el planner puede adelantar `preview` al jueves y al viernes sin perder la jornada inmediata del siguiente domingo
 - `stat_narrative`, `metric_narrative` y `viral_story` pueden salir en automatico solo martes/miercoles y solo con quality checks en verde
 - `editorial_release` no se limita a lo generado en el mismo dia: tambien puede publicar candidatas ya aprobadas si su ventana real ya ha llegado
 - `editorial_release` genera `exports/export_base.json` como snapshot estructurado por defecto

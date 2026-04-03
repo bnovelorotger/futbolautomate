@@ -34,7 +34,7 @@ Ruta: `scripts/cron/`
   - ejecuta `editorial_ops preview-day --date <fecha>`
   - ejecuta `editorial_ops run-daily --date <fecha>`
   - los lunes el planner ya cubre `results_roundup + standings_roundup` para las siete competiciones integradas
-  - los jueves abre `preview` para las cinco competiciones principales con la misma jornada objetivo que el viernes
+  - los jueves abre `preview` para las cinco competiciones principales con horizonte extendido hasta el siguiente domingo
   - los viernes ya cubre `division_honor_mallorca` en `preview` y `featured_match_preview`
   - `primera_rfef_baleares` y `tercera_federacion_femenina_g11` entran en `preview` sin activar todavia `featured_match_preview`
 - `run_slot.sh`
@@ -176,7 +176,7 @@ Esta frecuencia es razonable hoy porque:
 - revisar la cola en `editorial_queue`
 - `approve` / `reject`
 - `publication_dispatch`
-- `publication_dispatch` solo debe sacar piezas realmente listas; las previas futuras pueden quedarse `approved` hasta su ventana
+- `publication_dispatch` debe sacar `preview` antes del kickoff y el resto solo cuando ya haya entrado en ventana real
 - `editorial_release` tambien puede publicar piezas ya `approved` de runs anteriores si en esta ejecucion ya han entrado en ventana
 - ejecutar `python -m app.pipelines.editorial_release run --date <fecha>` para generar `exports/export_base.json`
 - revisar el snapshot exportado y entregarlo al canal final

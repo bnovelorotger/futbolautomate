@@ -4,7 +4,9 @@ import json
 from datetime import date, datetime, time, timezone
 from pathlib import Path
 
-from app.db.models import ContentCandidate, TeamMention
+from sqlalchemy import select
+
+from app.db.models import Competition, ContentCandidate, Match, Team, TeamMention
 from app.services.export_base_service import ExportBaseService
 from tests.unit.services.service_test_support import build_session, build_settings
 from tests.unit.services.test_editorial_narratives import seed_competition
@@ -295,6 +297,127 @@ def test_export_base_service_builds_weekly_snapshot_from_editorial_window(tmp_pa
         assert payload["competitions"]["segunda_rfef_g3_baleares"]["ranking"][0]["text"] == "draft ranking fallback"
         assert [row["id"] for row in payload["competitions"]["tercera_rfef_g11"]["results_roundup"]] == [4]
         assert [row["id"] for row in payload["competitions"]["tercera_rfef_g11"]["ranking"]] == [8]
+    finally:
+        session.close()
+
+
+def test_export_base_service_uses_effective_preview_window_without_expanding_featured_preview(
+    tmp_path: Path,
+) -> None:
+    session = build_session()
+    try:
+        seed_export_base_context(session)
+        competition = session.scalar(
+            select(Competition).where(Competition.code == "tercera_rfef_g11")
+        )
+        home_team = session.scalar(select(Team).where(Team.name == "RCD Mallorca B"))
+        away_team = session.scalar(select(Team).where(Team.name == "CD Manacor"))
+        assert competition is not None
+        assert home_team is not None
+        assert away_team is not None
+
+        session.add(
+            Match(
+                external_id="tercera-rfef-j30-preview-window",
+                source_name="futbolme",
+                source_url="https://example.com/tercera-rfef/j30-preview-window",
+                competition_id=competition.id,
+                season="2025-26",
+                group_name="Grupo test",
+                round_name="Jornada 30",
+                raw_match_date="2026-04-12",
+                raw_match_time="12:00",
+                match_date=date(2026, 4, 12),
+                match_time=time(12, 0),
+                kickoff_datetime=datetime(2026, 4, 12, 12, 0, tzinfo=timezone.utc),
+                home_team_id=home_team.id,
+                away_team_id=away_team.id,
+                home_team_raw="RCD Mallorca B",
+                away_team_raw="CD Manacor",
+                home_score=None,
+                away_score=None,
+                status="scheduled",
+                venue=None,
+                has_lineups=False,
+                has_scorers=False,
+                scraped_at=datetime(2026, 4, 1, 10, 0, tzinfo=timezone.utc),
+                content_hash="tercera-rfef-j30-preview-window",
+                extra_data=None,
+            )
+        )
+        session.commit()
+
+        created_at = datetime(2026, 4, 3, 12, 0, tzinfo=timezone.utc)
+        add_candidate(
+            session,
+            candidate_id=41,
+            competition_slug="tercera_rfef_g11",
+            content_type="preview",
+            priority=90,
+            created_at=created_at,
+            formatted_text="formatted preview future window",
+            text_draft="draft preview future window",
+            payload_json={
+                "content_key": "preview:j30:2026-04-12",
+                "reference_date": "2026-04-03",
+                "source_payload": {
+                    "featured_match": {
+                        "round_name": "Jornada 30",
+                        "match_date": "2026-04-12",
+                        "home_team": "RCD Mallorca B",
+                        "away_team": "CD Manacor",
+                    },
+                    "matches": [
+                        {
+                            "round_name": "Jornada 30",
+                            "match_date": "2026-04-12",
+                            "home_team": "RCD Mallorca B",
+                            "away_team": "CD Manacor",
+                        }
+                    ],
+                },
+            },
+        )
+        add_candidate(
+            session,
+            candidate_id=42,
+            competition_slug="tercera_rfef_g11",
+            content_type="featured_match_preview",
+            priority=91,
+            created_at=created_at,
+            formatted_text="formatted featured future window",
+            text_draft="draft featured future window",
+            payload_json={
+                "content_key": "featured_match_preview:j30:2026-04-12",
+                "reference_date": "2026-04-03",
+                "source_payload": {
+                    "featured_match": {
+                        "round_name": "Jornada 30",
+                        "match_date": "2026-04-12",
+                        "home_team": "RCD Mallorca B",
+                        "away_team": "CD Manacor",
+                    },
+                    "matches": [
+                        {
+                            "round_name": "Jornada 30",
+                            "match_date": "2026-04-12",
+                            "home_team": "RCD Mallorca B",
+                            "away_team": "CD Manacor",
+                        }
+                    ],
+                },
+            },
+        )
+
+        service, _ = build_service(session, tmp_path)
+        for reference_date in (date(2026, 4, 2), date(2026, 4, 3)):
+            result = service.generate_export_file(reference_date=reference_date, dry_run=True)
+            competition_rows = result.document.competitions.get("tercera_rfef_g11", {})
+            preview_rows = competition_rows.get("preview", [])
+            featured_rows = competition_rows.get("featured_match_preview", [])
+
+            assert [row.id for row in preview_rows] == [41]
+            assert featured_rows == []
     finally:
         session.close()
 
