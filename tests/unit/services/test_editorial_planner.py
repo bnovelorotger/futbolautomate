@@ -276,6 +276,57 @@ def test_editorial_planner_default_wednesday_plan_includes_narrative_triad_for_t
         session.close()
 
 
+def test_editorial_planner_default_thursday_and_friday_include_preview_for_same_competitions() -> None:
+    session = build_session()
+    try:
+        service = EditorialPlannerService(
+            session,
+            settings=build_settings(),
+        )
+
+        thursday_plan = service.plan_for_date(date(2026, 4, 2))
+        friday_plan = service.plan_for_date(date(2026, 4, 3))
+
+        expected_preview_competitions = {
+            "tercera_rfef_g11",
+            "segunda_rfef_g3_baleares",
+            "division_honor_mallorca",
+            "tercera_federacion_femenina_g11",
+            "primera_rfef_baleares",
+        }
+        thursday_preview_competitions = {
+            task.competition_slug
+            for task in thursday_plan.tasks
+            if task.planning_type == EditorialPlanningContent.PREVIEW
+        }
+        friday_preview_competitions = {
+            task.competition_slug
+            for task in friday_plan.tasks
+            if task.planning_type == EditorialPlanningContent.PREVIEW
+        }
+        friday_featured_competitions = {
+            task.competition_slug
+            for task in friday_plan.tasks
+            if task.planning_type == EditorialPlanningContent.FEATURED_MATCH_PREVIEW
+        }
+
+        assert thursday_plan.weekday_key == "thursday"
+        assert thursday_plan.total_tasks == 5
+        assert all(task.planning_type == EditorialPlanningContent.PREVIEW for task in thursday_plan.tasks)
+        assert thursday_preview_competitions == expected_preview_competitions
+
+        assert friday_plan.weekday_key == "friday"
+        assert friday_plan.total_tasks == 8
+        assert friday_preview_competitions == expected_preview_competitions
+        assert friday_featured_competitions == {
+            "tercera_rfef_g11",
+            "segunda_rfef_g3_baleares",
+            "division_honor_mallorca",
+        }
+    finally:
+        session.close()
+
+
 def test_editorial_planner_week_plan_spans_monday_to_sunday() -> None:
     session = build_session()
     try:

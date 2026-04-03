@@ -130,6 +130,33 @@
         "priority": 67
       }
     ],
+    "jueves": [
+      {
+        "competition_slug": "tercera_rfef_g11",
+        "content_type": "preview",
+        "priority": 90
+      },
+      {
+        "competition_slug": "segunda_rfef_g3_baleares",
+        "content_type": "preview",
+        "priority": 90
+      },
+      {
+        "competition_slug": "division_honor_mallorca",
+        "content_type": "preview",
+        "priority": 90
+      },
+      {
+        "competition_slug": "tercera_federacion_femenina_g11",
+        "content_type": "preview",
+        "priority": 88
+      },
+      {
+        "competition_slug": "primera_rfef_baleares",
+        "content_type": "preview",
+        "priority": 87
+      }
+    ],
     "viernes": [
       {
         "competition_slug": "tercera_rfef_g11",

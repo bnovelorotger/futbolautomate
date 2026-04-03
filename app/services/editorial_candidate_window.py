@@ -161,8 +161,10 @@ class EditorialCandidateWindowService:
             if context.current_match_date is not None and latest_date != context.current_match_date:
                 if candidate_round is None or context.current_round is None or candidate_round != context.current_round:
                     return False
-        elif candidate_round and context.current_round and candidate_round != context.current_round:
-            return False
+            return True
+        if candidate_round:
+            if context.current_round is not None:
+                return candidate_round == context.current_round
         return self._matches_reference_date(candidate, reference_date=reference_date)
 
     def _matches_future_window(
@@ -181,8 +183,10 @@ class EditorialCandidateWindowService:
             if context.next_match_date is not None and earliest_date != context.next_match_date:
                 if candidate_round is None or context.next_round is None or candidate_round != context.next_round:
                     return False
-        elif candidate_round and context.next_round and candidate_round != context.next_round:
-            return False
+            return True
+        if candidate_round:
+            if context.next_round is not None:
+                return candidate_round == context.next_round
         return self._matches_reference_date(candidate, reference_date=reference_date)
 
     def _matches_reference_date(

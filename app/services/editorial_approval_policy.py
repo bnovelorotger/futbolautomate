@@ -335,14 +335,11 @@ class EditorialApprovalPolicyService:
             ContentCandidate.reviewed_at.is_(None),
         )
         if selected_date is not None:
-            start_utc, end_utc = self._day_bounds(selected_date)
+            _, end_utc = self._day_bounds(selected_date)
             query = query.where(
                 or_(
-                    and_(
-                        ContentCandidate.created_at >= start_utc,
-                        ContentCandidate.created_at < end_utc,
-                    ),
-                    ContentCandidate.payload_json["reference_date"].as_string() == selected_date.isoformat(),
+                    ContentCandidate.created_at.is_(None),
+                    ContentCandidate.created_at < end_utc,
                 ),
             )
         query = query.order_by(
@@ -350,13 +347,14 @@ class EditorialApprovalPolicyService:
             case((ContentCandidate.scheduled_at.is_(None), 1), else_=0),
             ContentCandidate.scheduled_at.asc(),
             ContentCandidate.created_at.asc(),
-        ).limit(limit)
+        )
         rows = self.session.execute(query).scalars().all()
-        return [
+        eligible_rows = [
             row
             for row in rows
             if self.window_service.matches_release_window(row, reference_date=selected_date)
         ]
+        return eligible_rows[:limit]
 
     def _day_bounds(self, target_date: date) -> tuple[datetime, datetime]:
         start_local = datetime.combine(target_date, time.min, tzinfo=ZoneInfo(self.settings.timezone))

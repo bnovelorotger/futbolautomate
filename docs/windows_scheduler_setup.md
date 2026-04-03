@@ -43,6 +43,8 @@ Ruta: `scripts/windows/`
   - si no, ejecuta `run-daily`
   - los lunes el planner ya cubre `results_roundup + standings_roundup` para las siete competiciones integradas
   - los miercoles el planner incluye triada narrativa (`stat_narrative`, `metric_narrative`, `viral_story`) para `tercera_rfef_g11`, `segunda_rfef_g3_baleares` y `tercera_federacion_femenina_g11`
+  - los jueves el planner abre `preview` para `tercera_rfef_g11`, `segunda_rfef_g3_baleares`, `division_honor_mallorca`, `tercera_federacion_femenina_g11` y `primera_rfef_baleares`
+  - el jueves la consulta editorial de previas extiende a `8` dias el horizonte para no perder la jornada inmediata del viernes
   - los viernes el planner ya incluye `division_honor_mallorca` en `preview` y `featured_match_preview`
   - `primera_rfef_baleares` y `tercera_federacion_femenina_g11` entran en `preview` sin activar todavia `featured_match_preview`
 - `editorial_release.ps1`
@@ -123,6 +125,7 @@ La frontera automatica real vive en codigo:
 - `EditorialApprovalPolicyService` autoaprueba por defecto `results_roundup`, `standings_roundup`, `preview` y `ranking`, y en martes/miercoles puede incluir `stat_narrative`, `metric_narrative` y `viral_story` si pasan quality checks
 - `EditorialCandidateWindowService` limita la ventana temporal del release
 - `PublicationDispatcherService` filtra por readiness real antes de publicar
+- `EditorialReleasePipelineService` puede recuperar candidatas ya `approved` de ejecuciones anteriores si ahora ya estan listas
 - `ExportBaseService` escribe `exports/export_base.json` como snapshot estructurado por defecto
 - `legacy_export_json_enabled` reactiva `ExportJsonService` hacia `export/legacy_export.json` solo si hace falta compatibilidad
 

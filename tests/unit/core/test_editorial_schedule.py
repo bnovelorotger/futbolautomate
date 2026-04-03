@@ -10,6 +10,7 @@ def test_default_editorial_schedule_loads_expected_rules() -> None:
 
     monday_rules = schedule.rules_for_weekday("monday")
     wednesday_rules = schedule.rules_for_weekday("wednesday")
+    thursday_rules = schedule.rules_for_weekday("thursday")
     sunday_rules = schedule.rules_for_weekday("sunday")
 
     assert len(monday_rules) == 14
@@ -43,6 +44,19 @@ def test_default_editorial_schedule_loads_expected_rules() -> None:
         and rule.content_type == EditorialPlanningContent.RANKING
         for rule in wednesday_rules
     )
+    assert len(thursday_rules) == 5
+    assert {rule.competition_slug for rule in thursday_rules} == {
+        "tercera_rfef_g11",
+        "segunda_rfef_g3_baleares",
+        "division_honor_mallorca",
+        "tercera_federacion_femenina_g11",
+        "primera_rfef_baleares",
+    }
+    assert {
+        rule.content_type for rule in thursday_rules
+    } == {
+        EditorialPlanningContent.PREVIEW,
+    }
     friday_rules = schedule.rules_for_weekday("friday")
     assert len(friday_rules) == 8
     assert any(rule.content_type == EditorialPlanningContent.FEATURED_MATCH_PREVIEW for rule in friday_rules)

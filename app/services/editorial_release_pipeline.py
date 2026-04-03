@@ -89,8 +89,16 @@ class EditorialReleasePipelineService:
             dry_run=False,
         )
         autoapproved_ids = [row.id for row in approval_result.rows if row.autoapprovable]
+        ready_approved_ids = [
+            row.id
+            for row in self.dispatch_service.list_ready(
+                include_unscheduled=True,
+                limit=limit,
+            )
+        ]
+        candidate_ids_to_dispatch = list(dict.fromkeys([*autoapproved_ids, *ready_approved_ids]))
         dispatch_result = self.dispatch_service.dispatch_candidates(
-            autoapproved_ids,
+            candidate_ids_to_dispatch,
             dry_run=False,
             only_ready=True,
             include_unscheduled=True,

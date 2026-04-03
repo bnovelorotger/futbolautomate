@@ -1113,3 +1113,72 @@ def test_competition_editorial_summary_service_skips_far_future_preview_window()
         assert payload.upcoming_matches == []
     finally:
         session.close()
+
+
+def test_competition_editorial_summary_service_includes_eight_day_preview_anchor_on_thursday() -> None:
+    session = build_session()
+    try:
+        seed_primera_rfef_with_ud_ibiza(session)
+        competition = session.scalar(select(Competition).where(Competition.code == "primera_rfef_baleares"))
+        ibiza = session.scalar(select(Team).where(Team.name == "UD Ibiza"))
+        ceuta = session.scalar(select(Team).where(Team.name == "AD Ceuta FC"))
+        assert competition is not None
+        assert ibiza is not None
+        assert ceuta is not None
+
+        scheduled_rows = session.execute(
+            select(Match)
+            .where(Match.competition_id == competition.id)
+            .where(Match.status == "scheduled")
+        ).scalars().all()
+        for row in scheduled_rows:
+            row.status = "finished"
+            row.home_score = row.home_score or 1
+            row.away_score = row.away_score or 0
+
+        session.add(
+            Match(
+                external_id="primera-summary-thursday-preview",
+                source_name="futbolme",
+                source_url="https://example.com/primera-summary/thursday-preview",
+                competition_id=competition.id,
+                season="2025-26",
+                group_name="Grupo 2",
+                round_name="Jornada 31",
+                raw_match_date="viernes, 03 de abril de 2026",
+                raw_match_time="12:00",
+                match_date=date(2026, 4, 3),
+                match_time=time(12, 0),
+                kickoff_datetime=datetime(2026, 4, 3, 12, 0, tzinfo=timezone.utc),
+                home_team_id=ceuta.id,
+                away_team_id=ibiza.id,
+                home_team_raw="AD Ceuta FC",
+                away_team_raw="UD Ibiza",
+                home_score=None,
+                away_score=None,
+                status="scheduled",
+                venue=None,
+                has_lineups=False,
+                has_scorers=False,
+                scraped_at=datetime(2026, 3, 31, 10, 0, tzinfo=timezone.utc),
+                content_hash="primera-summary-thursday-preview",
+                extra_data=None,
+            )
+        )
+        session.commit()
+
+        payload = CompetitionEditorialSummaryService(session).build_competition_summary(
+            competition_code="primera_rfef_baleares",
+            reference_date=date(2026, 3, 26),
+            results_limit=3,
+            upcoming_limit=3,
+            news_limit=3,
+            standings_limit=5,
+        )
+
+        assert len(payload.upcoming_matches) == 1
+        assert payload.upcoming_matches[0].round_name == "Jornada 31"
+        assert payload.upcoming_matches[0].match_date == date(2026, 4, 3)
+        assert payload.upcoming_matches[0].away_team == "UD Ibiza"
+    finally:
+        session.close()

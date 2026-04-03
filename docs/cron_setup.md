@@ -34,6 +34,7 @@ Ruta: `scripts/cron/`
   - ejecuta `editorial_ops preview-day --date <fecha>`
   - ejecuta `editorial_ops run-daily --date <fecha>`
   - los lunes el planner ya cubre `results_roundup + standings_roundup` para las siete competiciones integradas
+  - los jueves abre `preview` para las cinco competiciones principales con la misma jornada objetivo que el viernes
   - los viernes ya cubre `division_honor_mallorca` en `preview` y `featured_match_preview`
   - `primera_rfef_baleares` y `tercera_federacion_femenina_g11` entran en `preview` sin activar todavia `featured_match_preview`
 - `run_slot.sh`
@@ -117,7 +118,7 @@ Eso reduce superficie de fallo y hace mas legible el log de refresh.
 Esta propuesta esta adaptada al estado real actual del sistema:
 
 - competiciones operativas: `tercera_rfef_g11`, `segunda_rfef_g3_baleares`, `primera_rfef_baleares`, `tercera_federacion_femenina_g11`, `division_honor_mallorca`, `division_honor_ibiza_form`, `division_honor_menorca`
-- planner semanal operativo: lunes, miercoles, viernes y domingo
+- planner semanal operativo: lunes, miercoles, jueves, viernes y domingo
 - `featured_match_preview` sigue limitado a las competiciones ya configuradas con `match_importance`
 - sin `editorial_release` automatizado en cron por ahora
 
@@ -140,6 +141,11 @@ APP_TIMEZONE=Europe/Madrid
 45 10 * * 3 cd $PROJECT_ROOT && PYTHON_BIN=$PYTHON_BIN APP_TIMEZONE=$APP_TIMEZONE scripts/cron/readiness_check.sh
 00 11 * * 3 cd $PROJECT_ROOT && PYTHON_BIN=$PYTHON_BIN APP_TIMEZONE=$APP_TIMEZONE scripts/cron/run_editorial_day.sh
 
+# Jueves
+30 09 * * 4 cd $PROJECT_ROOT && PYTHON_BIN=$PYTHON_BIN APP_TIMEZONE=$APP_TIMEZONE scripts/cron/refresh_data.sh
+45 09 * * 4 cd $PROJECT_ROOT && PYTHON_BIN=$PYTHON_BIN APP_TIMEZONE=$APP_TIMEZONE scripts/cron/readiness_check.sh
+00 10 * * 4 cd $PROJECT_ROOT && PYTHON_BIN=$PYTHON_BIN APP_TIMEZONE=$APP_TIMEZONE scripts/cron/run_editorial_day.sh
+
 # Viernes
 30 09 * * 5 cd $PROJECT_ROOT && PYTHON_BIN=$PYTHON_BIN APP_TIMEZONE=$APP_TIMEZONE scripts/cron/refresh_data.sh
 45 09 * * 5 cd $PROJECT_ROOT && PYTHON_BIN=$PYTHON_BIN APP_TIMEZONE=$APP_TIMEZONE scripts/cron/readiness_check.sh
@@ -154,7 +160,7 @@ APP_TIMEZONE=Europe/Madrid
 Esta frecuencia es razonable hoy porque:
 
 - solo se programa en los dias con reglas activas en el planner
-- evita ruido innecesario en martes, jueves y sabado
+- evita ruido innecesario en martes y sabado
 - reduce carga y superficie de fallo en el primer despliegue
 - sigue permitiendo aumentar frecuencia mas adelante si el medio necesita mas cadencia
 
@@ -171,6 +177,7 @@ Esta frecuencia es razonable hoy porque:
 - `approve` / `reject`
 - `publication_dispatch`
 - `publication_dispatch` solo debe sacar piezas realmente listas; las previas futuras pueden quedarse `approved` hasta su ventana
+- `editorial_release` tambien puede publicar piezas ya `approved` de runs anteriores si en esta ejecucion ya han entrado en ventana
 - ejecutar `python -m app.pipelines.editorial_release run --date <fecha>` para generar `exports/export_base.json`
 - revisar el snapshot exportado y entregarlo al canal final
 - ejecutar `python -m app.pipelines.export_base generate --date <fecha>` si necesitas regenerar `exports/export_base.json`

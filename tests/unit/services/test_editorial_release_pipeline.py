@@ -309,6 +309,55 @@ def add_future_preview_candidate(session) -> None:
     session.commit()
 
 
+def add_ready_approved_preview_candidate(session) -> None:
+    created_at = datetime(2026, 3, 15, 10, 3, tzinfo=timezone.utc)
+    session.add(
+        ContentCandidate(
+            id=111,
+            competition_slug="tercera_rfef_g11",
+            content_type="preview",
+            priority=88,
+            text_draft=(
+                "PREVIA DE LA JORNADA\n\n"
+                "3a RFEF Grupo 11\n\n"
+                "Jornada 27 | viernes, 19 de marzo de 2026 | CD Llosetense vs SD Portmany\n\n"
+                "Partido destacado: CD Llosetense vs SD Portmany"
+            ),
+            payload_json={
+                "reference_date": "2026-03-10",
+                "content_key": "preview:j27:ready-approved",
+                "source_payload": {
+                    "featured_match": {
+                        "round_name": "Jornada 27",
+                        "match_date": "2026-03-19",
+                        "home_team": "CD Llosetense",
+                        "away_team": "SD Portmany",
+                    },
+                    "matches": [
+                        {
+                            "round_name": "Jornada 27",
+                            "match_date": "2026-03-19",
+                            "home_team": "CD Llosetense",
+                            "away_team": "SD Portmany",
+                        }
+                    ],
+                },
+            },
+            source_summary_hash="release-hash-111",
+            scheduled_at=None,
+            status="approved",
+            reviewed_at=created_at,
+            approved_at=created_at,
+            autoapproved=True,
+            autoapproved_at=created_at,
+            autoapproval_reason="policy_autoapprove_safe_type",
+            created_at=created_at,
+            updated_at=created_at,
+        )
+    )
+    session.commit()
+
+
 def build_release_service(session, tmp_path: Path) -> EditorialReleasePipelineService:
     return EditorialReleasePipelineService(
         session,
@@ -486,6 +535,34 @@ def test_editorial_release_pipeline_keeps_future_preview_autoapproved_but_unpubl
         assert session.get(ContentCandidate, 110).status == "approved"
         assert session.get(ContentCandidate, 110).published_at is None
         assert session.get(ContentCandidate, 110).autoapproved is True
+    finally:
+        session.close()
+
+
+def test_editorial_release_pipeline_dispatches_ready_approved_candidates_from_previous_runs(tmp_path: Path) -> None:
+    session = build_session()
+    try:
+        seed_release_candidates(session)
+        add_ready_approved_preview_candidate(session)
+        service = build_release_service(session, tmp_path)
+
+        result = service.run(reference_date=REFERENCE_DATE, dry_run=False)
+        session.commit()
+
+        export_path = tmp_path / "exports" / "export_base.json"
+        payload = json.loads(export_path.read_text(encoding="utf-8"))
+        exported_ids = {
+            item["id"]
+            for items in payload["competitions"]["tercera_rfef_g11"].values()
+            for item in items
+        }
+
+        assert result.autoapproved_count == 4
+        assert result.dispatched_count == 5
+        assert result.export_base_total_items == 5
+        assert session.get(ContentCandidate, 111).status == "published"
+        assert session.get(ContentCandidate, 111).published_at is not None
+        assert 111 in exported_ids
     finally:
         session.close()
 

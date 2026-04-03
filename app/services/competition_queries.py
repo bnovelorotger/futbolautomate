@@ -215,6 +215,10 @@ class CompetitionQueryService:
         max_days_ahead: int = 7,
     ) -> list[CompetitionMatchView]:
         current_date = self._reference_date(reference_date)
+        effective_max_days_ahead = self._effective_editorial_preview_days_ahead(
+            reference_date=current_date,
+            max_days_ahead=max_days_ahead,
+        )
         matches = self.upcoming_matches(
             competition_code=competition_code,
             limit=None,
@@ -228,7 +232,7 @@ class CompetitionQueryService:
             (match for match in matches if match.round_name or match.match_date is not None),
             matches[0],
         )
-        max_allowed_date = current_date + timedelta(days=max_days_ahead)
+        max_allowed_date = current_date + timedelta(days=effective_max_days_ahead)
         if anchor.match_date is not None and anchor.match_date > max_allowed_date:
             return []
 
@@ -247,6 +251,17 @@ class CompetitionQueryService:
         if limit is not None:
             selected = selected[:limit]
         return selected
+
+    def _effective_editorial_preview_days_ahead(
+        self,
+        *,
+        reference_date: date,
+        max_days_ahead: int,
+    ) -> int:
+        # Thursday runs one day earlier than Friday; extend one day so both use equivalent preview scope.
+        if max_days_ahead == 7 and reference_date.weekday() == 3:
+            return 8
+        return max_days_ahead
 
     def matches_by_round(
         self,
