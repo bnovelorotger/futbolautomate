@@ -6,7 +6,7 @@ La documentacion detallada de esta iteracion se conserva en [docs/README_detaile
 
 ## Version actual
 
-Release **v1.5**. Snapshot del **3 de abril de 2026**.
+Release **v1.5**. Snapshot del **7 de abril de 2026**.
 
 Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolidados:
 
@@ -29,9 +29,12 @@ Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolida
 - `editorial_release` respeta `scheduled_at`: autoaprueba piezas seguras, pero solo despacha las ya listas
 - `editorial_release` recupera tambien candidatas `approved` de ejecuciones anteriores si ya han entrado en ventana y estan listas para publicarse
 - `export_base_service` exporta unicamente candidatas en estado `published`
+- `standings_roundup` toma como etiqueta de jornada la ultima ronda finalizada aunque la tabla vaya retrasada en `played`, para no reciclar snapshots de ronda vieja
+- `export_base_service` deduplica variantes de `standings_roundup` por ronda real y fija el path PNG con la fecha del snapshot, no con fechas heredadas del payload
 - `editorial_approval_policy` pasa a ser sensible al dia: martes/miercoles puede autoaprobar `stat_narrative`, `metric_narrative` y `viral_story` solo si pasan `quality_checks`
 - `editorial_approval_policy` deja de depender de que el draft se haya creado el mismo dia y toma por ventana real las piezas antiguas que siguen siendo elegibles
 - `publication_dispatch` trata `preview` como pieza lista antes del kickoff y el repositorio puede actualizar drafts legacy de previa aunque cambie el `source_summary_hash`
+- `editorial_quality_checks` acepta tambien titulos compactos de roundup cuando el formatter recorta cabecera para ajustar longitud
 - export visual PNG de `standings_roundup` durante `export_base`, con `image_path` por item y tolerancia a fallos de render
 - `standings_image_mapper` intenta reconstruir la clasificacion completa desde BD, no solo desde el payload resumido, y resalta lider, zonas y equipos seguidos cuando aplica
 - la tarjeta visual ajusta altura, densidad de tabla y columnas de forma automatica segun filas y estadisticas disponibles
@@ -366,6 +369,7 @@ Que genera:
 Como se construye:
 - toma la clasificacion actual ordenada por posicion
 - intenta etiquetar zonas relevantes usando `app/config/standings_zones.json`
+- usa como jornada visible la ultima ronda realmente finalizada si va por delante del `played` agregado en standings
 - prioriza la zona alta y, si existe configuracion, la zona de descenso
 - si hay huecos entre bloques, inserta `...`
 - si no caben todas las posiciones, recorta y anade `+N equipos mas`
@@ -564,7 +568,7 @@ Reglas operativas:
 - `editorial_release` puede despachar tanto las autoaprobadas del run actual como piezas `approved` de runs anteriores que ya esten listas
 - en `preview` y `featured_match_preview` usa `editorial_text_selector`, por lo que puede elegir `rewritten_text`, `viral_formatted_text`, `formatted_text` o `text_draft`
 - en el resto usa `rewritten_text`, despues `formatted_text` y por ultimo `text_draft`
-- deduplica por `content_key` o por marcador estructural derivado de `source_payload`
+- deduplica por `content_key` o por marcador estructural derivado de `source_payload`, y en `standings_roundup` prioriza la ronda/parte mas reciente
 - el fichero `exports/export_base.json` es artefacto local de salida, no fuente editable del sistema
 
 Regeneracion manual:
@@ -591,6 +595,7 @@ Comportamiento actual:
 - marca visualmente lider, playoff, descenso y equipos seguidos en competiciones con `tracked_teams`
 - ajusta altura final, tamanos tipograficos y grid de columnas segun numero real de filas y estadisticas presentes
 - ya no fuerza `10` filas ni una altura fija si el mapper resuelve mejor el layout
+- usa la fecha objetivo del snapshot para construir rutas estables de salida, incluso si la candidata arrastra otra `reference_date`
 
 Dependencia operativa:
 

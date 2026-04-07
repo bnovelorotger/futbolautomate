@@ -290,9 +290,10 @@ Con eso, `exports/export_base.json` pasa a ser el handoff estable para las pieza
 - en el resto usa `rewritten_text`, despues `formatted_text` y por ultimo `text_draft`
 - para `standings_roundup` puede anadir `image_path` con una tarjeta PNG local generada durante el export
 - la tarjeta de `standings_roundup` intenta usar clasificacion completa desde BD y adapta layout/altura segun filas y columnas reales
-- deduplica piezas ya incluidas en el mismo snapshot
+- deduplica piezas ya incluidas en el mismo snapshot, y en `standings_roundup` colapsa variantes de la misma ronda para quedarse con la mas reciente
 - deja trazabilidad con `export_base_total_items` y `export_base_path`
 - si el render visual falla, el JSON sigue saliendo y `image_path` queda vacio
+- el PNG de `standings_roundup` se escribe usando la fecha objetivo del snapshot para mantener rutas estables por release
 
 El consumo y publicacion final del JSON siguen siendo externos al scheduler.
 

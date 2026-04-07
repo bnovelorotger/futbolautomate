@@ -92,7 +92,11 @@ class ExportBaseService:
             image_path: str | None = None
             if not dry_run and row.content_type == str(ContentType.STANDINGS_ROUNDUP):
                 try:
-                    image_path = generate_standings_card(row, output_root=self.output_path.parent)
+                    image_path = generate_standings_card(
+                        row,
+                        output_root=self.output_path.parent,
+                        output_date=target_date,
+                    )
                 except Exception:
                     image_path = None
             item = ExportBaseItem(
@@ -291,6 +295,9 @@ class ExportBaseService:
     def _topic_key(self, candidate: ContentCandidate) -> tuple[str, str, str]:
         payload_json = candidate.payload_json or {}
         source_payload = payload_json.get("source_payload", {}) if isinstance(payload_json, dict) else {}
+        standings_topic_key = self._standings_roundup_topic_key(candidate, source_payload)
+        if standings_topic_key is not None:
+            return (candidate.competition_slug, candidate.content_type, standings_topic_key)
         content_key = str(payload_json.get("content_key") or "").strip()
         if content_key:
             return (candidate.competition_slug, candidate.content_type, content_key)
@@ -312,6 +319,30 @@ class ExportBaseService:
             candidate.competition_slug,
             candidate.content_type,
             json.dumps(marker, ensure_ascii=False, sort_keys=True),
+        )
+
+    def _standings_roundup_topic_key(
+        self,
+        candidate: ContentCandidate,
+        source_payload: dict[str, Any],
+    ) -> str | None:
+        if candidate.content_type != str(ContentType.STANDINGS_ROUNDUP):
+            return None
+        round_name = source_payload.get("round_name")
+        group_label = source_payload.get("group_label")
+        part_index = source_payload.get("part_index")
+        part_total = source_payload.get("part_total")
+        if round_name in (None, "") and group_label in (None, "") and part_index is None and part_total is None:
+            return None
+        return json.dumps(
+            {
+                "round_name": round_name,
+                "group_label": group_label,
+                "part_index": part_index,
+                "part_total": part_total,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
         )
 
     def _compact_match(self, match: Any) -> dict[str, Any] | None:

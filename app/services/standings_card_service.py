@@ -19,7 +19,9 @@ def generate_standings_card(
     width: int = 1200,
     height: int | None = None,
     max_rows: int | None = None,
+    output_date: date | None = None,
 ) -> str | None:
+    step = "build_context"
     try:
         export_root = output_root or (get_settings().app_root / "exports")
         context = build_standings_image_context(candidate, max_rows=max_rows)
@@ -33,7 +35,7 @@ def generate_standings_card(
         }
 
         competition_slug = _safe_path_segment(context.get("competition_slug") or candidate.competition_slug)
-        date_segment = _date_segment(str(context.get("updated_at") or ""), candidate)
+        date_segment = _date_segment(str(context.get("updated_at") or ""), candidate, output_date=output_date)
         filename = f"standings_roundup_{candidate.id}.png"
         html_filename = f"standings_roundup_{candidate.id}.html"
 
@@ -43,16 +45,25 @@ def generate_standings_card(
         html_path = export_root / html_relative
         png_path = export_root / png_relative
 
+        step = "render_html"
         render_standings_html(context, html_path)
+        step = "html_to_png"
         html_to_png(html_path, png_path, width=width, height=resolved_height)
 
         return (Path("exports") / png_relative).as_posix()
     except Exception:
-        logger.exception("standings_card_generation_failed candidate_id=%s", getattr(candidate, "id", None))
+        logger.exception(
+            "standings_card_generation_failed candidate_id=%s competition_slug=%s step=%s",
+            getattr(candidate, "id", None),
+            getattr(candidate, "competition_slug", None),
+            step,
+        )
         return None
 
 
-def _date_segment(value: str, candidate: ContentCandidate) -> str:
+def _date_segment(value: str, candidate: ContentCandidate, *, output_date: date | None = None) -> str:
+    if output_date is not None:
+        return output_date.isoformat()
     parsed = _parse_date(value)
     if parsed is not None:
         return parsed.isoformat()

@@ -33,6 +33,7 @@ _MIN_STAT_NARRATIVE_MATCHES = 4
 _HANDLE_PATTERN = re.compile(r"(?<!\w)@[A-Za-z0-9_]{1,15}")
 _HASHTAG_PATTERN = re.compile(r"(?<!\w)#[A-Za-z0-9_]+")
 _MAX_EDITORIAL_TEXT_LENGTH = 240
+_COMPACT_ROUNDUP_TITLE_PATTERN = re.compile(r"^.+ - J\d+(?: \(\d+/\d+\))?$")
 _RESULTS_TITLE_PATTERN = re.compile(r"^📋 Resultados - .+ - J\d+(?: \(\d+/\d+\))?$")
 _STANDINGS_TITLE_PATTERN = re.compile(r"^📊 Clasificación - .+ - J\d+(?: \(\d+/\d+\))?$")
 _PREVIEW_TITLE_PATTERN = re.compile(r"^🔎 Previa - .+ - J\d+$")
@@ -375,7 +376,10 @@ class EditorialQualityChecksService:
         first_line = selected_text.splitlines()[0].strip() if selected_text.splitlines() else ""
 
         if content_type == ContentType.RESULTS_ROUNDUP:
-            if not _RESULTS_TITLE_PATTERN.match(first_line):
+            if not (
+                _RESULTS_TITLE_PATTERN.match(first_line)
+                or _COMPACT_ROUNDUP_TITLE_PATTERN.match(first_line)
+            ):
                 errors.append("results_roundup_title_invalid")
             matches = source_payload.get("matches")
             if isinstance(matches, list):
@@ -390,7 +394,10 @@ class EditorialQualityChecksService:
                     errors.append("results_roundup_partition_title_missing")
 
         if content_type in {ContentType.STANDINGS, ContentType.STANDINGS_ROUNDUP}:
-            if not _STANDINGS_TITLE_PATTERN.match(first_line):
+            if not (
+                _STANDINGS_TITLE_PATTERN.match(first_line)
+                or _COMPACT_ROUNDUP_TITLE_PATTERN.match(first_line)
+            ):
                 errors.append("standings_title_invalid")
             rows = source_payload.get("rows")
             if isinstance(rows, list) and source_payload.get("selected_rows_count") is not None:

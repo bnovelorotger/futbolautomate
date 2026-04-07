@@ -332,6 +332,50 @@ def test_quality_checks_accept_single_results_roundup_with_five_matches() -> Non
         session.close()
 
 
+def test_quality_checks_accept_compact_results_roundup_title() -> None:
+    session = build_session()
+    try:
+        seed_narratives_data(session)
+        service = EditorialQualityChecksService(
+            session,
+            settings=build_settings(),
+            policy=build_export_policy(),
+        )
+        candidate = ContentCandidate(
+            competition_slug="tercera_rfef_g11",
+            content_type="results_roundup",
+            priority=99,
+            text_draft="RESULTADOS | 3a RFEF Baleares | Jornada 29",
+            payload_json={
+                "content_key": "results_roundup:j29:compact",
+                "source_payload": {
+                    "group_label": "Jornada 29",
+                    "selected_matches_count": 2,
+                    "omitted_matches_count": 0,
+                    "matches": [
+                        {"home_team": "CD Llosetense", "away_team": "SD Portmany", "home_score": 2, "away_score": 0},
+                        {"home_team": "CE Mercadal", "away_team": "CD Manacor", "home_score": 1, "away_score": 2},
+                    ],
+                },
+            },
+            source_summary_hash="quality-results-roundup-compact",
+            status="published",
+            reviewed_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+            approved_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+            published_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+        )
+
+        errors = service._structure_errors(
+            candidate,
+            "3ª RFEF - G11 - J29\nCD Llosetense 2-0 SD Portmany",
+            candidate.payload_json["source_payload"],
+        )
+
+        assert "results_roundup_title_invalid" not in errors
+    finally:
+        session.close()
+
+
 def test_quality_checks_accept_partitioned_standings_roundup_format() -> None:
     session = build_session()
     try:
@@ -375,6 +419,53 @@ def test_quality_checks_accept_partitioned_standings_roundup_format() -> None:
 
         assert result.candidate.passed is True
         assert result.candidate.errors == []
+    finally:
+        session.close()
+
+
+def test_quality_checks_accept_compact_standings_roundup_title() -> None:
+    session = build_session()
+    try:
+        seed_narratives_data(session)
+        service = EditorialQualityChecksService(
+            session,
+            settings=build_settings(),
+            policy=build_export_policy(),
+        )
+        candidate = ContentCandidate(
+            competition_slug="tercera_rfef_g11",
+            content_type="standings_roundup",
+            priority=82,
+            text_draft="CLASIFICACION | 3a RFEF Baleares | Jornada 29",
+            payload_json={
+                "content_key": "standings_roundup:j29:compact",
+                "source_payload": {
+                    "group_label": "Jornada 29",
+                    "selected_rows_count": 5,
+                    "omitted_rows_count": 0,
+                    "rows": [
+                        {"position": 1, "team": "CD Llosetense", "points": 54},
+                        {"position": 2, "team": "CD Manacor", "points": 52},
+                        {"position": 3, "team": "CE Mercadal", "points": 50},
+                        {"position": 4, "team": "SD Portmany", "points": 47},
+                        {"position": 5, "team": "CD Binissalem", "points": 44},
+                    ],
+                },
+            },
+            source_summary_hash="quality-standings-roundup-compact",
+            status="published",
+            reviewed_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+            approved_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+            published_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+        )
+
+        errors = service._structure_errors(
+            candidate,
+            "3ª RFEF - G11 - J29\n1. CD Llosetense - 54 pts",
+            candidate.payload_json["source_payload"],
+        )
+
+        assert "standings_title_invalid" not in errors
     finally:
         session.close()
 

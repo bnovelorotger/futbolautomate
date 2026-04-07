@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from app.db.models import ContentCandidate
@@ -299,6 +299,40 @@ def test_generate_standings_card_writes_expected_relative_paths(tmp_path: Path, 
     assert recorded["context"]["layout"]["width"] == 1200
     assert recorded["context"]["layout"]["height"] == 1500
     assert recorded["context"]["layout"]["max_rows"] == 3
+
+
+def test_generate_standings_card_uses_output_date_for_relative_paths(tmp_path: Path, monkeypatch) -> None:
+    export_root = tmp_path / "exports"
+    candidate = _candidate(candidate_id=78)
+    recorded: dict[str, object] = {}
+
+    def fake_render(context: dict, output_html_path: Path) -> Path:
+        output_html_path.parent.mkdir(parents=True, exist_ok=True)
+        output_html_path.write_text("<html></html>", encoding="utf-8")
+        recorded["html_path"] = output_html_path
+        return output_html_path
+
+    def fake_png(html_path: Path, png_path: Path, width: int = 1200, height: int = 1500) -> Path:
+        png_path.parent.mkdir(parents=True, exist_ok=True)
+        png_path.write_bytes(b"png")
+        recorded["png_path"] = png_path
+        return png_path
+
+    monkeypatch.setattr("app.services.standings_card_service.render_standings_html", fake_render)
+    monkeypatch.setattr("app.services.standings_card_service.html_to_png", fake_png)
+
+    image_path = generate_standings_card(
+        candidate,
+        output_root=export_root,
+        output_date=date(2026, 4, 6),
+    )
+
+    expected_html = export_root / "tmp" / "images" / "tercera_rfef_g11" / "2026-04-06" / "standings_roundup_78.html"
+    expected_png = export_root / "images" / "tercera_rfef_g11" / "2026-04-06" / "standings_roundup_78.png"
+
+    assert image_path == "exports/images/tercera_rfef_g11/2026-04-06/standings_roundup_78.png"
+    assert recorded["html_path"] == expected_html
+    assert recorded["png_path"] == expected_png
 
 
 def test_generate_standings_card_returns_none_when_renderer_fails(tmp_path: Path, monkeypatch) -> None:

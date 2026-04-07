@@ -219,6 +219,109 @@ def test_standings_roundup_reuses_existing_candidate_for_same_table_across_dates
         session.close()
 
 
+def test_standings_roundup_uses_latest_finished_round_when_played_lags() -> None:
+    session = build_session()
+    try:
+        teams = [f"Equipo {index}" for index in range(1, 12)]
+        seed_competition(
+            session,
+            code="division_honor_menorca",
+            name="Division Honor Menorca",
+            teams=teams,
+            standings_rows=[
+                {
+                    "position": index,
+                    "team": team_name,
+                    "played": 18 if index < 11 else 17,
+                    "wins": max(1, 12 - index),
+                    "draws": 3,
+                    "losses": index,
+                    "goals_for": 24 - index,
+                    "goals_against": 10 + index,
+                    "goal_difference": 14 - (index * 2),
+                    "points": max(1, 58 - (index * 3)),
+                }
+                for index, team_name in enumerate(teams, start=1)
+            ],
+            match_rows=[
+                {"round_name": "Jornada 18", "match_date": date(2026, 3, 23), "match_time": time(18, 0), "home_team": "Equipo 1", "away_team": "Equipo 2", "home_score": 2, "away_score": 1},
+                {"round_name": "Jornada 19", "match_date": date(2026, 3, 28), "match_time": time(17, 0), "home_team": "Equipo 3", "away_team": "Equipo 4", "home_score": 1, "away_score": 0},
+            ],
+        )
+
+        service = StandingsRoundupService(session)
+        result = service.show_for_competition(
+            "division_honor_menorca",
+            reference_date=date(2026, 4, 6),
+        )
+        candidates = service.build_candidate_drafts(
+            "division_honor_menorca",
+            reference_date=date(2026, 4, 6),
+        )
+
+        assert result.group_label == "Jornada 19"
+        assert candidates[0].payload_json["source_payload"]["group_label"] == "Jornada 19"
+        assert candidates[0].payload_json["content_key"].startswith("standings_roundup:Jornada 19:")
+    finally:
+        session.close()
+
+
+def test_standings_roundup_inserts_new_candidate_when_round_advances_but_table_is_unchanged() -> None:
+    session = build_session()
+    try:
+        teams = [f"Equipo {index}" for index in range(1, 12)]
+        seed_competition(
+            session,
+            code="division_honor_menorca",
+            name="Division Honor Menorca",
+            teams=teams,
+            standings_rows=[
+                {
+                    "position": index,
+                    "team": team_name,
+                    "played": 18 if index < 11 else 17,
+                    "wins": max(1, 12 - index),
+                    "draws": 3,
+                    "losses": index,
+                    "goals_for": 24 - index,
+                    "goals_against": 10 + index,
+                    "goal_difference": 14 - (index * 2),
+                    "points": max(1, 58 - (index * 3)),
+                }
+                for index, team_name in enumerate(teams, start=1)
+            ],
+            match_rows=[
+                {"round_name": "Jornada 18", "match_date": date(2026, 3, 23), "match_time": time(18, 0), "home_team": "Equipo 1", "away_team": "Equipo 2", "home_score": 2, "away_score": 1},
+                {"round_name": "Jornada 19", "match_date": date(2026, 3, 28), "match_time": time(17, 0), "home_team": "Equipo 3", "away_team": "Equipo 4", "home_score": 1, "away_score": 0},
+            ],
+        )
+
+        service = StandingsRoundupService(session)
+        first = service.generate_for_competition(
+            "division_honor_menorca",
+            reference_date=date(2026, 3, 23),
+        )
+        second = service.generate_for_competition(
+            "division_honor_menorca",
+            reference_date=date(2026, 4, 6),
+        )
+        session.commit()
+
+        rows = session.execute(
+            select(ContentCandidate)
+            .where(ContentCandidate.competition_slug == "division_honor_menorca")
+            .order_by(ContentCandidate.id.asc())
+        ).scalars().all()
+
+        assert first.stats.inserted == 1
+        assert second.stats.inserted == 1
+        assert len(rows) == 2
+        assert rows[0].payload_json["source_payload"]["group_label"] == "Jornada 18"
+        assert rows[1].payload_json["source_payload"]["group_label"] == "Jornada 19"
+    finally:
+        session.close()
+
+
 def test_standings_roundup_handles_competition_without_standings_cleanly() -> None:
     session = build_session()
     try:

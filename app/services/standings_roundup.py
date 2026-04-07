@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+import re
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -211,7 +212,11 @@ class StandingsRoundupService:
         competition = self._competition(competition_code)
         selected_date = self._reference_date(reference_date)
         standings = self._current_standings(competition_code)
-        group_label = self._group_label(standings)
+        group_label = self._group_label(
+            competition_code,
+            standings,
+            reference_date=selected_date,
+        )
         selected_rows, omitted_count, text_draft = self._build_text(
             competition_code=competition_code,
             competition_name=self._competition_name(competition),
@@ -344,7 +349,59 @@ class StandingsRoundupService:
             for row in [rows_by_position[position]]
         ]
 
-    def _group_label(self, standings: list[StandingView]) -> str | None:
+    def _group_label(
+        self,
+        competition_code: str,
+        standings: list[StandingView],
+        *,
+        reference_date: date,
+    ) -> str | None:
+        latest_finished_round = self._latest_finished_round_label(
+            competition_code,
+            reference_date=reference_date,
+        )
+        latest_finished_round_number = self._round_number(latest_finished_round)
+        played_round_label = self._played_group_label(standings)
+        played_round_number = self._round_number(played_round_label)
+        if latest_finished_round_number is not None and (
+            played_round_number is None or latest_finished_round_number >= played_round_number
+        ):
+            return latest_finished_round
+        if played_round_label is not None:
+            return played_round_label
+        return latest_finished_round
+
+    def _latest_finished_round_label(
+        self,
+        competition_code: str,
+        *,
+        reference_date: date,
+    ) -> str | None:
+        matches = self.queries.finished_matches(
+            competition_code,
+            limit=None,
+            relevant_only=False,
+            reference_date=reference_date,
+        )
+        if not matches:
+            return None
+        numbered_rounds = [
+            (round_number, str(match.round_name))
+            for match in matches
+            if match.round_name
+            for round_number in [self._round_number(match.round_name)]
+            if round_number is not None
+        ]
+        if numbered_rounds:
+            return max(numbered_rounds, key=lambda row: row[0])[1]
+        first_match = matches[0]
+        if first_match.round_name:
+            return str(first_match.round_name)
+        if first_match.match_date is not None:
+            return first_match.match_date.isoformat()
+        return None
+
+    def _played_group_label(self, standings: list[StandingView]) -> str | None:
         played_values = {
             row.played
             for row in standings
@@ -353,6 +410,14 @@ class StandingsRoundupService:
         if played_values:
             return f"Jornada {max(played_values)}"
         return None
+
+    def _round_number(self, round_label: str | None) -> int | None:
+        if not round_label:
+            return None
+        match = re.search(r"(\d+)(?!.*\d)", round_label)
+        if match is None:
+            return None
+        return int(match.group(1))
 
     def _current_standings(self, competition_code: str) -> list[StandingView]:
         try:

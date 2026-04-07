@@ -656,10 +656,10 @@ def test_export_base_service_adds_image_path_only_for_standings_roundup(tmp_path
             },
         )
 
-        calls: list[tuple[int, Path | None]] = []
+        calls: list[tuple[int, Path | None, date | None]] = []
 
-        def fake_generate(candidate, output_root=None, width=1200, height=1500, max_rows=10):
-            calls.append((candidate.id, output_root))
+        def fake_generate(candidate, output_root=None, width=1200, height=1500, max_rows=10, output_date=None):
+            calls.append((candidate.id, output_root, output_date))
             return "exports/images/tercera_rfef_g11/2026-03-24/standings_roundup_21.png"
 
         monkeypatch.setattr("app.services.export_base_service.generate_standings_card", fake_generate)
@@ -676,7 +676,161 @@ def test_export_base_service_adds_image_path_only_for_standings_roundup(tmp_path
         assert standings_row["image_path"] == "exports/images/tercera_rfef_g11/2026-03-24/standings_roundup_21.png"
         assert ranking_row["id"] == 22
         assert ranking_row["image_path"] is None
-        assert calls == [(21, tmp_path / "exports")]
+        assert calls == [(21, tmp_path / "exports", date(2026, 3, 25))]
+    finally:
+        session.close()
+
+
+def test_export_base_service_passes_snapshot_date_to_multiple_standings_cards(tmp_path: Path, monkeypatch) -> None:
+    session = build_session()
+    try:
+        seed_export_base_context(session)
+        created_at = datetime(2026, 3, 25, 10, 0, tzinfo=timezone.utc)
+        add_candidate(
+            session,
+            candidate_id=41,
+            competition_slug="tercera_rfef_g11",
+            content_type="standings_roundup",
+            priority=90,
+            created_at=created_at,
+            formatted_text="formatted standings tercera",
+            text_draft="draft standings tercera",
+            payload_json={
+                "content_key": "standings:tercera:j26",
+                "competition_name": "3a RFEF Grupo 11",
+                "reference_date": "2026-03-24",
+                "source_payload": {
+                    "round_name": "Jornada 26",
+                    "rows": [
+                        {"position": 1, "team": "RCD Mallorca B", "played": 27, "points": 59},
+                    ],
+                },
+            },
+        )
+        add_candidate(
+            session,
+            candidate_id=42,
+            competition_slug="segunda_rfef_g3_baleares",
+            content_type="standings_roundup",
+            priority=89,
+            created_at=created_at,
+            formatted_text="formatted standings segunda",
+            text_draft="draft standings segunda",
+            payload_json={
+                "content_key": "standings:segunda:j27",
+                "competition_name": "2a RFEF Grupo 3",
+                "reference_date": "2026-03-22",
+                "source_payload": {
+                    "round_name": "Jornada 27",
+                    "rows": [
+                        {"position": 1, "team": "Atletico Baleares", "played": 27, "points": 55},
+                    ],
+                },
+            },
+        )
+
+        calls: list[tuple[int, str, date | None]] = []
+
+        def fake_generate(candidate, output_root=None, width=1200, height=1500, max_rows=10, output_date=None):
+            calls.append((candidate.id, candidate.competition_slug, output_date))
+            return f"exports/images/{candidate.competition_slug}/{output_date.isoformat()}/standings_roundup_{candidate.id}.png"
+
+        monkeypatch.setattr("app.services.export_base_service.generate_standings_card", fake_generate)
+
+        service, export_path = build_service(session, tmp_path)
+        result = service.generate_export_file(reference_date=date(2026, 3, 25), dry_run=False)
+        payload = json.loads(export_path.read_text(encoding="utf-8"))
+
+        segunda_row = payload["competitions"]["segunda_rfef_g3_baleares"]["standings_roundup"][0]
+        tercera_row = payload["competitions"]["tercera_rfef_g11"]["standings_roundup"][0]
+
+        assert result.total_items == 2
+        assert segunda_row["image_path"] == "exports/images/segunda_rfef_g3_baleares/2026-03-25/standings_roundup_42.png"
+        assert tercera_row["image_path"] == "exports/images/tercera_rfef_g11/2026-03-25/standings_roundup_41.png"
+        assert calls == [
+            (42, "segunda_rfef_g3_baleares", date(2026, 3, 25)),
+            (41, "tercera_rfef_g11", date(2026, 3, 25)),
+        ]
+    finally:
+        session.close()
+
+
+def test_export_base_service_dedupes_standings_roundup_variants_for_same_round(tmp_path: Path, monkeypatch) -> None:
+    session = build_session()
+    try:
+        seed_export_base_context(session)
+        older_created_at = datetime(2026, 3, 24, 9, 0, tzinfo=timezone.utc)
+        newer_created_at = datetime(2026, 3, 25, 9, 0, tzinfo=timezone.utc)
+        add_candidate(
+            session,
+            candidate_id=51,
+            competition_slug="tercera_rfef_g11",
+            content_type="standings_roundup",
+            priority=82,
+            created_at=older_created_at,
+            formatted_text="older standings",
+            text_draft="older standings",
+            payload_json={
+                "content_key": "standings_roundup:Jornada 26:top:aaa:p1of1",
+                "competition_name": "3a RFEF Grupo 11",
+                "reference_date": "2026-03-24",
+                "source_payload": {
+                    "group_label": "Jornada 26",
+                    "round_name": "Jornada 26",
+                    "part_index": 1,
+                    "part_total": 1,
+                    "split_focus": "top",
+                    "rows": [
+                        {"position": 1, "team": "RCD Mallorca B", "played": 27, "points": 59},
+                    ],
+                },
+            },
+        )
+        add_candidate(
+            session,
+            candidate_id=52,
+            competition_slug="tercera_rfef_g11",
+            content_type="standings_roundup",
+            priority=82,
+            created_at=newer_created_at,
+            formatted_text="newer standings",
+            text_draft="newer standings",
+            payload_json={
+                "content_key": "standings_roundup:Jornada 26:full:bbb:p1of1",
+                "competition_name": "3a RFEF Grupo 11",
+                "reference_date": "2026-03-24",
+                "source_payload": {
+                    "group_label": "Jornada 26",
+                    "round_name": "Jornada 26",
+                    "part_index": 1,
+                    "part_total": 1,
+                    "split_focus": "full",
+                    "rows": [
+                        {"position": 1, "team": "RCD Mallorca B", "played": 27, "points": 59},
+                        {"position": 2, "team": "CD Manacor", "played": 27, "points": 56},
+                    ],
+                },
+            },
+        )
+
+        calls: list[int] = []
+
+        def fake_generate(candidate, output_root=None, width=1200, height=1500, max_rows=10, output_date=None):
+            calls.append(candidate.id)
+            return f"exports/images/{candidate.competition_slug}/{output_date.isoformat()}/standings_roundup_{candidate.id}.png"
+
+        monkeypatch.setattr("app.services.export_base_service.generate_standings_card", fake_generate)
+
+        service, export_path = build_service(session, tmp_path)
+        result = service.generate_export_file(reference_date=date(2026, 3, 25), dry_run=False)
+        payload = json.loads(export_path.read_text(encoding="utf-8"))
+
+        standings_rows = payload["competitions"]["tercera_rfef_g11"]["standings_roundup"]
+
+        assert result.total_items == 1
+        assert [row["id"] for row in standings_rows] == [52]
+        assert standings_rows[0]["image_path"] == "exports/images/tercera_rfef_g11/2026-03-25/standings_roundup_52.png"
+        assert calls == [52]
     finally:
         session.close()
 
@@ -714,7 +868,7 @@ def test_export_base_service_keeps_export_alive_when_standings_image_generation_
 
         monkeypatch.setattr(
             "app.services.export_base_service.generate_standings_card",
-            lambda candidate, output_root=None, width=1200, height=1500, max_rows=10: (_ for _ in ()).throw(
+            lambda candidate, output_root=None, width=1200, height=1500, max_rows=10, output_date=None: (_ for _ in ()).throw(
                 RuntimeError("png failed")
             ),
         )
