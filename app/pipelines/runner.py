@@ -7,6 +7,7 @@ from app.core.config import get_settings
 from app.core.enums import CompetitionIntegrationStatus, RunStatus, SourceName, TargetType
 from app.core.exceptions import ConfigurationError
 from app.core.logging import configure_logging
+from app.core.run_context import set_run_id
 from app.db.repositories.scraper_runs import ScraperRunRepository
 from app.db.session import init_db, session_scope
 from app.schemas.common import ScrapeContext
@@ -141,6 +142,7 @@ def run_competition_pipeline(
 
 
 def run_daily_pipeline(dry_run: bool = False) -> list[dict]:
+    set_run_id()
     results: list[dict] = []
     competition_catalog = load_competition_catalog()
     for competition in sorted(competition_catalog.values(), key=lambda item: item.priority):

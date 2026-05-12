@@ -5,6 +5,7 @@ from datetime import date as date_type
 
 import typer
 
+from app.core.run_context import set_run_id
 from app.db.session import init_db, session_scope
 from app.presenters.editorial_ops import render_editorial_ops_preview, render_editorial_ops_run
 from app.services.editorial_ops import EditorialOperationsService
@@ -21,6 +22,7 @@ def preview_day(
     target_date: str = typer.Option(..., "--date", help="Fecha YYYY-MM-DD"),
     as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
 ) -> None:
+    set_run_id()
     init_db()
     parsed_date = date_type.fromisoformat(target_date)
     with session_scope() as session:
@@ -36,6 +38,7 @@ def run_daily(
     target_date: str = typer.Option(..., "--date", help="Fecha YYYY-MM-DD"),
     as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
 ) -> None:
+    set_run_id()
     init_db()
     parsed_date = date_type.fromisoformat(target_date)
     with session_scope() as session:

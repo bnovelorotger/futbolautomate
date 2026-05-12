@@ -6,6 +6,7 @@ from datetime import date as date_type
 
 import typer
 
+from app.core.run_context import set_run_id
 from app.db.session import init_db, session_scope
 from app.presenters.editorial_release import render_release_result
 from app.services.editorial_release_pipeline import EditorialReleasePipelineService
@@ -28,6 +29,7 @@ def dry_run(
     use_rewrite: bool = typer.Option(False, "--use-rewrite", help="Prioriza rewritten_text en la exportacion JSON"),
     as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
 ) -> None:
+    set_run_id()
     init_db()
     if use_draft and use_rewrite:
         raise typer.BadParameter("No puedes usar --use-draft y --use-rewrite a la vez")
@@ -54,6 +56,7 @@ def run(
     use_rewrite: bool = typer.Option(False, "--use-rewrite", help="Prioriza rewritten_text en la exportacion JSON"),
     as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
 ) -> None:
+    set_run_id()
     init_db()
     if use_draft and use_rewrite:
         raise typer.BadParameter("No puedes usar --use-draft y --use-rewrite a la vez")

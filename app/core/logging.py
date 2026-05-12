@@ -5,6 +5,16 @@ import logging
 import sys
 from datetime import datetime, timezone
 
+from app.core.run_context import get_run_id
+
+
+class RunIdFilter(logging.Filter):
+    """Inject the current run_id into every log record."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.run_id = get_run_id() or "-"
+        return True
+
 
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
@@ -13,8 +23,9 @@ class JsonFormatter(logging.Formatter):
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
+            "run_id": getattr(record, "run_id", None) or "-",
         }
-        for key in ("source", "competition", "target", "url", "run_id", "records_found"):
+        for key in ("source", "competition", "target", "url", "records_found"):
             value = getattr(record, key, None)
             if value is not None:
                 payload[key] = value
@@ -28,15 +39,17 @@ def configure_logging(level: str = "INFO", json_output: bool = False) -> None:
     root.setLevel(level.upper())
     root.handlers.clear()
 
+    run_id_filter = RunIdFilter()
+    root.addFilter(run_id_filter)
+
     handler = logging.StreamHandler(sys.stdout)
     if json_output:
         handler.setFormatter(JsonFormatter())
     else:
         handler.setFormatter(
             logging.Formatter(
-                "%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+                "%(asctime)s | %(levelname)s | [%(run_id)s] | %(name)s | %(message)s",
                 datefmt="%Y-%m-%d %H:%M:%S",
             )
         )
     root.addHandler(handler)
-
