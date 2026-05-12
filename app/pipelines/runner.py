@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 
+import typer
+
 from app.core.catalog import load_competition_catalog
 from app.core.config import get_settings
 from app.core.enums import CompetitionIntegrationStatus, RunStatus, SourceName, TargetType
@@ -9,6 +11,7 @@ from app.core.exceptions import ConfigurationError
 from app.core.logging import configure_logging
 from app.db.repositories.scraper_runs import ScraperRunRepository
 from app.db.session import init_db, session_scope
+from app.pipelines.pipeline_metrics import app as pipeline_metrics_app
 from app.schemas.common import ScrapeContext
 from app.scrapers.registry import build_scraper
 from app.services.ingest_matches import ingest_matches
@@ -17,6 +20,13 @@ from app.services.ingest_standings import ingest_standings
 from app.utils.time import utcnow
 
 logger = logging.getLogger(__name__)
+
+app = typer.Typer(
+    add_completion=False,
+    help="Runner principal del sistema de pipelines de futbol balear.",
+    no_args_is_help=True,
+)
+app.add_typer(pipeline_metrics_app, name="pipeline_metrics")
 
 
 def format_run_summary(
