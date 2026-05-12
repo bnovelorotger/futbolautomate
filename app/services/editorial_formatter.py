@@ -1,17 +1,30 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import re
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from app.core.catalog import load_competition_catalog
 from app.core.config import Settings, get_settings
-from app.core.enums import ContentType, FormEventType, NarrativeMetricType, StandingsEventType, ViralStoryType
+from app.core.enums import ContentType
 from app.db.models import ContentCandidate
 from app.normalizers.text import normalize_token
 from app.schemas.editorial_content import ContentCandidateDraft
+from app.services.editorial_title_builder import (
+    COMPETITION_HASHTAGS,
+    RANKING_TITLE_BY_KEY,
+    build_competition_title,
+    build_group_title,
+    build_narrative_label,
+    build_narrative_title,
+    build_part_suffix,
+    build_ranking_title,
+    build_round_title,
+    build_roundup_title,
+    build_standard_title,
+    get_competition_name,
+)
 from app.services.social_enricher import SocialEnricherService
 from app.services.social_identity_service import SocialIdentityService
 from app.services.team_name_normalizer import load_team_name_aliases, normalize_team_name
@@ -20,27 +33,7 @@ MAX_FORMATTED_CHARACTERS = 240
 MAX_PREVIEW_MATCHES = 3
 MAX_RANKING_ROWS = 3
 IDEAL_MENTION_LIMIT = 2
-GROUP_PATTERN = re.compile(r"(?:^|[\s_-])g(?:rupo)?\s*0*(\d+)(?:$|[\s_-])", re.IGNORECASE)
-ROUND_PATTERN = re.compile(r"(?:j(?:ornada)?\.?\s*)0*(\d+)", re.IGNORECASE)
 CLUB_PREFIXES = {"cd", "cf", "ce", "ue", "ud", "rcd", "scr", "atletico", "atl", "fc"}
-COMPETITION_HASHTAGS = {
-    "tercera_rfef_g11": "#3aRFEF",
-    "segunda_rfef_g3_baleares": "#2aRFEF",
-    "primera_rfef_baleares": "#1aRFEF",
-    "tercera_federacion_femenina_g11": "#FutFemBalear",
-    "division_honor_mallorca": "#DH",
-    "division_honor_ibiza_form": "#DHIbiza",
-    "division_honor_menorca": "#DHMenorca",
-}
-COMPETITION_SHORT_NAMES = {
-    "tercera_rfef_g11": "3ª RFEF",
-    "segunda_rfef_g3_baleares": "2ª RFEF",
-    "primera_rfef_baleares": "1ª RFEF",
-    "tercera_federacion_femenina_g11": "3ª RFEF Fem",
-    "division_honor_mallorca": "DH Mallorca",
-    "division_honor_ibiza_form": "DH Ibiza/Form",
-    "division_honor_menorca": "DH Menorca",
-}
 CURATED_MENTION_TYPES = {
     ContentType.MATCH_RESULT,
     ContentType.RESULTS_ROUNDUP,
@@ -58,24 +51,6 @@ NARRATIVE_TYPES = {
     ContentType.FORM_EVENT,
     ContentType.STANDINGS_EVENT,
     ContentType.FEATURED_MATCH_EVENT,
-}
-TITLE_SPECS = {
-    ContentType.MATCH_RESULT: ("📋", "Resultado"),
-    ContentType.RESULTS_ROUNDUP: ("📋", "Resultados"),
-    ContentType.STANDINGS: ("📊", "Clasificación"),
-    ContentType.STANDINGS_ROUNDUP: ("📊", "Clasificación"),
-    ContentType.PREVIEW: ("🔎", "Previa"),
-    ContentType.FEATURED_MATCH_PREVIEW: ("🔎", "Previa"),
-}
-RANKING_TITLE_BY_KEY = {
-    "best_attack": "Mejor ataque",
-    "best_defense": "Más sólida atrás",
-    "most_wins": "Más victorias",
-}
-NARRATIVE_EMOJIS = {
-    "Forma": "💪🏼",
-    "Tendencia": "📈",
-    "Dato": "🔥",
 }
 
 
@@ -1002,82 +977,24 @@ class EditorialFormatterService:
             parts.append(MatchdayThreadPart(slot="narrative", text=narrative_text))
         return parts
 
+    # ---------------------------------------------------------------------------
+    # Title / header building — delegate to editorial_title_builder
+    # ---------------------------------------------------------------------------
+
     def _competition_name(self, competition_slug: str) -> str:
-        definition = self.catalog.get(competition_slug)
-        if definition is not None and definition.editorial_name:
-            return definition.editorial_name
-        return competition_slug
+        return get_competition_name(competition_slug)
 
     def _competition_title(self, competition_slug: str, competition_name: str) -> str:
-        if competition_slug in COMPETITION_SHORT_NAMES:
-            return COMPETITION_SHORT_NAMES[competition_slug]
-        lowered_name = competition_name.lower()
-        if "tercera" in lowered_name or "3a rfef" in lowered_name or "3ª rfef" in lowered_name:
-            return "3ª RFEF"
-        if "segunda" in lowered_name or "2a rfef" in lowered_name or "2ª rfef" in lowered_name:
-            return "2ª RFEF"
-        if "division" in lowered_name and "honor" in lowered_name:
-            return "DH Mallorca"
-        return competition_name.strip()
+        return build_competition_title(competition_slug, competition_name)
 
     def _group_title(self, competition_slug: str, competition_name: str, source_payload: dict[str, Any]) -> str | None:
-        for raw_value in (
-            source_payload.get("group_code"),
-            source_payload.get("group_label"),
-            competition_slug.replace("_", " "),
-            competition_name,
-        ):
-            value = self._string(raw_value)
-            if not value:
-                continue
-            match = GROUP_PATTERN.search(f" {value} ")
-            if match:
-                return f"G{int(match.group(1))}"
-        return None
+        return build_group_title(competition_slug, competition_name, source_payload)
 
     def _round_title(self, source_payload: dict[str, Any]) -> str | None:
-        for raw_value in (source_payload.get("round_name"), source_payload.get("group_label")):
-            round_label = self._round_from_value(raw_value)
-            if round_label:
-                return round_label
-        featured_match = source_payload.get("featured_match")
-        if isinstance(featured_match, dict):
-            round_label = self._round_from_value(featured_match.get("round_name"))
-            if round_label:
-                return round_label
-        matches = source_payload.get("matches")
-        if isinstance(matches, list):
-            for match in matches:
-                if isinstance(match, dict):
-                    round_label = self._round_from_value(match.get("round_name"))
-                    if round_label:
-                        return round_label
-        rows = source_payload.get("rows")
-        if isinstance(rows, list) and rows:
-            played_values = {
-                int(row.get("played"))
-                for row in rows
-                if isinstance(row, dict) and isinstance(row.get("played"), int) and int(row.get("played")) > 0
-            }
-            if played_values:
-                return f"J{max(played_values)}"
-        return None
-
-    def _round_from_value(self, value: Any) -> str | None:
-        raw_value = self._string(value)
-        if not raw_value:
-            return None
-        match = ROUND_PATTERN.search(raw_value)
-        if match:
-            return f"J{int(match.group(1))}"
-        return f"J{int(raw_value)}" if raw_value.isdigit() else None
+        return build_round_title(source_payload)
 
     def _part_suffix(self, source_payload: dict[str, Any]) -> str | None:
-        part_index = source_payload.get("part_index")
-        part_total = source_payload.get("part_total")
-        if isinstance(part_index, int) and isinstance(part_total, int) and part_total > 1:
-            return f"({part_index}/{part_total})"
-        return None
+        return build_part_suffix(source_payload)
 
     def _standard_title(
         self,
@@ -1089,22 +1006,14 @@ class EditorialFormatterService:
         title_override: str | None = None,
         include_round: bool = True,
     ) -> str:
-        if title_override is None:
-            emoji, label = TITLE_SPECS.get(content_type, ("📝", "Contenido"))
-            title_override = f"{emoji} {label}"
-        parts = [title_override, self._competition_title(competition_slug, competition_name)]
-        group_title = self._group_title(competition_slug, competition_name, source_payload)
-        if group_title:
-            parts.append(group_title)
-        if include_round:
-            round_title = self._round_title(source_payload)
-            if round_title:
-                parts.append(round_title)
-        title = " - ".join(parts)
-        part_suffix = self._part_suffix(source_payload)
-        if part_suffix:
-            title = f"{title} {part_suffix}"
-        return title
+        return build_standard_title(
+            content_type=content_type,
+            competition_slug=competition_slug,
+            competition_name=competition_name,
+            source_payload=source_payload,
+            title_override=title_override,
+            include_round=include_round,
+        )
 
     def _roundup_title(
         self,
@@ -1115,117 +1024,33 @@ class EditorialFormatterService:
         source_payload: dict[str, Any],
         compact: bool,
     ) -> str:
-        if not compact:
-            return self._standard_title(
-                content_type=content_type,
-                competition_slug=competition_slug,
-                competition_name=competition_name,
-                source_payload=source_payload,
-            )
-        parts = [self._competition_title(competition_slug, competition_name)]
-        group_title = self._group_title(competition_slug, competition_name, source_payload)
-        if group_title:
-            parts.append(group_title)
-        round_title = self._round_title(source_payload)
-        if round_title and round_title != group_title:
-            parts.append(round_title)
-        title = " - ".join(parts)
-        part_suffix = self._part_suffix(source_payload)
-        if part_suffix:
-            title = f"{title} {part_suffix}"
-        return title
-
-    def _hashtags_line(self, competition_slug: str) -> str:
-        return " ".join(self.resolve_hashtags(competition_slug))
-
-    def _preview_matches(self, source_payload: dict[str, Any], *, limit: int) -> list[dict[str, Any]]:
-        matches = [match for match in list(source_payload.get("matches") or []) if isinstance(match, dict)]
-        if matches:
-            return matches[:limit]
-        featured_match = source_payload.get("featured_match")
-        if isinstance(featured_match, dict):
-            return [featured_match]
-        if self._string(source_payload.get("home_team")) and self._string(source_payload.get("away_team")):
-            return [{"home_team": source_payload.get("home_team"), "away_team": source_payload.get("away_team"), "round_name": source_payload.get("round_name")}]
-        return []
-
-    def _featured_match(self, source_payload: dict[str, Any], matches: list[dict[str, Any]]) -> dict[str, Any] | None:
-        featured_match = source_payload.get("featured_match")
-        if isinstance(featured_match, dict):
-            return featured_match
-        return matches[0] if matches else None
-
-    def _ranking_rows(self, source_payload: dict[str, Any], *, unique_teams: bool) -> list[dict[str, Any]]:
-        rows: list[dict[str, Any]] = []
-        seen_teams: set[str] = set()
-        for key, title in RANKING_TITLE_BY_KEY.items():
-            value = source_payload.get(key)
-            if not isinstance(value, dict):
-                continue
-            team_name = self._string(value.get("team"))
-            if not team_name:
-                continue
-            normalized_team = normalize_team_identity_value(team_name)
-            if unique_teams and normalized_team in seen_teams:
-                continue
-            seen_teams.add(normalized_team)
-            rows.append({"key": key, "title": title, "team": team_name, "value": value.get("value")})
-        return rows
-
-    def _ranking_title(self, *, competition_slug: str, competition_name: str, ranking_rows: list[dict[str, Any]]) -> str:
-        labels = [str(row.get("title") or "Ranking") for row in ranking_rows]
-        title_label = labels[0] if len(labels) == 1 else " / ".join(labels)
-        if len(title_label) > 40:
-            title_label = labels[0]
-        return self._standard_title(
-            content_type=ContentType.RANKING,
+        return build_roundup_title(
+            content_type=content_type,
             competition_slug=competition_slug,
             competition_name=competition_name,
-            source_payload={},
-            title_override=f"🏆 {title_label}",
-            include_round=False,
+            source_payload=source_payload,
+            compact=compact,
+        )
+
+    def _ranking_title(self, *, competition_slug: str, competition_name: str, ranking_rows: list[dict[str, Any]]) -> str:
+        return build_ranking_title(
+            competition_slug=competition_slug,
+            competition_name=competition_name,
+            ranking_rows=ranking_rows,
         )
 
     def _narrative_label(self, content_type: ContentType, source_payload: dict[str, Any]) -> str:
-        if content_type == ContentType.STANDINGS_EVENT:
-            event_type = self._string(source_payload.get("event_type"))
-            if event_type == str(StandingsEventType.NEW_LEADER):
-                return "Nuevo líder"
-            if event_type in {str(StandingsEventType.ENTERED_PLAYOFF), str(StandingsEventType.LEFT_PLAYOFF)}:
-                return "Playoff"
-            if event_type in {str(StandingsEventType.ENTERED_RELEGATION), str(StandingsEventType.LEFT_RELEGATION)}:
-                return "Descenso"
-            return "Dato"
-        if content_type == ContentType.FORM_EVENT:
-            return "Forma"
-        if content_type == ContentType.METRIC_NARRATIVE:
-            narrative_type = self._string(source_payload.get("narrative_type"))
-            if narrative_type in {str(NarrativeMetricType.WIN_STREAK), str(NarrativeMetricType.UNBEATEN_STREAK)}:
-                return "Forma"
-            return "Dato"
-        if content_type == ContentType.VIRAL_STORY:
-            story_type = self._string(source_payload.get("story_type"))
-            if story_type in {str(ViralStoryType.WIN_STREAK), str(ViralStoryType.UNBEATEN_STREAK), str(ViralStoryType.LOSING_STREAK)}:
-                return "Forma"
-            if story_type in {str(ViralStoryType.HOT_FORM), str(ViralStoryType.COLD_FORM), str(ViralStoryType.GOALS_TREND)}:
-                return "Tendencia"
-            return "Dato"
-        if content_type == ContentType.FEATURED_MATCH_EVENT:
-            tags = source_payload.get("tags")
-            if isinstance(tags, list):
-                if "playoff_clash" in tags:
-                    return "Playoff"
-                if "relegation_clash" in tags:
-                    return "Descenso"
-                if "hot_form_match" in tags or "cold_form_match" in tags:
-                    return "Forma"
-            return "Dato"
-        return "Dato"
+        return build_narrative_label(content_type, source_payload)
 
     def _narrative_title(self, content_type: ContentType, source_payload: dict[str, Any]) -> str:
-        label = self._narrative_label(content_type, source_payload)
-        emoji = NARRATIVE_EMOJIS.get(label, "🔥")
-        return f"{emoji} {label}"
+        return build_narrative_title(content_type, source_payload)
+
+    # ---------------------------------------------------------------------------
+    # Mention helpers
+    # ---------------------------------------------------------------------------
+
+    def _hashtags_line(self, competition_slug: str) -> str:
+        return " ".join(self.resolve_hashtags(competition_slug))
 
     def _zone_suffix(self, zone_tag: str | None) -> str:
         if zone_tag == "playoff":
@@ -1267,6 +1092,10 @@ class EditorialFormatterService:
             if len(selected) >= limit:
                 break
         return selected
+
+    # ---------------------------------------------------------------------------
+    # Normalisation helpers
+    # ---------------------------------------------------------------------------
 
     def _normalize_alias_text(self, text: str) -> str:
         normalized_text = text
@@ -1312,6 +1141,40 @@ class EditorialFormatterService:
         if team_name:
             normalized["team"] = normalize_team_name(team_name)
         return normalized
+
+    def _preview_matches(self, source_payload: dict[str, Any], *, limit: int) -> list[dict[str, Any]]:
+        matches = [match for match in list(source_payload.get("matches") or []) if isinstance(match, dict)]
+        if matches:
+            return matches[:limit]
+        featured_match = source_payload.get("featured_match")
+        if isinstance(featured_match, dict):
+            return [featured_match]
+        if self._string(source_payload.get("home_team")) and self._string(source_payload.get("away_team")):
+            return [{"home_team": source_payload.get("home_team"), "away_team": source_payload.get("away_team"), "round_name": source_payload.get("round_name")}]
+        return []
+
+    def _featured_match(self, source_payload: dict[str, Any], matches: list[dict[str, Any]]) -> dict[str, Any] | None:
+        featured_match = source_payload.get("featured_match")
+        if isinstance(featured_match, dict):
+            return featured_match
+        return matches[0] if matches else None
+
+    def _ranking_rows(self, source_payload: dict[str, Any], *, unique_teams: bool) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        seen_teams: set[str] = set()
+        for key, title in RANKING_TITLE_BY_KEY.items():
+            value = source_payload.get(key)
+            if not isinstance(value, dict):
+                continue
+            team_name = self._string(value.get("team"))
+            if not team_name:
+                continue
+            normalized_team = normalize_team_identity_value(team_name)
+            if unique_teams and normalized_team in seen_teams:
+                continue
+            seen_teams.add(normalized_team)
+            rows.append({"key": key, "title": title, "team": team_name, "value": value.get("value")})
+        return rows
 
     def _unique(self, values) -> list[str]:
         seen: set[str] = set()
