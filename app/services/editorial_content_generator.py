@@ -10,18 +10,12 @@ from app.db.repositories.content_candidates import ContentCandidateRepository
 from app.schemas.common import IngestStats
 from app.schemas.editorial_content import ContentCandidateDraft, ContentGenerationResult
 from app.schemas.editorial_summary import CompetitionEditorialSummary
-from app.schemas.reporting import CompetitionMatchView, StandingView
+from app.schemas.reporting import CompetitionMatchView
 from app.normalizers.text import normalize_token
 from app.services.editorial_formatter import EditorialFormatterService
 from app.services.editorial_summary import CompetitionEditorialSummaryService
 from app.utils.hashing import stable_hash
 from app.utils.time import utcnow
-
-
-def _score_line(match: CompetitionMatchView) -> str:
-    if match.home_score is not None and match.away_score is not None:
-        return f"{match.home_team} {match.home_score}-{match.away_score} {match.away_team}"
-    return f"{match.home_team} vs {match.away_team}"
 
 
 def _match_label(match: CompetitionMatchView) -> str:
@@ -99,41 +93,6 @@ class EditorialContentGenerator:
             scheduled_at=scheduled_at,
             status=ContentCandidateStatus.DRAFT,
         )
-
-    def _result_candidates(self, summary: CompetitionEditorialSummary) -> list[ContentCandidateDraft]:
-        drafts: list[ContentCandidateDraft] = []
-        for index, match in enumerate(summary.latest_results, start=1):
-            if match.home_score is None or match.away_score is None:
-                continue
-            source_payload = {
-                "source_url": match.source_url,
-                "round_name": match.round_name,
-                "match_date_raw": match.match_date_raw,
-                "home_team": match.home_team,
-                "away_team": match.away_team,
-                "home_score": match.home_score,
-                "away_score": match.away_score,
-                "status": match.status,
-            }
-            text_draft = (
-                "RESULTADO FINAL\n\n"
-                f"{_score_line(match)}\n\n"
-                f"{summary.metadata.competition_name}\n"
-                f"{match.round_name or '-'}\n"
-                f"Estado: {match.status}"
-            )
-            drafts.append(
-                self._draft(
-                    summary=summary,
-                    content_type=ContentType.MATCH_RESULT,
-                    priority=100 - index,
-                    content_key=f"result:{match.source_url}",
-                    text_draft=text_draft,
-                    source_payload=source_payload,
-                    scheduled_at=match.kickoff_datetime,
-                )
-            )
-        return drafts
 
     def _standings_candidate(self, summary: CompetitionEditorialSummary) -> ContentCandidateDraft | None:
         if not summary.current_standings:
