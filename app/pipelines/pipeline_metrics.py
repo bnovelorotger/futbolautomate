@@ -49,14 +49,14 @@ def show(
     if fmt == "json":
         payload = [
             {
-                "date": str(row.metric_date),
-                "pipeline": row.pipeline,
-                "generated": row.generated,
-                "approved": row.approved,
-                "published": row.published,
-                "rejected": row.rejected,
-                "quality_fails": row.quality_fails,
-                "duration_s": row.duration_s,
+                "date": str(row.run_date),
+                "pipeline": row.pipeline_name,
+                "generated": row.candidates_generated,
+                "approved": row.candidates_approved,
+                "published": row.candidates_published,
+                "rejected": row.candidates_rejected,
+                "quality_fails": row.quality_check_failures,
+                "duration_s": row.run_duration_seconds,
             }
             for row in rows
         ]
@@ -85,15 +85,15 @@ def show(
     typer.echo(separator)
 
     for row in rows:
-        duration = f"{row.duration_s:.1f}" if row.duration_s is not None else "-"
+        duration = f"{row.run_duration_seconds:.1f}" if row.run_duration_seconds is not None else "-"
         typer.echo(
-            f"{str(row.metric_date):<{col_date}} | "
-            f"{row.pipeline:<{col_pipeline}} | "
-            f"{row.generated:>{col_num}} | "
-            f"{row.approved:>{col_num}} | "
-            f"{row.published:>{col_num}} | "
-            f"{row.rejected:>{col_num}} | "
-            f"{row.quality_fails:>{col_num}} | "
+            f"{str(row.run_date):<{col_date}} | "
+            f"{row.pipeline_name:<{col_pipeline}} | "
+            f"{row.candidates_generated:>{col_num}} | "
+            f"{row.candidates_approved:>{col_num}} | "
+            f"{row.candidates_published:>{col_num}} | "
+            f"{row.candidates_rejected:>{col_num}} | "
+            f"{row.quality_check_failures:>{col_num}} | "
             f"{duration:>{col_num}}"
         )
 
