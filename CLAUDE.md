@@ -282,8 +282,8 @@ All in `app/config/`:
 # Run all tests
 pytest
 
-# Run with coverage
-pytest --cov=app --cov-report=html
+# Run with coverage (matches what CI runs)
+pytest tests/unit/ --cov=app --cov-report=term-missing
 
 # Run specific test file
 pytest tests/integration/test_editorial_ops.py -v
@@ -295,6 +295,8 @@ pytest tests/unit/ -v
 Tests use real PostgreSQL (configured via `DATABASE_URL` in `.env`). Do not mock the database — integration test reliability depends on hitting a real instance.
 
 Test fixtures are in `tests/conftest.py` and `tests/fixtures/`. Shared helpers are in `tests/helpers.py`.
+
+CI uploads a coverage summary to the GitHub Actions job summary for each run.
 
 ---
 

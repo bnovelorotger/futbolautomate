@@ -22,8 +22,11 @@ ENV/
 .ruff_cache/
 .tox/
 .nox/
+
+# Coverage
 .coverage
 .coverage.*
+coverage.xml
 htmlcov/
 
 # Build artifacts

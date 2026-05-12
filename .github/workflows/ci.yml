@@ -63,4 +63,11 @@ jobs:
       #    Integration tests under tests/integration/ are intentionally skipped
       #    because they require a running PostgreSQL instance and .env secrets.
       - name: Run unit tests
-        run: pytest tests/unit/ -q --tb=short
+        run: pytest tests/unit/ -q --tb=short --cov=app --cov-report=term-missing --cov-report=xml:coverage.xml
+
+      # 8. Append a Markdown coverage table to the GitHub Actions job summary.
+      #    Runs even if the test step fails so partial coverage is still visible.
+      - name: Coverage summary
+        if: always()
+        run: |
+          python -m coverage report --format=markdown >> $GITHUB_STEP_SUMMARY
