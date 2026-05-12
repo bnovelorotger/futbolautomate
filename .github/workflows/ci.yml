@@ -41,7 +41,7 @@ jobs:
       # 4. Install the project in editable mode together with the [dev] extras
       #    and the pinned tool versions used for linting and testing.
       #    ruff>=0.9 and mypy>=1.15 match the versions declared in pyproject.toml.
-      #    mypy is installed but NOT run in CI (requires stub tuning first).
+      #    mypy is run in progressive mode on core + db modules (see step 7 below).
       - name: Install dev dependencies
         run: pip install -e ".[dev]" ruff mypy pytest-cov
 
@@ -57,7 +57,18 @@ jobs:
       - name: Format check with ruff
         run: ruff format app/ --check
 
-      # 7. Execute only the unit test suite.
+      # 7. Run mypy in progressive mode over the most type-safe modules only.
+      #    Scope: app/core/ (pure Python / Pydantic models, all well-typed) and
+      #    app/db/base.py + app/db/models.py (SQLAlchemy 2.0 Mapped[] columns).
+      #    --ignore-missing-imports avoids stub-package errors for third-party libs.
+      #    --strict is intentionally omitted — the goal is catching regressions, not
+      #    enforcing full strict mode across the whole codebase at once.
+      #    Excluded from scope: app/pipelines/, app/presenters/, app/normalizers/,
+      #    app/channels/, app/llm/ — these require broader annotation work first.
+      - name: Type check (core + db models)
+        run: mypy app/core/ app/db/models.py app/db/base.py --ignore-missing-imports
+
+      # 8. Execute only the unit test suite.
       #    -q        — quiet output (dots instead of test names)
       #    --tb=short — show compact tracebacks on failure
       #    Integration tests under tests/integration/ are intentionally skipped
@@ -65,7 +76,7 @@ jobs:
       - name: Run unit tests
         run: pytest tests/unit/ -q --tb=short --cov=app --cov-report=term-missing --cov-report=xml:coverage.xml
 
-      # 8. Append a Markdown coverage table to the GitHub Actions job summary.
+      # 9. Append a Markdown coverage table to the GitHub Actions job summary.
       #    Runs even if the test step fails so partial coverage is still visible.
       - name: Coverage summary
         if: always()
