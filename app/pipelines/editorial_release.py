@@ -89,7 +89,9 @@ def run(
                 candidates_approved=result.autoapproved_count,
                 candidates_published=result.dispatched_count,
                 candidates_rejected=result.manual_review_count,
-                quality_check_failures=0,
+                quality_check_failures=sum(
+                    1 for row in result.approval_rows if row.policy_reason == "quality_errors_present"
+                ),
                 run_duration_seconds=run_duration,
             )
     except Exception:
