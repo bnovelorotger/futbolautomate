@@ -319,3 +319,22 @@ class ScraperRun(Base):
     records_updated: Mapped[int] = mapped_column(Integer, default=0)
     errors_count: Mapped[int] = mapped_column(Integer, default=0)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class PipelineMetric(Base, TimestampMixin):
+    __tablename__ = "pipeline_metrics"
+    __table_args__ = (
+        UniqueConstraint("run_date", "pipeline_name", name="uq_pipeline_metrics_date_pipeline"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    run_date: Mapped[date] = mapped_column(Date, index=True)
+    pipeline_name: Mapped[str] = mapped_column(String(120), index=True)
+    candidates_generated: Mapped[int] = mapped_column(Integer, default=0)
+    candidates_approved: Mapped[int] = mapped_column(Integer, default=0)
+    candidates_autoapproved: Mapped[int] = mapped_column(Integer, default=0)
+    candidates_rejected: Mapped[int] = mapped_column(Integer, default=0)
+    candidates_published: Mapped[int] = mapped_column(Integer, default=0)
+    quality_check_failures: Mapped[int] = mapped_column(Integer, default=0)
+    run_duration_seconds: Mapped[float | None] = mapped_column(nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
