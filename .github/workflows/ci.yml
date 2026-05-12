@@ -1,0 +1,66 @@
+# CI workflow for futbolautomate
+#
+# Runs lint checks and unit tests on every push/PR to main.
+# Integration tests are excluded — they require a live PostgreSQL database
+# and secrets that are not available in this environment.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    name: Lint and Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Check out the repository at the commit that triggered the workflow.
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Install the exact Python version the project targets (>=3.11).
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # 3. Cache the pip download cache keyed on pyproject.toml so that
+      #    dependency downloads are skipped when nothing has changed.
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      # 4. Install the project in editable mode together with the [dev] extras
+      #    and the pinned tool versions used for linting and testing.
+      #    ruff>=0.9 and mypy>=1.15 match the versions declared in pyproject.toml.
+      #    mypy is installed but NOT run in CI (requires stub tuning first).
+      - name: Install dev dependencies
+        run: pip install -e ".[dev]" ruff mypy pytest-cov
+
+      # 5. Run ruff in lint mode over the application source tree.
+      #    --output-format=github annotates PRs with inline error comments.
+      #    The step fails if ruff reports any violations.
+      - name: Lint with ruff
+        run: ruff check app/ --output-format=github
+
+      # 6. Verify that all source files are already formatted according to
+      #    ruff's formatter rules.  --check exits non-zero (failing the step)
+      #    if any file would be reformatted.
+      - name: Format check with ruff
+        run: ruff format app/ --check
+
+      # 7. Execute only the unit test suite.
+      #    -q        — quiet output (dots instead of test names)
+      #    --tb=short — show compact tracebacks on failure
+      #    Integration tests under tests/integration/ are intentionally skipped
+      #    because they require a running PostgreSQL instance and .env secrets.
+      - name: Run unit tests
+        run: pytest tests/unit/ -q --tb=short
