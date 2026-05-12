@@ -1,14 +1,19 @@
 from __future__ import annotations
 
 import json
+import logging
 import sys
+import time
 from datetime import date as date_type
 
 import typer
 
+from app.db.repositories.pipeline_metrics import PipelineMetricRepository
 from app.db.session import init_db, session_scope
 from app.presenters.editorial_release import render_release_result
 from app.services.editorial_release_pipeline import EditorialReleasePipelineService
+
+logger = logging.getLogger(__name__)
 
 app = typer.Typer(add_completion=False, help="Release automatizado de piezas seguras con exportacion JSON local.")
 
@@ -59,6 +64,7 @@ def run(
         raise typer.BadParameter("No puedes usar --use-draft y --use-rewrite a la vez")
     parsed_date = date_type.fromisoformat(reference_date) if reference_date else None
     prefer_rewrite = False if use_draft else True
+    t_start = time.time()
     with session_scope() as session:
         result = EditorialReleasePipelineService(session).run(
             reference_date=parsed_date,
@@ -70,6 +76,21 @@ def run(
             _dump_json(result.model_dump(mode="json"))
         else:
             typer.echo(render_release_result(result))
+    run_duration = time.time() - t_start
+    metric_date = parsed_date or date_type.today()
+    try:
+        with session_scope() as metric_session:
+            PipelineMetricRepository(metric_session).upsert(
+                metric_date,
+                "editorial_release",
+                candidates_approved=result.autoapproved_count,
+                candidates_published=result.dispatched_count,
+                candidates_rejected=result.manual_review_count,
+                quality_check_failures=0,
+                run_duration_seconds=run_duration,
+            )
+    except Exception:
+        logger.warning("Failed to record pipeline metric for editorial_release", exc_info=True)
 
 
 if __name__ == "__main__":
