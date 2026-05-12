@@ -35,14 +35,21 @@ pip-wheel-metadata/
 
 # Local runtime artifacts
 logs/
+logs/*.log
 .locks/
 .debug_responses/
 .tmp_audit_*/
 export/
 exports/
+exports/tmp/
 *.log
 *.tmp
 *.temp
+
+# Database backups
+backups/*.dump
+backups/*.sql
+backups/*.gz
 
 # Local databases
 *.db
