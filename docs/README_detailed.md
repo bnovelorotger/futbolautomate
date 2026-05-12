@@ -985,8 +985,8 @@ Las narrativas metricas no tienen un flujo especial. Recorren el mismo circuito 
 1. `editorial_ops run-daily --date 2026-03-18`
 2. `editorial_queue approve --id <ID>`
 3. `publication_dispatch dispatch --include-unscheduled`
-4. `typefully_export dry-run --id <ID>`
-5. `typefully_export export --id <ID>`
+4. `x_publish dry-run --id <ID>`
+5. `x_publish publish --id <ID>`
 
 ## Historias virales editoriales
 
@@ -1187,12 +1187,11 @@ Reescrito:
 Torrent CF se impuso por 1-0 a la UE Porreres en la jornada 26 de la 2a RFEF Grupo 3.
 ```
 
-### Relacion con Typefully y X
+### Relacion con la salida externa
 
-- `typefully_export` sigue usando `text_draft`
 - `x_publish` sigue usando `text_draft`
-- `rewritten_text` no se usa automaticamente en ningun canal
-- la arquitectura queda preparada para que en el futuro un canal pueda elegir explicitamente entre `text_draft` y `rewritten_text`
+- `rewritten_text` no se usa automaticamente en la publicacion directa
+- la arquitectura queda preparada para que un canal futuro pueda elegir explicitamente entre `text_draft` y `rewritten_text`
 
 ### Limitaciones actuales de la reescritura
 
@@ -1468,386 +1467,6 @@ Para probar publicacion real hace falta:
 - `external_publication_timestamp` refleja el momento del exito local, no una fecha canonica devuelta por X
 - los tokens de usuario se guardan en BD sin cifrado a nivel de aplicacion; si necesitas mas proteccion, el siguiente paso es cifrado en columna o vault externo
 
-## Exportacion de drafts a Typefully
-
-La integracion de Typefully vive desacoplada en:
-
-- `app/channels/typefully/client.py`
-- `app/channels/typefully/publisher.py`
-- `app/channels/typefully/schemas.py`
-- `app/services/typefully_export_service.py`
-- `app/pipelines/typefully_export.py`
-
-El rol de Typefully en la arquitectura es solo de canal operativo de borradores. El flujo es:
-
-1. `content_candidates` sigue siendo la fuente central
-2. opcionalmente `editorial_rewrite` refina el texto final sin tocar los datos base
-3. la cola editorial revisa y aprueba
-4. el dispatcher interno marca la pieza como `published`
-5. `typefully_export` crea un draft externo en Typefully
-6. la revision, edicion fina y programacion final ocurre dentro de Typefully
-7. la publicacion definitiva sale desde Typefully
-
-### API elegida y decision
-
-La integracion usa la API v2 actual de Typefully:
-
-- `POST /v2/social-sets/{social_set_id}/drafts` para crear drafts
-- `GET /v2/social-sets` para resolver el `social_set_id` cuando no se fija manualmente
-- `GET /v2/me` queda encapsulado en el cliente para futuras validaciones reales
-
-La decision es deliberada:
-
-- la documentacion actual de Typefully marca la API v1 como deprecated
-- la API v2 modela la creacion de drafts dentro de un `social_set`
-- eso encaja mejor con el papel de Typefully como canal externo reversible y no como centro editorial
-
-### Configuracion Typefully
-
-Variables de entorno:
-
-```bash
-TYPEFULLY_API_KEY=...
-TYPEFULLY_API_URL=https://api.typefully.com
-TYPEFULLY_SOCIAL_SET_ID=
-```
-
-Notas:
-
-- `TYPEFULLY_API_KEY`: obligatorio
-- `TYPEFULLY_API_URL`: obligatorio
-- `TYPEFULLY_SOCIAL_SET_ID`: opcional; si falta, el exportador intenta autodetectarlo via `GET /v2/social-sets`
-- si Typefully devuelve varios `social_sets` y no hay `TYPEFULLY_SOCIAL_SET_ID`, la exportacion falla con un error explicito para evitar ambiguedad
-
-### Elegibilidad para exportar a Typefully
-
-Una pieza es exportable si:
-
-- `status = published`
-- `external_publication_ref IS NULL`
-- `text_draft` no esta vacio
-
-No se exportan:
-
-- `draft`
-- `approved`
-- `rejected`
-- `published` que ya tenga `external_publication_ref`
-
-### Seleccion del texto a exportar
-
-Por defecto la exportacion elige este orden:
-
-1. `rewritten_text` si existe y no esta vacio
-2. `text_draft` en cualquier otro caso
-
-Fallbacks y overrides:
-
-- si `rewritten_text` es `NULL`, se usa `text_draft`
-- si `rewritten_text` existe pero esta vacio o solo tiene espacios, se usa `text_draft`
-- `--use-draft` fuerza el uso de `text_draft`
-- `--use-rewrite` mantiene la prioridad sobre `rewritten_text`, pero sigue cayendo a `text_draft` si la reescritura no es utilizable
-
-La salida de CLI informa:
-
-- `has_rewrite=true/false`
-- `text_source=rewritten_text|text_draft`
-
-### CLI Typefully
-
-```bash
-python -m app.pipelines.typefully_export verify-config
-python -m app.pipelines.typefully_export show-pending
-python -m app.pipelines.typefully_export show-pending --use-draft
-python -m app.pipelines.typefully_export show-pending --use-rewrite
-python -m app.pipelines.typefully_export dry-run --id 31
-python -m app.pipelines.typefully_export dry-run --id 31 --use-draft
-python -m app.pipelines.typefully_export dry-run --id 31 --use-rewrite
-python -m app.pipelines.typefully_export export --id 31
-python -m app.pipelines.typefully_export export --id 31 --use-draft
-python -m app.pipelines.typefully_export export --id 31 --use-rewrite
-python -m app.pipelines.typefully_export export-ready
-python -m app.pipelines.typefully_export export-ready --limit 5
-python -m app.pipelines.typefully_export export-ready --dry-run
-python -m app.pipelines.typefully_export export-ready --dry-run --use-draft
-python -m app.pipelines.typefully_export export-ready --dry-run --use-rewrite
-```
-
-## Autoexportacion controlada a Typefully
-
-La autoexportacion controlada vive en:
-
-- `app/config/typefully_autoexport.json`
-- `app/core/typefully_autoexport.py`
-- `app/services/editorial_quality_checks.py`
-- `app/pipelines/editorial_quality_checks.py`
-- `app/services/typefully_autoexport_service.py`
-- `app/pipelines/typefully_autoexport.py`
-
-No sustituye la exportacion manual. Es una capa adicional que decide que piezas `published` pueden convertirse automaticamente en draft de Typefully segun politica y quality checks deterministas.
-
-### Politica exacta y despliegue por fases
-
-Catalogo completo autoexportable:
-
-- `match_result`
-- `standings`
-- `preview`
-- `ranking`
-- `stat_narrative`
-- `metric_narrative`
-- `viral_story`
-
-Con validacion reforzada cuando la fase los habilita:
-
-- `stat_narrative`
-- `metric_narrative`
-- `viral_story`
-
-Despliegue progresivo:
-
-- fase `1`: `match_result`, `standings`, `preview`, `ranking`
-- fase `2`: añade `stat_narrative`, `metric_narrative`
-- fase `3`: añade `viral_story`
-
-La politica sigue siendo conservadora: los tipos narrativos solo autoexportan si pasan `editorial_quality_checks`. Si fallan, se bloquean y quedan para revision manual.
-
-### Configuracion
-
-Archivo: `app/config/typefully_autoexport.json`
-
-```json
-{
-  "enabled": true,
-  "phase": 1,
-  "default_limit": 10,
-  "use_rewrite_by_default": true,
-  "max_text_length": 280,
-  "duplicate_window_hours": 72,
-  "max_line_breaks": 6,
-  "max_exports_per_run": 5,
-  "max_exports_per_day": null,
-  "stop_on_capacity_limit": true,
-  "capacity_error_codes": ["MONETIZATION_ERROR"],
-  "allowed_content_types": [
-    "match_result",
-    "standings",
-    "preview",
-    "ranking",
-    "stat_narrative",
-    "metric_narrative",
-    "viral_story"
-  ],
-  "manual_review_content_types": [],
-  "validation_required_content_types": [
-    "stat_narrative",
-    "metric_narrative",
-    "viral_story"
-  ],
-  "phases": {
-    "1": {
-      "allowed_content_types": ["match_result", "standings", "preview", "ranking"],
-      "validation_required_content_types": []
-    },
-    "2": {
-      "allowed_content_types": [
-        "match_result",
-        "standings",
-        "preview",
-        "ranking",
-        "stat_narrative",
-        "metric_narrative"
-      ],
-      "validation_required_content_types": ["stat_narrative", "metric_narrative"]
-    },
-    "3": {
-      "allowed_content_types": [
-        "match_result",
-        "standings",
-        "preview",
-        "ranking",
-        "stat_narrative",
-        "metric_narrative",
-        "viral_story"
-      ],
-      "validation_required_content_types": [
-        "stat_narrative",
-        "metric_narrative",
-        "viral_story"
-      ]
-    }
-  ]
-}
-```
-
-Claves relevantes:
-
-- `enabled`: activa o desactiva la autoexportacion real
-- `phase`: fase activa de despliegue
-- `default_limit`: numero maximo de piezas evaluadas por corrida
-- `use_rewrite_by_default`: usa `rewritten_text` si existe; si no, cae a `text_draft`
-- `max_text_length`: limite duro para texto autoexportable
-- `duplicate_window_hours`: ventana de deduplicacion reciente
-- `max_line_breaks`: evita textos mal formados
-- `max_exports_per_run`: maximo de drafts creados por corrida
-- `max_exports_per_day`: cupo diario; `null` lo desactiva
-- `stop_on_capacity_limit`: si el canal alcanza cupo, se deja de intentar exportar mas piezas en esa corrida
-- `capacity_error_codes`: codigos del canal que se tratan como limite de capacidad y no como error tecnico
-- `phases`: define que tipos se habilitan en cada etapa
-- `validation_required_content_types`: lista de tipos con checks reforzados
-
-Cambio de fase:
-
-- fase 1 -> produccion inicial segura
-- fase 2 -> sumar narrativas metricas
-- fase 3 -> sumar `viral_story`
-
-### Quality checks
-
-La validacion automatica ocurre antes de exportar y persiste:
-
-- `quality_check_passed`
-- `quality_check_errors`
-- `quality_checked_at`
-
-Checks soportados:
-
-- texto no vacio
-- longitud maxima
-- deduplicacion reciente por hash, texto o narrativa equivalente
-- coherencia de payload y equipos referenciados
-- texto mal formado con saltos excesivos
-- umbrales minimos en `stat_narrative`, `metric_narrative` y `viral_story`
-
-CLI de depuracion:
-
-```bash
-python -m app.pipelines.editorial_quality_checks check --id 42
-python -m app.pipelines.editorial_quality_checks check-pending
-python -m app.pipelines.editorial_quality_checks dry-run --date 2026-03-20
-```
-
-### CLI de autoexportacion
-
-```bash
-python -m app.pipelines.typefully_autoexport status
-python -m app.pipelines.typefully_autoexport pending-capacity
-python -m app.pipelines.typefully_autoexport dry-run
-python -m app.pipelines.typefully_autoexport dry-run --date 2026-03-18
-python -m app.pipelines.typefully_autoexport dry-run --use-draft
-python -m app.pipelines.typefully_autoexport run
-python -m app.pipelines.typefully_autoexport run --date 2026-03-18
-python -m app.pipelines.typefully_autoexport run --use-rewrite
-```
-
-Semantica de `--date`:
-
-- filtra por `published_at` en la fecha local indicada
-- permite separar un slot editorial concreto del resto de pendientes historicos
-
-`status` muestra:
-
-- `enabled`
-- `phase`
-- tipos activos en la fase
-- tipos que exigen validacion
-- ultimo run persistido en `logs/typefully_autoexport_status.json`
-
-### Ejemplo de dry-run
-
-```text
-AUTOEXPORT phase=1 scanned=10 eligible=10 exported=5 blocked=0 capacity_deferred=5 failed=0
-executed_at=2026-03-20T10:20:00+00:00
-dry_run=true
-policy_enabled=true
-phase=1
-reference_date=2026-03-18
-scanned_count=10
-eligible_count=10
-exported_count=5
-blocked_count=0
-capacity_deferred_count=5
-failed_count=0
-capacity_limit_reached=true
-capacity_limit_reason=capacity_deferred:max_exports_per_run
-```
-
-### Ejemplo de status
-
-```text
-enabled=true
-phase=1
-max_exports_per_run=5
-max_exports_per_day=-
-stop_on_capacity_limit=true
-capacity_error_codes=MONETIZATION_ERROR
-allowed_content_types=match_result, standings, preview, ranking
-validation_required_content_types=-
-manual_review_content_types=-
-pending_capacity_count=10
-pending_normal_count=0
-last_execution=2026-03-20T10:20:00+00:00
-last_dry_run=true
-last_reference_date=2026-03-20
-last_capacity_limit_reached=true
-last_capacity_limit_reason=capacity_deferred:MONETIZATION_ERROR
-last_summary=AUTOEXPORT phase=1 scanned=10 eligible=10 exported=5 blocked=0 capacity_deferred=5 failed=0
-```
-
-### Capacidad del canal
-
-Si Typefully devuelve `MONETIZATION_ERROR` o el lote alcanza `max_exports_per_run`, el sistema trata esas piezas como `capacity_deferred`:
-
-- siguen siendo reintentables
-- no pierden elegibilidad
-- no incrementan `failed_count`
-- aparecen en `pending-capacity`
-- quedan diferenciadas de bloqueos editoriales y de errores tecnicos reales
-
-### Trazabilidad
-
-La autoexportacion reutiliza la misma persistencia que `typefully_export`:
-
-- `external_publication_ref`
-- `external_channel=typefully`
-- `external_exported_at`
-- `external_publication_attempted_at`
-- `external_publication_error`
-
-Si la politica bloquea una pieza, no se toca nada en BD. Si la pieza se difiere por capacidad, `external_publication_ref` sigue en `NULL` y `external_publication_error` queda marcado como `capacity_deferred:*` o se reconoce como tal si el error legacy contiene `MONETIZATION_ERROR`.
-
-### Forzar export manual
-
-Si una pieza falla quality checks pero quieres sacarla igualmente tras revision humana, el camino sigue siendo manual:
-
-```bash
-python -m app.pipelines.editorial_quality_checks check --id 42
-python -m app.pipelines.typefully_export dry-run --id 42
-python -m app.pipelines.typefully_export export --id 42
-```
-
-### Flujo operativo recomendado
-
-- lunes: `refresh -> readiness -> run-daily -> autoexport` de `match_result` y `standings`
-- miercoles: en fase 1 solo piezas seguras; en fase 2 ya pueden entrar `stat_narrative` y `metric_narrative` si pasan checks
-- viernes: `refresh -> readiness -> run-daily -> autoexport` de `preview`
-- domingo: `refresh -> readiness -> run-daily -> autoexport` de resultados seguros
-
-En todos los casos:
-
-- `stat_narrative`, `metric_narrative` y `viral_story` solo autoexportan si su fase esta activa y pasan `editorial_quality_checks`
-- la revision fina, programacion y salida final siguen ocurriendo en Typefully
-
-### Logs y observabilidad
-
-El slot de Windows escribe en `logs\cron_autoexport.log`. Cada corrida deja una linea-resumen legible:
-
-```text
-[2026-03-20 11:20:01 +01:00] [INFO] AUTOEXPORT phase=1 scanned=10 eligible=10 exported=5 blocked=0 capacity_deferred=5 failed=0
-```
-
-El ultimo resumen estructurado se persiste ademas en `logs/typefully_autoexport_status.json`.
-
 ## Autoaprobacion operativa y Editorial Release
 
 La capa de release automatizado vive en:
@@ -1858,7 +1477,7 @@ La capa de release automatizado vive en:
 - `app/pipelines/editorial_release.py`
 - `scripts/windows/editorial_release.ps1`
 
-No sustituye la revision humana. Abre un carril seguro para que las piezas mas mecanicas y menos sensibles lleguen solas a Typefully.
+No sustituye la revision humana. Abre un carril seguro para que las piezas mas mecanicas y menos sensibles lleguen solas al estado `published` y al handoff estructurado.
 
 ### Politica exacta de autoaprobacion
 
@@ -1891,8 +1510,7 @@ draft
 -> approved
 -> publication_dispatch
 -> published
--> typefully_autoexport
--> Typefully draft
+-> export_base
 ```
 
 La autoaprobacion persiste:
@@ -1923,11 +1541,7 @@ autoapprovable_count=15
 autoapproved_count=15
 manual_review_count=3
 dispatched_count=15
-autoexport_scanned_count=15
-autoexport_eligible_count=15
-autoexport_exported_count=15
-autoexport_blocked_count=0
-autoexport_failed_count=0
+export_base_total_items=15
 ```
 
 ### Uso operativo
@@ -1935,8 +1549,8 @@ autoexport_failed_count=0
 - `Editorial Day` sigue generando `drafts`
 - `Editorial Release` autoaprueba solo piezas seguras
 - las narrativas sensibles siguen en `editorial_queue`
-- Typefully pasa a ser el panel real para revisar, editar, programar o descartar las piezas seguras ya exportadas
-- `typefully_export` manual sigue disponible para cualquier pieza fuera del carril automatico
+- `export_base.json` pasa a ser el handoff estructurado para consumo externo
+- `x_publish` sigue siendo un canal manual y desacoplado
 
 ### Verificar configuracion
 
@@ -1954,17 +1568,17 @@ El dry-run:
 
 - valida elegibilidad del `content_candidate`
 - valida que `text_draft` no este vacio
-- no hace llamada real a Typefully
+- no hace llamada real al canal externo
 - no persiste `external_publication_ref`
 
-Eso permite probar el flujo local aunque no haya acceso real a la API externa en el entorno.
+Eso permite probar el flujo local aunque no haya acceso real al canal externo en el entorno.
 
 ### Trazabilidad persistida en BD
 
-Tras una exportacion correcta a Typefully se guardan:
+Tras una salida externa correcta se guardan:
 
-- `external_publication_ref`: id del draft devuelto por Typefully
-- `external_channel`: `typefully`
+- `external_publication_ref`: id devuelto por el canal
+- `external_channel`: nombre del canal usado
 - `external_exported_at`: momento local del exito de exportacion
 - `external_publication_attempted_at`: ultimo intento de salida
 - `external_publication_error`: `NULL` en exito
@@ -1980,33 +1594,22 @@ Si falla la exportacion:
 ### Diferencia frente a publicar en X
 
 - `x_publish` intenta publicar directamente en X
-- `typefully_export` solo crea drafts para revision posterior
-- `typefully_export` puede usar `rewritten_text` si existe, pero sin modificar nunca `text_draft`
-- Typefully no reemplaza `content_candidates`, la cola editorial ni el dispatcher
+- `x_publish` trabaja sobre `text_draft`
 - la pieza sigue considerandose resuelta editorialmente en el core antes de llegar al canal externo
 
 ### Validacion real local
 
 En este entorno la integracion queda preparada para:
 
-- `verify-config` funcional
-- `dry-run` funcional
+- `x_publish dry-run` funcional
 - cliente HTTP encapsulado
 - tests con mocks sin llamadas reales
 
 Para una validacion real local hace falta:
 
-- `TYPEFULLY_API_KEY` valida
-- `TYPEFULLY_API_URL` valida
-- al menos un `social_set` utilizable en la cuenta
-- ejecutar `python -m app.pipelines.typefully_export export --id <ID>` o `export-ready`
-
-### Limitaciones abiertas de Typefully
-
-- el modelo actual soporta una sola referencia externa por `content_candidate`
-- no se sincroniza el estado posterior del draft dentro de Typefully
-- no se recupera aun URL de share, programacion final ni estado de publicacion del draft
-- si hay varios `social_sets`, hoy se necesita fijar uno por config para evitar ambiguedad
+- credenciales validas de X
+- un token de usuario vigente
+- ejecutar `python -m app.pipelines.x_publish publish --id <ID>`
 - la publicacion real sigue ocurriendo fuera del sistema, dentro de Typefully
 
 ## Testing
@@ -2029,10 +1632,9 @@ Principios:
 - esos scripts solo invocan `app.pipelines.*`
 - no hay WSL obligatorio
 - no hay scheduler dentro del backend
-- la generacion diaria y la autoexportacion controlada pueden programarse por Task Scheduler
-- review queue, `approve/reject`, `dispatch` sensible y la edicion final en Typefully siguen siendo manuales
+- la generacion diaria y el release controlado pueden programarse por Task Scheduler
+- review queue, `approve/reject`, `dispatch` sensible y la salida externa siguen siendo manuales
 - `run_editorial_day.ps1` soporta `-PreviewOnly` y `PREVIEW_ONLY=true`
-- `typefully_autoexport.ps1` ejecuta internamente `quality_checks -> autoexport`
 
 ## Automatizacion con cron
 
@@ -2043,7 +1645,7 @@ Principios:
 - `cron` solo ejecuta scripts shell ligeros
 - los scripts shell solo llaman a `app.pipelines.*`
 - no hay autopublicacion
-- review queue, `approve/reject`, `dispatch` y Typefully siguen siendo manuales
+- review queue, `approve/reject`, `dispatch` y la salida externa siguen siendo manuales
 - para primer despliegue puede usarse `PREVIEW_ONLY=true` en `run_editorial_day.sh`
 
 ### Cobertura minima incluida

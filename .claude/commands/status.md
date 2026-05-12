@@ -40,3 +40,5 @@ Próxima acción: [descripción]
 ```
 
 Si hay candidatas en draft que podrían aprobarse, indícalo. Si hay fallos de quality checks, muestra qué tipo de error es el más frecuente.
+
+Para tendencias históricas, ejecuta `/metrics`.
