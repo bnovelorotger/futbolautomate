@@ -8,6 +8,22 @@
     "relegation_positions": [14, 15, 16, 17, 18]
   },
   "division_honor_mallorca": {
+    "playoff_positions": [2, 3, 4],
+    "relegation_positions": [16, 17, 18]
+  },
+  "tercera_federacion_femenina_g11": {
+    "playoff_positions": [1],
+    "relegation_positions": []
+  },
+  "primera_rfef_baleares": {
+    "playoff_positions": [2],
+    "relegation_positions": [16, 17, 18, 19, 20]
+  },
+  "division_honor_ibiza_form": {
+    "playoff_positions": [],
+    "relegation_positions": []
+  },
+  "division_honor_menorca": {
     "playoff_positions": [],
     "relegation_positions": []
   }

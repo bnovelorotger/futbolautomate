@@ -68,7 +68,12 @@ jobs:
       - name: Type check (core + db models)
         run: mypy app/core/ app/db/models.py app/db/base.py --ignore-missing-imports
 
-      # 8. Execute only the unit test suite.
+      # 8. Validate internal consistency of the JSON config files before running
+      #    tests.  The script is pure stdlib — no database or secrets required.
+      - name: Validate config files
+        run: python scripts/validate_config.py
+
+      # 9. Execute only the unit test suite.
       #    -q        — quiet output (dots instead of test names)
       #    --tb=short — show compact tracebacks on failure
       #    Integration tests under tests/integration/ are intentionally skipped
@@ -76,8 +81,8 @@ jobs:
       - name: Run unit tests
         run: pytest tests/unit/ -q --tb=short --cov=app --cov-report=term-missing --cov-report=xml:coverage.xml
 
-      # 9. Append a Markdown coverage table to the GitHub Actions job summary.
-      #    Runs even if the test step fails so partial coverage is still visible.
+      # 10. Append a Markdown coverage table to the GitHub Actions job summary.
+      #     Runs even if the test step fails so partial coverage is still visible.
       - name: Coverage summary
         if: always()
         run: |
