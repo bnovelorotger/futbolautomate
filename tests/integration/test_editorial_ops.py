@@ -37,7 +37,7 @@ def test_editorial_ops_preview_and_run_daily_for_real_schedule() -> None:
         session.close()
 
 
-def test_editorial_ops_run_daily_generates_narrative_triad_for_available_wednesday_data() -> None:
+def test_editorial_ops_run_daily_generates_narrative_duo_for_available_wednesday_data() -> None:
     session = build_session()
     try:
         CompetitionCatalogService(session).seed_competitions(integrated_only=True, missing_only=True)
@@ -48,7 +48,6 @@ def test_editorial_ops_run_daily_generates_narrative_triad_for_available_wednesd
         session.commit()
 
         rows = session.execute(select(ContentCandidate).order_by(ContentCandidate.id.asc())).scalars().all()
-        stat_rows = [row for row in rows if row.content_type == "stat_narrative"]
         metric_rows = [row for row in rows if row.content_type == "metric_narrative"]
         viral_rows = [row for row in rows if row.content_type == "viral_story"]
         generated_competitions = {
@@ -56,11 +55,9 @@ def test_editorial_ops_run_daily_generates_narrative_triad_for_available_wednesd
             "segunda_rfef_g3_baleares",
         }
 
-        assert run.total_tasks == 11
-        assert stat_rows
+        assert run.total_tasks == 6
         assert metric_rows
         assert viral_rows
-        assert {row.competition_slug for row in stat_rows} == generated_competitions
         assert {row.competition_slug for row in metric_rows} == generated_competitions
         assert {row.competition_slug for row in viral_rows} == generated_competitions
     finally:
@@ -129,10 +126,10 @@ def test_editorial_ops_preview_and_run_daily_generate_featured_match_drafts_on_f
             if row.planning_type == EditorialPlanningContent.FEATURED_MATCH_PREVIEW
         ]
 
-        assert preview.total_tasks == 8
-        assert preview.ready_tasks == 5
+        assert preview.total_tasks == 5
+        assert preview.ready_tasks == 2
         assert preview.blocked_tasks == 3
-        assert len(featured_preview_rows) == 3
+        assert len(featured_preview_rows) == 5
         segunda_featured_row = next(
             row for row in featured_preview_rows if row.competition_slug == "segunda_rfef_g3_baleares"
         )
@@ -148,7 +145,7 @@ def test_editorial_ops_preview_and_run_daily_generate_featured_match_drafts_on_f
         assert not tercera_featured_row.missing_dependencies
         assert division_honor_featured_row.expected_count == 2
         assert not division_honor_featured_row.missing_dependencies
-        assert run.generated_total == 7
+        assert run.generated_total == 4
         assert featured_rows
         assert all(row.status == "draft" for row in featured_rows)
         assert {row.competition_slug for row in featured_rows} == {
