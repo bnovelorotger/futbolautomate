@@ -215,7 +215,7 @@ def test_build_standings_image_context_marks_tracked_teams_inside_full_standings
         session.close()
 
 
-def test_build_standings_image_context_handles_competitions_without_zones_or_tracked_teams() -> None:
+def test_build_standings_image_context_handles_configured_zones_without_tracked_teams() -> None:
     session = build_session()
     try:
         seed_competition(
@@ -252,7 +252,7 @@ def test_build_standings_image_context_handles_competitions_without_zones_or_tra
         assert context["total_teams"] == 3
         assert [row["position"] for row in context["rows"]] == [1, 2, 3]
         assert context["rows"][0]["is_leader"] is True
-        assert all(row["zone"] is None for row in context["rows"])
+        assert [row["zone"] for row in context["rows"]] == [None, "playoff", "playoff"]
         assert all(row["is_tracked_team"] is False for row in context["rows"])
         assert context["has_tracked_teams"] is False
         assert context["tracked_teams_present"] == []

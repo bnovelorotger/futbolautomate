@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from typing import Any
 
 from app.core.catalog import load_competition_catalog
@@ -54,6 +55,11 @@ def _string(value: Any) -> str | None:
     return None
 
 
+def _fold_text(value: str) -> str:
+    normalized = unicodedata.normalize("NFKD", value)
+    return "".join(char for char in normalized if not unicodedata.combining(char)).lower()
+
+
 def get_competition_name(competition_slug: str) -> str:
     catalog = load_competition_catalog()
     definition = catalog.get(competition_slug)
@@ -65,7 +71,7 @@ def get_competition_name(competition_slug: str) -> str:
 def build_competition_title(competition_slug: str, competition_name: str) -> str:
     if competition_slug in COMPETITION_SHORT_NAMES:
         return COMPETITION_SHORT_NAMES[competition_slug]
-    lowered_name = competition_name.lower()
+    lowered_name = _fold_text(competition_name)
     if "tercera" in lowered_name or "3a rfef" in lowered_name or "3ª rfef" in lowered_name:
         return "3ª RFEF"
     if "segunda" in lowered_name or "2a rfef" in lowered_name or "2ª rfef" in lowered_name:
