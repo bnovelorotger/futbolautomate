@@ -23,6 +23,13 @@ class EditorialCompetitionReadinessRow(BaseModel):
     missing_dependencies: list[str] = Field(default_factory=list)
 
 
+class ZeroRecordScraperRun(BaseModel):
+    scraper_name: str
+    source_name: str
+    competition_code: str | None
+    started_at: datetime
+
+
 class EditorialReadinessReport(BaseModel):
     checked_at: datetime
     integrated_catalog_count: int
@@ -33,3 +40,4 @@ class EditorialReadinessReport(BaseModel):
     content_candidates_total: int
     content_candidates_pending_export: int
     rows: list[EditorialCompetitionReadinessRow] = Field(default_factory=list)
+    zero_record_scraper_runs: list[ZeroRecordScraperRun] = Field(default_factory=list)

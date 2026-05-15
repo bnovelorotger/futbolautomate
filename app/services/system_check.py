@@ -10,7 +10,8 @@ from app.core.config import Settings, get_settings
 from app.core.editorial_schedule import load_editorial_schedule
 from app.core.enums import CompetitionIntegrationStatus, ContentCandidateStatus, EditorialPlanningContent
 from app.db.models import ContentCandidate
-from app.schemas.system_check import EditorialCompetitionReadinessRow, EditorialReadinessReport
+from app.db.repositories.scraper_runs import ScraperRunRepository
+from app.schemas.system_check import EditorialCompetitionReadinessRow, EditorialReadinessReport, ZeroRecordScraperRun
 from app.services.competition_catalog_service import CompetitionCatalogService
 from app.utils.time import utcnow
 
@@ -90,6 +91,8 @@ class SystemCheckService:
             )
         ) or 0
 
+        zero_record_runs = ScraperRunRepository(self.session).get_zero_record_runs(days=7)
+
         return EditorialReadinessReport(
             checked_at=utcnow(),
             integrated_catalog_count=len(integrated_codes),
@@ -100,6 +103,15 @@ class SystemCheckService:
             content_candidates_total=content_candidates_total,
             content_candidates_pending_export=content_candidates_pending_export,
             rows=rows,
+            zero_record_scraper_runs=[
+                ZeroRecordScraperRun(
+                    scraper_name=run.scraper_name,
+                    source_name=run.source_name,
+                    competition_code=run.competition_code,
+                    started_at=run.started_at,
+                )
+                for run in zero_record_runs
+            ],
         )
 
     def _planned_types_by_competition(self) -> dict[str, list[EditorialPlanningContent]]:

@@ -25,4 +25,14 @@ def render_editorial_readiness(report: EditorialReadinessReport) -> str:
             f"scheduled={row.scheduled_matches_count} | standings={row.standings_count} | "
             f"candidates={row.content_candidates_count} | pending_export={row.pending_export_count} | missing={missing}"
         )
+
+    if report.zero_record_scraper_runs:
+        lines.append("")
+        lines.append("⚠️  Scrapers with 0 records (last 7 days):")
+        for run in report.zero_record_scraper_runs:
+            competition = run.competition_code or "-"
+            lines.append(
+                f"  {run.scraper_name} | source={run.source_name} | competition={competition} | started_at={run.started_at.isoformat()}"
+            )
+
     return "\n".join(lines).rstrip()
