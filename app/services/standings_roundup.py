@@ -135,6 +135,7 @@ class StandingsRoundupService:
                 "reference_date": preview.reference_date.isoformat(),
                 "selected_rows_count": len(payload_rows),
                 "omitted_rows_count": max(0, len(preview.rows) - len(payload_rows)),
+                "table_insights": preview.table_insights,
                 "rows": payload_rows,
                 "max_characters": preview.max_characters,
                 "part_index": part_index,
@@ -211,10 +212,11 @@ class StandingsRoundupService:
     ) -> StandingsRoundupPreviewResult:
         competition = self._competition(competition_code)
         selected_date = self._reference_date(reference_date)
-        standings = self._current_standings(competition_code)
+        full_standings = self._all_standings(competition_code)
+        standings = self.relevance.filter_standing_views(competition_code, full_standings)
         group_label = self._group_label(
             competition_code,
-            standings,
+            full_standings,
             reference_date=selected_date,
         )
         selected_rows, omitted_count, text_draft = self._build_text(
@@ -233,6 +235,7 @@ class StandingsRoundupService:
             omitted_rows_count=omitted_count,
             max_characters=self.max_characters,
             text_draft=text_draft,
+            table_insights=self._table_insights(competition_code, full_standings),
             rows=selected_rows,
         )
 
@@ -419,14 +422,74 @@ class StandingsRoundupService:
             return None
         return int(match.group(1))
 
-    def _current_standings(self, competition_code: str) -> list[StandingView]:
+    def _all_standings(self, competition_code: str) -> list[StandingView]:
         try:
-            standings = self.queries.current_standings(competition_code)
-            return self.relevance.filter_standing_views(competition_code, standings)
+            return self.queries.current_standings(competition_code)
         except ConfigurationError as exc:
             if "No hay clasificacion disponible" in str(exc):
                 return []
             raise
+
+    def _table_insights(self, competition_code: str, standings: list[StandingView]) -> dict[str, Any]:
+        if not standings or self.relevance.has_tracked_teams(competition_code):
+            return {}
+
+        ordered_rows = sorted(standings, key=lambda row: row.position)
+        rows_by_position = {row.position: row for row in ordered_rows}
+        insights: dict[str, Any] = {}
+
+        leader = rows_by_position.get(1)
+        challenger = rows_by_position.get(2)
+        if leader is not None and leader.points is not None:
+            insights["leader_team"] = leader.team
+            insights["leader_points"] = leader.points
+        if (
+            leader is not None
+            and challenger is not None
+            and leader.points is not None
+            and challenger.points is not None
+        ):
+            insights["second_team"] = challenger.team
+            insights["second_points"] = challenger.points
+            insights["title_gap"] = leader.points - challenger.points
+
+        zone_config = self.zones.get(competition_code)
+        playoff_positions = list(zone_config.playoff_positions if zone_config is not None else [])
+        relegation_positions = list(zone_config.relegation_positions if zone_config is not None else [])
+
+        if playoff_positions:
+            playoff_cutoff_position = max(playoff_positions)
+            playoff_cutoff = rows_by_position.get(playoff_cutoff_position)
+            playoff_outside = rows_by_position.get(playoff_cutoff_position + 1)
+            if (
+                playoff_cutoff is not None
+                and playoff_outside is not None
+                and playoff_cutoff.points is not None
+                and playoff_outside.points is not None
+            ):
+                insights["playoff_cutoff_team"] = playoff_cutoff.team
+                insights["playoff_cutoff_points"] = playoff_cutoff.points
+                insights["playoff_outside_team"] = playoff_outside.team
+                insights["playoff_outside_points"] = playoff_outside.points
+                insights["playoff_gap"] = playoff_cutoff.points - playoff_outside.points
+
+        if relegation_positions:
+            relegation_line = min(relegation_positions)
+            safe_row = rows_by_position.get(relegation_line - 1)
+            relegation_row = rows_by_position.get(relegation_line)
+            if (
+                safe_row is not None
+                and relegation_row is not None
+                and safe_row.points is not None
+                and relegation_row.points is not None
+            ):
+                insights["safe_team"] = safe_row.team
+                insights["safe_points"] = safe_row.points
+                insights["relegation_team"] = relegation_row.team
+                insights["relegation_points"] = relegation_row.points
+                insights["relegation_gap"] = safe_row.points - relegation_row.points
+
+        return insights
 
     def _competition(self, competition_code: str) -> Competition:
         competition = self.session.scalar(select(Competition).where(Competition.code == competition_code))

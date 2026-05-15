@@ -19,8 +19,9 @@ Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolida
 - `editorial_release` + `export_base_service` para generar `exports/export_base.json` como salida estructurada por defecto
 - `legacy_export_json_enabled` para reactivar `export/legacy_export.json` via `export_json_service` solo por compatibilidad
 - catalogo integrado ampliado con `primera_rfef_baleares`, `tercera_federacion_femenina_g11`, `division_honor_ibiza_form` y `division_honor_menorca`
-- planner semanal afinado: lunes cubre `results_roundup + standings_roundup` en las siete integradas, miercoles anade la triada narrativa (`stat_narrative`, `metric_narrative`, `viral_story`) para `tercera_rfef_g11`, `segunda_rfef_g3_baleares` y `tercera_federacion_femenina_g11`, jueves abre un bloque de `preview` para las cinco competiciones principales con una ventana equivalente al viernes, mantiene `ranking` en `primera_rfef_baleares`, y viernes conserva `preview` mas el bloque destacado donde aplica
-- `division_honor_mallorca` entra tambien en viernes para `preview` y `featured_match_preview`
+- planner semanal afinado: lunes cubre `results_roundup + standings_roundup` en las siete integradas, miercoles reduce la narrativa automatica al duo (`metric_narrative`, `viral_story`) para `tercera_rfef_g11`, `segunda_rfef_g3_baleares` y `tercera_federacion_femenina_g11`, jueves queda sin slots activos por defecto, y viernes se centra en `featured_match_preview` para `tercera_rfef_g11`, `segunda_rfef_g3_baleares`, `division_honor_mallorca`, `tercera_federacion_femenina_g11` y `primera_rfef_baleares`
+- `results_roundup` ahora adjunta `results_insights` con contexto de liderato, zona alta, goleada, partido mas abierto y eventos recientes de tabla cuando hay historial suficiente
+- `standings_roundup` expone `table_insights` con brechas de liderato, corte de playoff y salvacion cuando la competicion tiene tabla completa y zonas configuradas
 - `editorial_summary` usa una ventana editorial corta para previas: se queda con la ronda inmediata y descarta jornadas demasiado lejanas
 - `competition_queries.editorial_upcoming_matches` extiende el alcance de previa hasta el siguiente domingo cuando el planner corre jueves o viernes
 - `results_roundup` y `standings_roundup` pasan a priorizar una pieza unica completa; el formatter quita hashtags y compacta el titulo antes de recortar marcadores o filas
@@ -277,16 +278,15 @@ Choque de equipos en forma en 3a RFEF Baleares: CD Manacor y RCD Mallorca B lleg
 
 Estado operativo:
 - los viernes entra en el planner como bloque separado de `featured_match_preview`
-- ya cubre `tercera_rfef_g11`, `segunda_rfef_g3_baleares`, `primera_rfef_baleares`, `tercera_federacion_femenina_g11`, `division_honor_mallorca`, `division_honor_ibiza_form` y `division_honor_menorca`
+- hoy cubre `tercera_rfef_g11`, `segunda_rfef_g3_baleares`, `division_honor_mallorca`, `tercera_federacion_femenina_g11` y `primera_rfef_baleares`
 - genera drafts manuales revisables
 - `featured_match_preview` sigue manual
 - `featured_match_event` sigue manual en produccion v1
 
 Integracion editorial actual:
-- jueves -> `preview` general por competicion con horizonte extendido para capturar la jornada inmediata del viernes
-- viernes -> `preview` general por competicion
-- viernes -> `featured_match_preview` como bloque aparte
-- `division_honor_mallorca` queda ya incluida en ambos bloques del viernes
+- jueves -> sin slots activos por defecto en el planner semanal
+- viernes -> `featured_match_preview` como bloque semanal unico
+- `division_honor_mallorca` queda incluida en ese bloque del viernes
 - el bloque destacado usa `match_importance` y genera dos drafts:
   - `featured_match_preview`
   - `featured_match_event`
@@ -324,6 +324,11 @@ Control de longitud:
 - antes de cortar marcadores intenta quitar hashtags y compactar el titulo
 - incluye tantos marcadores como quepan
 - si no caben todos, recorta y anade una linea final tipo `+N resultados mas`
+
+Insights estructurados:
+- `source_payload.results_insights` guarda contexto reutilizable para formatter, export y validacion
+- puede incluir `leader_match`, `top_match`, `biggest_margin_match`, `highest_scoring_match` y hasta dos `table_events`
+- cada insight mantiene marcador, posiciones, ganador y brechas de tabla cuando existen
 
 CLI:
 
@@ -381,6 +386,11 @@ Texto:
 - sin analisis inventado
 - apto para `exports/export_base.json` y para publicacion posterior en X
 - si aprieta la longitud, intenta quitar hashtags y compactar el titulo antes de recortar filas
+
+Insights estructurados:
+- `source_payload.table_insights` resume lider, perseguidor, corte de playoff y linea de salvacion
+- solo se emite cuando hay clasificacion completa util y la competicion no esta filtrada a `tracked_teams`
+- el formatter puede usarlo para sacar una version viral centrada en brechas reales de tabla en vez de repetir filas
 
 CLI:
 
@@ -454,6 +464,9 @@ Reglas:
 - usa titulos narrativos por etiqueta: `💪🏼 Forma`, `📈 Tendencia` y `🔥 Dato`
 - objetivo de longitud `<= 240`
 - si un texto se pasa, reduce secciones opcionales; no corta cadenas arbitrariamente
+- en `results_roundup` prioriza una cabecera compacta seguida de hasta dos lineas de insight si mejoran la salida social
+- en `standings_roundup` intenta una version viral basada en brechas de liderato, playoff y salvacion antes de caer al resumen tabular clasico
+- en `featured_match_preview` anade contexto corto de posiciones, forma reciente y tipo de duelo cuando cabe
 
 Menciones y hashtags:
 - `team_socials` es la fuente principal de handles
@@ -703,9 +716,9 @@ python -m app.pipelines.system_check editorial-readiness
 Notas operativas:
 - `results_roundup` y `standings_roundup` son la salida principal de resultados y clasificacion
 - `match_result` y `standings` se mantienen como fallback/legacy manual
-- `preview` y `ranking` siguen siendo piezas automaticas seguras
-- el planner puede adelantar `preview` al jueves y al viernes sin perder la jornada inmediata del siguiente domingo
-- `stat_narrative`, `metric_narrative` y `viral_story` pueden salir en automatico solo martes/miercoles y solo con quality checks en verde
+- `preview` y `ranking` siguen siendo piezas seguras, aunque el planner semanal por defecto ya no reserve slots especificos de previa
+- la narrativa automatica semanal queda en `metric_narrative` y `viral_story`; `stat_narrative` sale del planner por defecto
+- martes y miercoles siguen siendo la ventana de autoaprobacion potencial para narrativas cuando pasan `quality_checks`
 - `editorial_release` no se limita a lo generado en el mismo dia: tambien puede publicar candidatas ya aprobadas si su ventana real ya ha llegado
 - `editorial_release` genera `exports/export_base.json` como snapshot estructurado por defecto
 - `export_base generate` regenera ese mismo snapshot de forma manual si lo necesitas fuera del release

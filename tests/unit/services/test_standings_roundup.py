@@ -32,6 +32,25 @@ def test_standings_roundup_builds_compact_table_with_zone_markers() -> None:
         session.close()
 
 
+def test_standings_roundup_preview_exposes_table_insights_for_full_competitions() -> None:
+    session = build_session()
+    try:
+        seed_form_data(session)
+        result = StandingsRoundupService(session).show_for_competition(
+            "tercera_rfef_g11",
+            reference_date=date(2026, 3, 16),
+        )
+
+        assert result.table_insights["leader_team"] == "CE Alpha"
+        assert result.table_insights["leader_points"] == 53
+        assert result.table_insights["second_team"] == "CE Beta"
+        assert result.table_insights["title_gap"] == 1
+        assert result.table_insights["playoff_cutoff_team"] == "CE Epsilon"
+        assert result.table_insights["playoff_gap"] == 4
+    finally:
+        session.close()
+
+
 def test_standings_roundup_does_not_mix_competitions() -> None:
     session = build_session()
     try:

@@ -29,6 +29,7 @@ class ResultsRoundupPreviewResult(BaseModel):
     omitted_matches_count: int = 0
     max_characters: int
     text_draft: str | None = None
+    results_insights: dict = Field(default_factory=dict)
     matches: list[ResultsRoundupMatchView] = Field(default_factory=list)
 
 

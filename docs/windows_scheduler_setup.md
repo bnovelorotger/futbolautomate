@@ -42,11 +42,10 @@ Ruta: `scripts/windows/`
   - si `PREVIEW_ONLY=true` o `-PreviewOnly`, termina sin `run-daily`
   - si no, ejecuta `run-daily`
   - los lunes el planner ya cubre `results_roundup + standings_roundup` para las siete competiciones integradas
-  - los miercoles el planner incluye triada narrativa (`stat_narrative`, `metric_narrative`, `viral_story`) para `tercera_rfef_g11`, `segunda_rfef_g3_baleares` y `tercera_federacion_femenina_g11`
-  - los jueves el planner abre `preview` para `tercera_rfef_g11`, `segunda_rfef_g3_baleares`, `division_honor_mallorca`, `tercera_federacion_femenina_g11` y `primera_rfef_baleares`
-  - jueves y viernes la consulta editorial de previas extiende el horizonte hasta el siguiente domingo para no perder la jornada inmediata
-  - los viernes el planner ya incluye `division_honor_mallorca` en `preview` y `featured_match_preview`
-  - `primera_rfef_baleares` y `tercera_federacion_femenina_g11` entran en `preview` sin activar todavia `featured_match_preview`
+  - los miercoles la narrativa automatica queda en `metric_narrative + viral_story` para `tercera_rfef_g11`, `segunda_rfef_g3_baleares` y `tercera_federacion_femenina_g11`
+  - los jueves no tienen slots activos por defecto en el planner semanal
+  - la consulta editorial de previas puede seguir extendiendo el horizonte hasta el siguiente domingo cuando se usa en jueves o viernes
+  - los viernes el planner se centra en `featured_match_preview` para `tercera_rfef_g11`, `segunda_rfef_g3_baleares`, `division_honor_mallorca`, `tercera_federacion_femenina_g11` y `primera_rfef_baleares`
 - `editorial_release.ps1`
   - ejecuta `editorial_release dry-run` o `run`
   - el pipeline interno hace `quality_checks -> autoapprove -> dispatch -> export_base`

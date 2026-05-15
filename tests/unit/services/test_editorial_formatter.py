@@ -94,6 +94,105 @@ def test_format_results_summary_uses_new_editorial_title_and_hashtags() -> None:
         session.close()
 
 
+def test_build_text_layers_produce_viral_results_with_round_insights() -> None:
+    session = build_session()
+    try:
+        seed_catalog(session)
+        service = EditorialFormatterService(session)
+        draft = ContentCandidateDraft(
+            competition_slug="tercera_rfef_g11",
+            content_type=ContentType.RESULTS_ROUNDUP,
+            priority=99,
+            text_draft="RESULTADOS",
+            source_summary_hash="hash-results-insights",
+            status=ContentCandidateStatus.DRAFT,
+            payload_json={
+                "competition_name": "3a RFEF Baleares",
+                "source_payload": {
+                    "group_label": "Jornada 26",
+                    "results_insights": {
+                        "leader_match": {
+                            "leader_team": "CD Manacor",
+                            "leader_gap": 2,
+                            "leader_chaser_team": "RCD Mallorca B",
+                            "current_position": 1,
+                            "home_team": "CD Manacor",
+                            "away_team": "RCD Mallorca B",
+                            "home_score": 2,
+                            "away_score": 1,
+                            "winner_team": "CD Manacor",
+                            "result": "home_win",
+                        },
+                        "highest_scoring_match": {
+                            "home_team": "CE Felanitx",
+                            "away_team": "CD Llosetense",
+                            "home_score": 2,
+                            "away_score": 2,
+                            "total_goals": 4,
+                        },
+                    },
+                    "matches": [
+                        {"home_team": "CD Manacor", "away_team": "RCD Mallorca B", "home_score": 2, "away_score": 1},
+                        {"home_team": "CE Felanitx", "away_team": "CD Llosetense", "home_score": 2, "away_score": 2},
+                    ],
+                },
+            },
+        )
+
+        layers = service.build_text_layers_for_draft(draft)
+
+        assert layers.viral_formatted_text is not None
+        assert "Liderato: @cdmanacor gana 2-1 a RCD Mallorca B | manda con +2 sobre RCD Mallorca B" in layers.viral_formatted_text
+        assert "Partido con mas goles: CE Felanitx 2-2 CD Llosetense" in layers.viral_formatted_text
+    finally:
+        session.close()
+
+
+def test_build_text_layers_produce_viral_results_with_table_event_insights() -> None:
+    session = build_session()
+    try:
+        seed_catalog(session)
+        service = EditorialFormatterService(session)
+        draft = ContentCandidateDraft(
+            competition_slug="tercera_rfef_g11",
+            content_type=ContentType.RESULTS_ROUNDUP,
+            priority=99,
+            text_draft="RESULTADOS",
+            source_summary_hash="hash-results-table-events",
+            status=ContentCandidateStatus.DRAFT,
+            payload_json={
+                "competition_name": "3a RFEF Baleares",
+                "source_payload": {
+                    "group_label": "Jornada 26",
+                    "results_insights": {
+                        "table_events": [
+                            {
+                                "event_type": "entered_playoff",
+                                "team": "CD Manacor",
+                                "current_position": 4,
+                                "previous_position": 5,
+                                "position_delta": 1,
+                                "playoff_cutoff_position": 4,
+                                "playoff_margin": 1,
+                            }
+                        ]
+                    },
+                    "matches": [
+                        {"home_team": "CD Manacor", "away_team": "RCD Mallorca B", "home_score": 2, "away_score": 1},
+                        {"home_team": "CE Felanitx", "away_team": "CD Llosetense", "home_score": 2, "away_score": 2},
+                    ],
+                },
+            },
+        )
+
+        layers = service.build_text_layers_for_draft(draft)
+
+        assert layers.viral_formatted_text is not None
+        assert "Impacto tabla: @cdmanacor entra en playoff | protege el playoff con +1" in layers.viral_formatted_text
+    finally:
+        session.close()
+
+
 def test_format_standings_summary_keeps_zone_markers_and_new_title() -> None:
     session = build_session()
     try:
@@ -126,6 +225,50 @@ def test_format_standings_summary_keeps_zone_markers_and_new_title() -> None:
         assert "[PO]" in formatted
         assert "[DESC]" in formatted
         assert formatted.rstrip().endswith("#FutbolBalear #3aRFEF")
+    finally:
+        session.close()
+
+
+def test_build_text_layers_produce_viral_standings_with_table_insights() -> None:
+    session = build_session()
+    try:
+        seed_catalog(session)
+        service = EditorialFormatterService(session)
+        draft = ContentCandidateDraft(
+            competition_slug="tercera_rfef_g11",
+            content_type=ContentType.STANDINGS_ROUNDUP,
+            priority=82,
+            text_draft="CLASIFICACION",
+            source_summary_hash="hash-standings-insights",
+            status=ContentCandidateStatus.DRAFT,
+            payload_json={
+                "competition_name": "3a RFEF Baleares",
+                "source_payload": {
+                    "group_label": "Jornada 26",
+                    "table_insights": {
+                        "leader_team": "RCD Mallorca B",
+                        "leader_points": 66,
+                        "second_team": "CD Manacor",
+                        "title_gap": 2,
+                        "playoff_cutoff_team": "CE Mercadal",
+                        "playoff_cutoff_points": 46,
+                        "playoff_outside_team": "CD Ibiza",
+                        "playoff_gap": 1,
+                    },
+                    "rows": [
+                        {"position": 1, "team": "RCD Mallorca B", "points": 66},
+                        {"position": 2, "team": "CD Manacor", "points": 64, "zone_tag": "playoff"},
+                        {"position": 5, "team": "CE Mercadal", "points": 46, "zone_tag": "playoff"},
+                    ],
+                },
+            },
+        )
+
+        layers = service.build_text_layers_for_draft(draft)
+
+        assert layers.viral_formatted_text is not None
+        assert "Liderato: RCD Mallorca B 66 pts | +2 sobre @cdmanacor" in layers.viral_formatted_text
+        assert "Corte PO: CE Mercadal 46 pts | +1 sobre CD Ibiza" in layers.viral_formatted_text
     finally:
         session.close()
 
@@ -550,6 +693,11 @@ def test_build_text_layers_produce_viral_preview_with_key_match_mentions() -> No
                 "competition_name": "2a RFEF con equipos baleares",
                 "source_payload": {
                     "featured_match": {"round_name": "Jornada 28", "home_team": "Atletico Baleares", "away_team": "UD Poblense"},
+                    "home_position": 2,
+                    "away_position": 3,
+                    "home_recent_points": 11,
+                    "away_recent_points": 9,
+                    "primary_tag": "playoff_clash",
                     "matches": [
                         {"round_name": "Jornada 28", "home_team": "Atletico Baleares", "away_team": "UD Poblense"},
                         {"round_name": "Jornada 28", "home_team": "UE Sant Andreu", "away_team": "UE Olot"},
@@ -565,6 +713,7 @@ def test_build_text_layers_produce_viral_preview_with_key_match_mentions() -> No
         assert "Partidos:\nAtlético Baleares vs UD Poblense" in layers.viral_formatted_text
         assert "Partido clave:" in layers.viral_formatted_text
         assert "Partido clave:\n@atleticbalears vs UD Poblense" in layers.viral_formatted_text
+        assert "2o vs 3o | duelo directo por playoff | 11 y 9 pts de 15" in layers.viral_formatted_text
         assert layers.viral_formatted_text.count("@atleticbalears") == 1
         assert layers.viral_formatted_text.endswith("#FutbolBalear #2aRFEF")
     finally:

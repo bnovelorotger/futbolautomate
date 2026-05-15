@@ -39,26 +39,9 @@ def test_default_editorial_schedule_loads_expected_rules() -> None:
     )
     assert any(rule.content_type == EditorialPlanningContent.METRIC_NARRATIVE for rule in wednesday_rules)
     assert any(rule.content_type == EditorialPlanningContent.VIRAL_STORY for rule in wednesday_rules)
-    assert any(
-        rule.competition_slug == "primera_rfef_baleares"
-        and rule.content_type == EditorialPlanningContent.RANKING
-        for rule in wednesday_rules
-    )
-    assert len(thursday_rules) == 5
-    assert {rule.competition_slug for rule in thursday_rules} == {
-        "tercera_rfef_g11",
-        "segunda_rfef_g3_baleares",
-        "division_honor_mallorca",
-        "tercera_federacion_femenina_g11",
-        "primera_rfef_baleares",
-    }
-    assert {
-        rule.content_type for rule in thursday_rules
-    } == {
-        EditorialPlanningContent.PREVIEW,
-    }
+    assert len(thursday_rules) == 0
     friday_rules = schedule.rules_for_weekday("friday")
-    assert len(friday_rules) == 8
+    assert len(friday_rules) == 5
     assert any(rule.content_type == EditorialPlanningContent.FEATURED_MATCH_PREVIEW for rule in friday_rules)
     assert {
         rule.competition_slug for rule in friday_rules
@@ -72,7 +55,6 @@ def test_default_editorial_schedule_loads_expected_rules() -> None:
     assert {
         rule.content_type for rule in friday_rules
     } == {
-        EditorialPlanningContent.PREVIEW,
         EditorialPlanningContent.FEATURED_MATCH_PREVIEW,
     }
     assert len(sunday_rules) == 4
@@ -88,7 +70,7 @@ def test_default_editorial_schedule_loads_expected_rules() -> None:
     }
 
 
-def test_wednesday_schedule_includes_narrative_triad_for_three_main_competitions() -> None:
+def test_wednesday_schedule_includes_narrative_duo_for_three_main_competitions() -> None:
     load_editorial_schedule.cache_clear()
     schedule = load_editorial_schedule()
     wednesday_rules = schedule.rules_for_weekday("wednesday")
@@ -98,13 +80,10 @@ def test_wednesday_schedule_includes_narrative_triad_for_three_main_competitions
     }
 
     expected_pairs = {
-        ("tercera_rfef_g11", EditorialPlanningContent.STAT_NARRATIVE),
         ("tercera_rfef_g11", EditorialPlanningContent.METRIC_NARRATIVE),
         ("tercera_rfef_g11", EditorialPlanningContent.VIRAL_STORY),
-        ("segunda_rfef_g3_baleares", EditorialPlanningContent.STAT_NARRATIVE),
         ("segunda_rfef_g3_baleares", EditorialPlanningContent.METRIC_NARRATIVE),
         ("segunda_rfef_g3_baleares", EditorialPlanningContent.VIRAL_STORY),
-        ("tercera_federacion_femenina_g11", EditorialPlanningContent.STAT_NARRATIVE),
         ("tercera_federacion_femenina_g11", EditorialPlanningContent.METRIC_NARRATIVE),
         ("tercera_federacion_femenina_g11", EditorialPlanningContent.VIRAL_STORY),
     }

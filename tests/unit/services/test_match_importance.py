@@ -235,8 +235,8 @@ def test_match_importance_generate_persists_featured_match_candidates() -> None:
             str(ContentType.FEATURED_MATCH_PREVIEW),
             str(ContentType.FEATURED_MATCH_EVENT),
         }
-        preview = next(row for row in rows if row.content_type == str(ContentType.FEATURED_MATCH_PREVIEW))
-        assert "CE Alpha vs CE Beta" in preview.text_draft
+        previews = [row for row in rows if row.content_type == str(ContentType.FEATURED_MATCH_PREVIEW)]
+        assert any("CE Alpha vs CE Beta" in row.text_draft for row in previews)
     finally:
         session.close()
 

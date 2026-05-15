@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from datetime import date, time
+from datetime import date, datetime, time, timezone
 
 from sqlalchemy import select
 
 from app.core.enums import ContentType
-from app.db.models import ContentCandidate
+from app.db.models import Competition, ContentCandidate, StandingSnapshot, Team
 from app.services.results_roundup import ResultsRoundupService
 from tests.unit.services.test_editorial_narratives import build_session, seed_competition, seed_narratives_data
 from tests.unit.services.test_team_form import seed_form_data
@@ -29,6 +29,120 @@ def test_results_roundup_groups_latest_round_and_orders_matches() -> None:
         assert "CE Beta 1-0 CE Epsilon" in result.text_draft
         assert "CE Gamma 2-1 CE Foxtrot" in result.text_draft
         assert [match.home_team for match in result.matches] == ["CE Alpha", "CE Beta", "CE Gamma"]
+    finally:
+        session.close()
+
+
+def test_results_roundup_preview_exposes_round_insights() -> None:
+    session = build_session()
+    try:
+        seed_form_data(session)
+        result = ResultsRoundupService(session).show_for_competition(
+            "tercera_rfef_g11",
+            reference_date=date(2026, 3, 16),
+        )
+
+        assert result.results_insights["leader_team"] == "CE Alpha"
+        assert result.results_insights["leader_match"]["result"] == "home_win"
+        assert result.results_insights["leader_match"]["winner_team"] == "CE Alpha"
+        assert result.results_insights["leader_match"]["leader_gap"] == 1
+        assert result.results_insights["leader_match"]["leader_chaser_team"] == "CE Beta"
+        assert result.results_insights["highest_scoring_match"]["home_team"] == "CE Gamma"
+        assert result.results_insights["highest_scoring_match"]["total_goals"] == 3
+    finally:
+        session.close()
+
+
+def test_results_roundup_preview_exposes_table_event_insights_when_history_exists() -> None:
+    session = build_session()
+    try:
+        seed_form_data(session)
+        competition = session.scalar(select(Competition).where(Competition.code == "tercera_rfef_g11"))
+        assert competition is not None
+        team_rows = session.execute(
+            select(Team).where(
+                Team.name.in_(
+                    ["CE Alpha", "CE Beta", "CE Gamma", "CE Delta", "CE Epsilon", "CE Foxtrot", "CE Golf"]
+                )
+            )
+        ).scalars().all()
+        team_map = {team.name: team for team in team_rows}
+
+        snapshots = [
+            (
+                1,
+                datetime(2026, 3, 9, 8, 0, tzinfo=timezone.utc),
+                [
+                    ("CE Alpha", 1, 53),
+                    ("CE Delta", 2, 52),
+                    ("CE Beta", 3, 51),
+                    ("CE Gamma", 4, 48),
+                    ("CE Epsilon", 5, 31),
+                    ("CE Golf", 6, 27),
+                    ("CE Foxtrot", 7, 19),
+                ],
+            ),
+            (
+                2,
+                datetime(2026, 3, 16, 8, 0, tzinfo=timezone.utc),
+                [
+                    ("CE Alpha", 1, 56),
+                    ("CE Beta", 2, 54),
+                    ("CE Gamma", 3, 51),
+                    ("CE Delta", 4, 52),
+                    ("CE Epsilon", 5, 31),
+                    ("CE Golf", 6, 27),
+                    ("CE Foxtrot", 7, 19),
+                ],
+            ),
+        ]
+        row_index = 0
+        for scraper_run_id, timestamp, rows in snapshots:
+            for team_name, position, points in rows:
+                row_index += 1
+                session.add(
+                    StandingSnapshot(
+                        source_name="futbolme",
+                        source_url="https://example.com/tercera_rfef_g11/standings",
+                        competition_id=competition.id,
+                        scraper_run_id=scraper_run_id,
+                        season="2025-26",
+                        group_name="Grupo test",
+                        snapshot_date=timestamp.date(),
+                        snapshot_timestamp=timestamp,
+                        position=position,
+                        team_id=team_map[team_name].id,
+                        team_raw=team_name,
+                        played=26,
+                        wins=10,
+                        draws=5,
+                        losses=5,
+                        goals_for=30,
+                        goals_against=20,
+                        goal_difference=10,
+                        points=points,
+                        form_text=None,
+                        scraped_at=timestamp,
+                        content_hash=f"tercera-rfef-{scraper_run_id}-{row_index}",
+                        extra_data=None,
+                    )
+                )
+        session.commit()
+
+        result = ResultsRoundupService(session).show_for_competition(
+            "tercera_rfef_g11",
+            reference_date=date(2026, 3, 16),
+        )
+
+        table_events = result.results_insights["table_events"]
+        assert any(
+            row["team"] == "CE Beta"
+            and row["event_type"] == "biggest_position_rise"
+            and row["leader_gap"] == 1
+            and row["leader_team"] == "CE Alpha"
+            for row in table_events
+        )
+        assert any(row["team"] == "CE Delta" and row["event_type"] == "biggest_position_drop" for row in table_events)
     finally:
         session.close()
 

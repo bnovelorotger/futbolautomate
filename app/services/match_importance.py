@@ -519,6 +519,11 @@ class MatchImportanceService:
         row: MatchImportanceRowView,
         reference_date: date,
     ) -> dict[str, Any]:
+        position_gap = (
+            abs(row.home_position - row.away_position)
+            if row.home_position is not None and row.away_position is not None
+            else None
+        )
         return {
             "home_team": row.home_team,
             "away_team": row.away_team,
@@ -527,9 +532,11 @@ class MatchImportanceService:
             "source_url": row.source_url,
             "home_position": row.home_position,
             "away_position": row.away_position,
+            "position_gap": position_gap,
             "home_recent_points": row.home_recent_points,
             "away_recent_points": row.away_recent_points,
             "importance_score": row.importance_score,
+            "primary_tag": self._primary_tag(row),
             "tags": list(row.tags),
             "score_reasoning": list(row.score_reasoning),
             "reference_date": reference_date.isoformat(),

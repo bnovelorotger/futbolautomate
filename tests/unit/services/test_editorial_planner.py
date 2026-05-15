@@ -244,7 +244,7 @@ def test_editorial_planner_resolves_campaign_plan_for_date() -> None:
         session.close()
 
 
-def test_editorial_planner_default_wednesday_plan_includes_narrative_triad_for_three_competitions() -> None:
+def test_editorial_planner_default_wednesday_plan_includes_narrative_duo_for_three_competitions() -> None:
     session = build_session()
     try:
         service = EditorialPlannerService(
@@ -258,13 +258,10 @@ def test_editorial_planner_default_wednesday_plan_includes_narrative_triad_for_t
             for task in plan.tasks
         }
         expected_pairs = {
-            ("tercera_rfef_g11", EditorialPlanningContent.STAT_NARRATIVE),
             ("tercera_rfef_g11", EditorialPlanningContent.METRIC_NARRATIVE),
             ("tercera_rfef_g11", EditorialPlanningContent.VIRAL_STORY),
-            ("segunda_rfef_g3_baleares", EditorialPlanningContent.STAT_NARRATIVE),
             ("segunda_rfef_g3_baleares", EditorialPlanningContent.METRIC_NARRATIVE),
             ("segunda_rfef_g3_baleares", EditorialPlanningContent.VIRAL_STORY),
-            ("tercera_federacion_femenina_g11", EditorialPlanningContent.STAT_NARRATIVE),
             ("tercera_federacion_femenina_g11", EditorialPlanningContent.METRIC_NARRATIVE),
             ("tercera_federacion_femenina_g11", EditorialPlanningContent.VIRAL_STORY),
         }
@@ -276,7 +273,7 @@ def test_editorial_planner_default_wednesday_plan_includes_narrative_triad_for_t
         session.close()
 
 
-def test_editorial_planner_default_thursday_and_friday_include_preview_for_same_competitions() -> None:
+def test_editorial_planner_default_friday_includes_featured_match_previews_for_main_competitions() -> None:
     session = build_session()
     try:
         service = EditorialPlannerService(
@@ -287,17 +284,12 @@ def test_editorial_planner_default_thursday_and_friday_include_preview_for_same_
         thursday_plan = service.plan_for_date(date(2026, 4, 2))
         friday_plan = service.plan_for_date(date(2026, 4, 3))
 
-        expected_preview_competitions = {
+        expected_featured_competitions = {
             "tercera_rfef_g11",
             "segunda_rfef_g3_baleares",
             "division_honor_mallorca",
             "tercera_federacion_femenina_g11",
             "primera_rfef_baleares",
-        }
-        thursday_preview_competitions = {
-            task.competition_slug
-            for task in thursday_plan.tasks
-            if task.planning_type == EditorialPlanningContent.PREVIEW
         }
         friday_preview_competitions = {
             task.competition_slug
@@ -311,18 +303,12 @@ def test_editorial_planner_default_thursday_and_friday_include_preview_for_same_
         }
 
         assert thursday_plan.weekday_key == "thursday"
-        assert thursday_plan.total_tasks == 5
-        assert all(task.planning_type == EditorialPlanningContent.PREVIEW for task in thursday_plan.tasks)
-        assert thursday_preview_competitions == expected_preview_competitions
+        assert thursday_plan.total_tasks == 0
 
         assert friday_plan.weekday_key == "friday"
-        assert friday_plan.total_tasks == 8
-        assert friday_preview_competitions == expected_preview_competitions
-        assert friday_featured_competitions == {
-            "tercera_rfef_g11",
-            "segunda_rfef_g3_baleares",
-            "division_honor_mallorca",
-        }
+        assert friday_plan.total_tasks == 5
+        assert friday_preview_competitions == set()
+        assert friday_featured_competitions == expected_featured_competitions
     finally:
         session.close()
 

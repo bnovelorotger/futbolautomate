@@ -26,6 +26,7 @@ class StandingsRoundupPreviewResult(BaseModel):
     omitted_rows_count: int = 0
     max_characters: int
     text_draft: str | None = None
+    table_insights: dict = Field(default_factory=dict)
     rows: list[StandingsRoundupRowView] = Field(default_factory=list)
 
 
