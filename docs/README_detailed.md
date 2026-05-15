@@ -664,40 +664,80 @@ El fichero `app/config/editorial_schedule.json` usa una estructura de semana con
     "lunes": [
       {
         "competition_slug": "tercera_rfef_g11",
-        "content_type": "latest_results",
+        "content_type": "results_roundup",
         "priority": 100
       },
       {
         "competition_slug": "tercera_rfef_g11",
-        "content_type": "standings",
+        "content_type": "standings_roundup",
         "priority": 80
       },
       {
         "competition_slug": "segunda_rfef_g3_baleares",
-        "content_type": "latest_results",
+        "content_type": "results_roundup",
         "priority": 100
       },
       {
         "competition_slug": "segunda_rfef_g3_baleares",
-        "content_type": "standings",
+        "content_type": "standings_roundup",
         "priority": 80
       },
       {
         "competition_slug": "division_honor_mallorca",
-        "content_type": "latest_results",
+        "content_type": "results_roundup",
         "priority": 95
       },
       {
         "competition_slug": "division_honor_mallorca",
-        "content_type": "standings",
+        "content_type": "standings_roundup",
         "priority": 75
+      },
+      {
+        "competition_slug": "tercera_federacion_femenina_g11",
+        "content_type": "results_roundup",
+        "priority": 94
+      },
+      {
+        "competition_slug": "tercera_federacion_femenina_g11",
+        "content_type": "standings_roundup",
+        "priority": 74
+      },
+      {
+        "competition_slug": "primera_rfef_baleares",
+        "content_type": "results_roundup",
+        "priority": 93
+      },
+      {
+        "competition_slug": "primera_rfef_baleares",
+        "content_type": "standings_roundup",
+        "priority": 73
+      },
+      {
+        "competition_slug": "division_honor_ibiza_form",
+        "content_type": "results_roundup",
+        "priority": 70
+      },
+      {
+        "competition_slug": "division_honor_ibiza_form",
+        "content_type": "standings_roundup",
+        "priority": 68
+      },
+      {
+        "competition_slug": "division_honor_menorca",
+        "content_type": "results_roundup",
+        "priority": 69
+      },
+      {
+        "competition_slug": "division_honor_menorca",
+        "content_type": "standings_roundup",
+        "priority": 67
       }
     ],
     "miercoles": [
       {
         "competition_slug": "tercera_rfef_g11",
-        "content_type": "ranking",
-        "priority": 70
+        "content_type": "viral_story",
+        "priority": 69
       },
       {
         "competition_slug": "tercera_rfef_g11",
@@ -706,20 +746,72 @@ El fichero `app/config/editorial_schedule.json` usa una estructura de semana con
       },
       {
         "competition_slug": "segunda_rfef_g3_baleares",
-        "content_type": "stat_narrative",
-        "priority": 65
+        "content_type": "viral_story",
+        "priority": 69
       },
       {
         "competition_slug": "segunda_rfef_g3_baleares",
+        "content_type": "metric_narrative",
+        "priority": 68
+      },
+      {
+        "competition_slug": "tercera_federacion_femenina_g11",
+        "content_type": "viral_story",
+        "priority": 69
+      },
+      {
+        "competition_slug": "tercera_federacion_femenina_g11",
         "content_type": "metric_narrative",
         "priority": 68
       }
     ],
     "viernes": [
       {
+        "competition_slug": "tercera_rfef_g11",
+        "content_type": "featured_match_preview",
+        "priority": 89
+      },
+      {
         "competition_slug": "segunda_rfef_g3_baleares",
-        "content_type": "preview",
-        "priority": 90
+        "content_type": "featured_match_preview",
+        "priority": 89
+      },
+      {
+        "competition_slug": "division_honor_mallorca",
+        "content_type": "featured_match_preview",
+        "priority": 89
+      },
+      {
+        "competition_slug": "tercera_federacion_femenina_g11",
+        "content_type": "featured_match_preview",
+        "priority": 88
+      },
+      {
+        "competition_slug": "primera_rfef_baleares",
+        "content_type": "featured_match_preview",
+        "priority": 87
+      }
+    ],
+    "domingo": [
+      {
+        "competition_slug": "tercera_rfef_g11",
+        "content_type": "results_roundup",
+        "priority": 100
+      },
+      {
+        "competition_slug": "tercera_rfef_g11",
+        "content_type": "standings_roundup",
+        "priority": 80
+      },
+      {
+        "competition_slug": "segunda_rfef_g3_baleares",
+        "content_type": "results_roundup",
+        "priority": 100
+      },
+      {
+        "competition_slug": "segunda_rfef_g3_baleares",
+        "content_type": "standings_roundup",
+        "priority": 80
       }
     ]
   }
@@ -734,21 +826,19 @@ Campos soportados por regla:
 
 Tipos de planning soportados:
 
-- `latest_results`
-- `standings`
-- `preview`
-- `ranking`
-- `stat_narrative`
+- `results_roundup`
+- `standings_roundup`
 - `metric_narrative`
+- `viral_story`
+- `featured_match_preview`
 
 Mapeo interno:
 
-- `latest_results` genera candidatos `match_result`
-- `standings` genera candidatos `standings`
-- `preview` genera candidatos `preview`
-- `ranking` genera candidatos `ranking`
-- `stat_narrative` genera candidatos `stat_narrative`
+- `results_roundup` genera candidatos `results_roundup`
+- `standings_roundup` genera candidatos `standings_roundup`
 - `metric_narrative` genera candidatos `metric_narrative`
+- `viral_story` genera candidatos `viral_story`
+- `featured_match_preview` genera candidatos `featured_match_preview`
 
 ### Servicio y comportamiento
 
@@ -782,23 +872,27 @@ python -m app.pipelines.editorial_planner generate-date --date 2026-03-16
 
 ```text
 Plan Editorial | 2026-03-15 (domingo)
-total_tasks=2
+total_tasks=4
 
-- priority=100 | competition=3a RFEF Grupo 11 (tercera_rfef_g11) | content=latest_results | target=match_result
-- priority=100 | competition=2a RFEF Grupo 3 (segunda_rfef_g3_baleares) | content=latest_results | target=match_result
+- priority=100 | competition=2a RFEF Grupo 3 con equipos baleares (segunda_rfef_g3_baleares) | content=results_roundup | target=results_roundup
+- priority=100 | competition=3a RFEF Baleares (tercera_rfef_g11) | content=results_roundup | target=results_roundup
+- priority=80 | competition=2a RFEF Grupo 3 con equipos baleares (segunda_rfef_g3_baleares) | content=standings_roundup | target=standings_roundup
+- priority=80 | competition=3a RFEF Baleares (tercera_rfef_g11) | content=standings_roundup | target=standings_roundup
 ```
 
 ### Ejemplo de `generate-today`
 
 ```text
 Generacion Planificada | 2026-03-15 (domingo)
-total_tasks=2
+total_tasks=4
 total_generated=4
 total_inserted=4
 total_updated=0
 
-- priority=100 | tercera_rfef_g11 | latest_results -> match_result | selected=2 | inserted=2 | updated=0
-- priority=100 | segunda_rfef_g3_baleares | latest_results -> match_result | selected=2 | inserted=2 | updated=0
+- priority=100 | tercera_rfef_g11 | results_roundup -> results_roundup | selected=1 | inserted=1 | updated=0
+- priority=100 | segunda_rfef_g3_baleares | results_roundup -> results_roundup | selected=1 | inserted=1 | updated=0
+- priority=80 | tercera_rfef_g11 | standings_roundup -> standings_roundup | selected=1 | inserted=1 | updated=0
+- priority=80 | segunda_rfef_g3_baleares | standings_roundup -> standings_roundup | selected=1 | inserted=1 | updated=0
 ```
 
 ### Flujo operativo recomendado
@@ -871,15 +965,17 @@ Ejemplo:
 
 ```text
 Preview Day | 2026-03-18
-total_tasks=4
+total_tasks=6
 ready_tasks=4
-blocked_tasks=0
-expected_total=14
+blocked_tasks=2
+expected_total=17
 
-- priority=70 | tercera_rfef_g11 | ranking -> ranking | expected=1 | missing=-
-- priority=68 | segunda_rfef_g3_baleares | metric_narrative -> metric_narrative | expected=6 | missing=-
+- priority=69 | segunda_rfef_g3_baleares | viral_story -> viral_story | expected=2 | missing=-
+- priority=69 | tercera_federacion_femenina_g11 | viral_story -> viral_story | expected=0 | missing=finished_matches
+- priority=69 | tercera_rfef_g11 | viral_story -> viral_story | expected=5 | missing=-
+- priority=68 | segunda_rfef_g3_baleares | metric_narrative -> metric_narrative | expected=4 | missing=-
+- priority=68 | tercera_federacion_femenina_g11 | metric_narrative -> metric_narrative | expected=0 | missing=finished_matches
 - priority=68 | tercera_rfef_g11 | metric_narrative -> metric_narrative | expected=6 | missing=-
-- priority=65 | segunda_rfef_g3_baleares | stat_narrative -> stat_narrative | expected=1 | missing=-
 ```
 
 ### Ejecucion diaria real
@@ -902,11 +998,11 @@ Ejemplo:
 
 ```text
 Run Daily | 2026-03-16
-total_tasks=6
-generated_total=18
-inserted_total=0
-updated_total=15
-blocked_tasks=0
+total_tasks=14
+generated_total=4
+inserted_total=4
+updated_total=0
+blocked_tasks=10
 ```
 
 ### Flujo diario recomendado
@@ -969,13 +1065,13 @@ En 3a RFEF Baleares se marcan 2.25 goles por partido tras 4 encuentros disputado
 
 La integracion queda resuelta via `content_type=metric_narrative` en el planning semanal. Ejemplo operativo:
 
-- miercoles: `tercera_rfef_g11 -> ranking + metric_narrative`
-- miercoles: `segunda_rfef_g3_baleares -> stat_narrative + metric_narrative`
-- lunes: `division_honor_mallorca -> latest_results + standings`
+- miercoles: `tercera_rfef_g11 -> viral_story + metric_narrative`
+- miercoles: `segunda_rfef_g3_baleares -> viral_story + metric_narrative`
+- lunes: `division_honor_mallorca -> results_roundup + standings_roundup`
 
 Eso permite combinar:
 
-- bloques editoriales estructurados (`ranking`, `standings`, `preview`)
+- bloques editoriales estructurados (`results_roundup`, `standings_roundup`, `featured_match_preview`)
 - piezas sociales cortas y reutilizables (`metric_narrative`)
 
 ### Recorrido completo de `metric_narrative`
@@ -1046,8 +1142,9 @@ UE Porreres arrastra 3 derrotas consecutivas en 2a RFEF con equipos baleares.
 
 El planner semanal incorpora un bloque especifico de `viral_story` en miercoles:
 
-- `tercera_rfef_g11 -> ranking + viral_story + metric_narrative`
-- `segunda_rfef_g3_baleares -> stat_narrative + viral_story + metric_narrative`
+- `tercera_rfef_g11 -> viral_story + metric_narrative`
+- `segunda_rfef_g3_baleares -> viral_story + metric_narrative`
+- `tercera_federacion_femenina_g11 -> viral_story + metric_narrative`
 
 Las `viral_story` recorren el mismo circuito que cualquier otro `content_candidate`: generacion, review, dispatch y exportacion a canal. Por politica editorial, su salida a Typefully sigue siendo manual salvo cambio explicito de config.
 
@@ -1483,16 +1580,21 @@ No sustituye la revision humana. Abre un carril seguro para que las piezas mas m
 
 Autoaprobables:
 
-- `match_result`
-- `standings`
+- `results_roundup`
+- `standings_roundup`
 - `preview`
 - `ranking`
 
-Revision manual obligatoria:
+Autoaprobables solo martes/miercoles si pasan `quality_checks`:
 
-- `stat_narrative`
 - `metric_narrative`
 - `viral_story`
+
+Revision manual obligatoria:
+
+- `featured_match_preview`
+- `featured_match_event`
+- `stat_narrative`
 
 Bloqueos adicionales de autoaprobacion:
 
