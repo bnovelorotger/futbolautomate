@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from app.presenters.editorial_approval import render_approval_rows
 from app.presenters.publication_dispatch import render_dispatch_rows
+from app.presenters.x_publication import render_x_rows
 from app.schemas.editorial_release import EditorialReleaseResult
 
 
@@ -16,6 +17,8 @@ def render_release_result(result: EditorialReleaseResult) -> str:
         f"dispatched_count={result.dispatched_count}",
         f"export_base_total_items={result.export_base_total_items}",
         f"export_base_path={result.export_base_path}",
+        f"x_publish_enabled={str(result.x_publish_enabled).lower()}",
+        f"x_published_count={result.x_published_count}",
         f"legacy_export_json_count={result.legacy_export_json_count}",
         f"legacy_export_blocked_series_count={result.legacy_export_blocked_series_count}",
         f"legacy_export_json_path={result.legacy_export_json_path or '-'}",
@@ -24,6 +27,8 @@ def render_release_result(result: EditorialReleaseResult) -> str:
         lines.extend(["", "[approval]", render_approval_rows(result.approval_rows)])
     if result.dispatched_rows:
         lines.extend(["", "[dispatch]", render_dispatch_rows(result.dispatched_rows)])
+    if result.x_publication_rows:
+        lines.extend(["", "[x_publish]", f"published_count={result.x_published_count}", render_x_rows(result.x_publication_rows)])
     lines.extend(
         [
             "",

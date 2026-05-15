@@ -50,6 +50,8 @@ def seed_candidates(session: Session) -> None:
                 content_type="match_result",
                 priority=99,
                 text_draft="RESULTADO FINAL\n\nTorrent CF 1-0 UE Porreres",
+                formatted_text="Resultado | Torrent CF 1-0 UE Porreres #2aRFEF",
+                rewritten_text="Torrent CF 1-0 UE Porreres. Final en Segunda RFEF balear.",
                 payload_json={},
                 source_summary_hash="hash-1",
                 scheduled_at=now,
@@ -183,13 +185,18 @@ def test_x_publication_service_lists_and_publishes_successfully() -> None:
         session.commit()
 
         assert [row.id for row in pending] == [1]
+        assert pending[0].selected_text_source == "rewritten_text"
         assert result.candidate.external_publication_ref == "tweet-1"
         assert result.candidate.external_publication_timestamp is not None
         assert result.candidate.external_publication_error is None
         assert session.get(ContentCandidate, 1).external_publication_ref == "tweet-1"
         assert session.get(ContentCandidate, 1).external_channel == "x"
         assert session.get(ContentCandidate, 1).external_exported_at is not None
-        publisher.publish_text.assert_called_once()
+        publisher.publish_text.assert_called_once_with(
+            "Torrent CF 1-0 UE Porreres. Final en Segunda RFEF balear.",
+            access_token="user-access-token",
+            dry_run=False,
+        )
     finally:
         session.close()
 
@@ -236,9 +243,14 @@ def test_x_publication_service_supports_dry_run_without_persistence() -> None:
 
         candidate = session.get(ContentCandidate, 1)
         assert result.dry_run is True
+        assert result.candidate.selected_text_source == "rewritten_text"
         assert candidate.external_publication_ref is None
         assert candidate.external_publication_attempted_at is None
         auth_service.get_valid_user_access_token.assert_not_called()
+        publisher.publish_text.assert_called_once_with(
+            "Torrent CF 1-0 UE Porreres. Final en Segunda RFEF balear.",
+            dry_run=True,
+        )
     finally:
         session.close()
 

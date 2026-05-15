@@ -32,6 +32,7 @@ def dry_run(
     limit: int = typer.Option(200, min=1, help="Maximo de drafts a evaluar"),
     use_draft: bool = typer.Option(False, "--use-draft", help="Fuerza text_draft en la exportacion JSON"),
     use_rewrite: bool = typer.Option(False, "--use-rewrite", help="Prioriza rewritten_text en la exportacion JSON"),
+    publish_x: bool = typer.Option(False, "--publish-x", help="Simula tambien la publicacion en X de las piezas despachadas"),
     as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
 ) -> None:
     set_run_id()
@@ -46,6 +47,7 @@ def dry_run(
             limit=limit,
             dry_run=True,
             prefer_rewrite=prefer_rewrite,
+            publish_to_x=publish_x,
         )
         if as_json:
             _dump_json(result.model_dump(mode="json"))
@@ -59,6 +61,7 @@ def run(
     limit: int = typer.Option(200, min=1, help="Maximo de drafts a evaluar"),
     use_draft: bool = typer.Option(False, "--use-draft", help="Fuerza text_draft en la exportacion JSON"),
     use_rewrite: bool = typer.Option(False, "--use-rewrite", help="Prioriza rewritten_text en la exportacion JSON"),
+    publish_x: bool = typer.Option(False, "--publish-x", help="Publica tambien en X las piezas despachadas en este run"),
     as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
 ) -> None:
     set_run_id()
@@ -74,6 +77,7 @@ def run(
             limit=limit,
             dry_run=False,
             prefer_rewrite=prefer_rewrite,
+            publish_to_x=publish_x,
         )
         if as_json:
             _dump_json(result.model_dump(mode="json"))

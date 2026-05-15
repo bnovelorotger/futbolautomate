@@ -3,8 +3,11 @@ from __future__ import annotations
 import json
 from datetime import date, datetime, timezone
 from pathlib import Path
+from unittest.mock import Mock
 
 from app.db.models import ContentCandidate
+from app.core.enums import ContentCandidateStatus, ContentType
+from app.schemas.x_publication import XBatchPublicationResult, XPublicationCandidateView
 from app.services.editorial_approval_policy import EditorialApprovalPolicyService
 from app.services.editorial_release_pipeline import EditorialReleasePipelineService
 from tests.unit.services.service_test_support import build_session, build_settings
@@ -585,5 +588,46 @@ def test_editorial_release_pipeline_can_generate_legacy_export_when_enabled(tmp_
         assert result.legacy_export_blocked_series_count == 0
         assert result.legacy_export_json_path == str(legacy_path)
         assert {row["id"] for row in payload} == {102, 103, 106, 109}
+    finally:
+        session.close()
+
+
+def test_editorial_release_pipeline_can_auto_publish_in_x_for_dispatched_candidates(tmp_path: Path) -> None:
+    session = build_session()
+    try:
+        seed_release_candidates(session)
+        x_publication_service = Mock()
+        x_publication_service.publish_candidates.return_value = XBatchPublicationResult(
+            dry_run=False,
+            published_count=4,
+            rows=[
+                XPublicationCandidateView(
+                    id=102,
+                    competition_slug="tercera_rfef_g11",
+                    content_type=ContentType.STANDINGS_ROUNDUP,
+                    priority=80,
+                    status=ContentCandidateStatus.PUBLISHED,
+                    selected_text_source="formatted_text",
+                    excerpt="Clasificacion",
+                )
+            ],
+        )
+        service = EditorialReleasePipelineService(
+            session,
+            settings=build_settings(app_root=tmp_path),
+            x_publication_service=x_publication_service,
+        )
+
+        result = service.run(reference_date=REFERENCE_DATE, dry_run=False, publish_to_x=True)
+        session.commit()
+
+        assert result.dispatched_count == 4
+        assert result.x_publish_enabled is True
+        assert result.x_published_count == 4
+        assert [row.id for row in result.x_publication_rows] == [102]
+        x_publication_service.publish_candidates.assert_called_once()
+        args, kwargs = x_publication_service.publish_candidates.call_args
+        assert set(args[0]) == {102, 103, 106, 109}
+        assert kwargs == {"dry_run": False}
     finally:
         session.close()

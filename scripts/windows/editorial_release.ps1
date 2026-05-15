@@ -3,7 +3,8 @@ param(
     [string]$TargetDate,
     [switch]$DryRun,
     [switch]$UseDraft,
-    [switch]$UseRewrite
+    [switch]$UseRewrite,
+    [switch]$PublishX
 )
 
 Set-StrictMode -Version Latest
@@ -32,6 +33,9 @@ try {
     }
     elseif ($UseRewrite.IsPresent) {
         $arguments += "--use-rewrite"
+    }
+    if ($PublishX.IsPresent) {
+        $arguments += "--publish-x"
     }
 
     Invoke-PythonModule -Label "editorial_release" -Module "app.pipelines.editorial_release" -Arguments $arguments

@@ -14,6 +14,7 @@ from app.schemas.x_publication import (
     XPublicationCandidateView,
     XPublicationResult,
 )
+from app.services.editorial_text_selector import EditorialTextSelectorService
 from app.services.x_auth_service import XAuthService
 from app.channels.x.auth import XAuthError
 from app.utils.time import utcnow
@@ -41,11 +42,13 @@ class XPublicationService:
         *,
         publisher: XPublisher | None = None,
         auth_service: XAuthService | None = None,
+        text_selector: EditorialTextSelectorService | None = None,
     ) -> None:
         self.session = session
         settings = get_settings()
         self.publisher = publisher or XPublisher(XApiClient(settings))
         self.auth_service = auth_service or XAuthService(session, settings=settings)
+        self.text_selector = text_selector or EditorialTextSelectorService(session, settings=settings)
 
     def _candidate(self, candidate_id: int) -> ContentCandidate:
         candidate = self.session.get(ContentCandidate, candidate_id)
@@ -53,7 +56,11 @@ class XPublicationService:
             raise ConfigurationError(f"Content candidate desconocido: {candidate_id}")
         return candidate
 
-    def _validate_candidate(self, candidate: ContentCandidate) -> None:
+    def _selected_text(self, candidate: ContentCandidate) -> tuple[str, str]:
+        selection = self.text_selector.select_text(candidate, prefer_rewrite=True)
+        return selection.text, selection.source
+
+    def _validate_candidate(self, candidate: ContentCandidate) -> tuple[str, str]:
         if candidate.status != str(ContentCandidateStatus.PUBLISHED):
             raise InvalidStateTransitionError(
                 f"Solo se pueden publicar en X piezas con estado interno published. Estado actual: {candidate.status}"
@@ -62,22 +69,34 @@ class XPublicationService:
             raise InvalidStateTransitionError(
                 f"El candidato {candidate.id} ya tiene external_publication_ref={candidate.external_publication_ref}"
             )
-        if not candidate.text_draft.strip():
-            raise InvalidStateTransitionError(f"El candidato {candidate.id} no tiene text_draft utilizable")
+        try:
+            return self._selected_text(candidate)
+        except InvalidStateTransitionError as exc:
+            raise InvalidStateTransitionError(
+                f"El candidato {candidate.id} no tiene texto utilizable para X: {exc}"
+            ) from exc
 
     def _row_to_view(self, row: ContentCandidate) -> XPublicationCandidateView:
+        selected_text_source: str | None = None
+        excerpt = _excerpt(row.text_draft)
+        try:
+            selected_text, selected_text_source = self._selected_text(row)
+            excerpt = _excerpt(selected_text)
+        except InvalidStateTransitionError:
+            pass
         return XPublicationCandidateView(
             id=row.id,
             competition_slug=row.competition_slug,
             content_type=ContentType(row.content_type),
             priority=row.priority,
             status=ContentCandidateStatus(row.status),
+            selected_text_source=selected_text_source,
             scheduled_at=row.scheduled_at,
             external_publication_ref=row.external_publication_ref,
             external_publication_timestamp=row.external_publication_timestamp,
             external_publication_attempted_at=row.external_publication_attempted_at,
             external_publication_error=row.external_publication_error,
-            excerpt=_excerpt(row.text_draft),
+            excerpt=excerpt,
         )
 
     def list_pending(self, *, limit: int = 50) -> list[XPublicationCandidateView]:
@@ -101,16 +120,16 @@ class XPublicationService:
 
     def publish_candidate(self, candidate_id: int, *, dry_run: bool = False) -> XPublicationResult:
         candidate = self._candidate(candidate_id)
-        self._validate_candidate(candidate)
+        selected_text, _ = self._validate_candidate(candidate)
         if dry_run:
-            self.publisher.publish_text(candidate.text_draft, dry_run=True)
+            self.publisher.publish_text(selected_text, dry_run=True)
             return XPublicationResult(dry_run=True, candidate=self._row_to_view(candidate))
 
         attempted_at = utcnow()
         try:
             access_token = self.auth_service.get_valid_user_access_token()
             response = self.publisher.publish_text(
-                candidate.text_draft,
+                selected_text,
                 access_token=access_token,
                 dry_run=False,
             )
@@ -130,6 +149,32 @@ class XPublicationService:
         self.session.add(candidate)
         self.session.flush()
         return XPublicationResult(dry_run=False, candidate=self._row_to_view(candidate))
+
+    def publish_candidates(
+        self,
+        candidate_ids: list[int],
+        *,
+        dry_run: bool = False,
+    ) -> XBatchPublicationResult:
+        result_rows: list[XPublicationCandidateView] = []
+        for candidate_id in candidate_ids:
+            try:
+                result = self.publish_candidate(candidate_id, dry_run=dry_run)
+            except (XAuthError, XApiError, XPublisherValidationError, InvalidStateTransitionError, ConfigurationError):
+                candidate = self.session.get(ContentCandidate, candidate_id)
+                if candidate is None:
+                    continue
+                result_rows.append(self._row_to_view(candidate))
+                continue
+            result_rows.append(result.candidate)
+        published_count = sum(1 for row in result_rows if row.external_publication_ref)
+        if dry_run:
+            published_count = len(result_rows)
+        return XBatchPublicationResult(
+            dry_run=dry_run,
+            published_count=published_count,
+            rows=result_rows,
+        )
 
     def publish_pending(
         self,
@@ -153,19 +198,4 @@ class XPublicationService:
             .limit(limit)
         )
         rows = self.session.execute(query).scalars().all()
-        result_rows: list[XPublicationCandidateView] = []
-        for row in rows:
-            try:
-                result = self.publish_candidate(row.id, dry_run=dry_run)
-            except (XAuthError, XApiError, XPublisherValidationError):
-                result_rows.append(self._row_to_view(row))
-                continue
-            result_rows.append(result.candidate)
-        published_count = sum(1 for row in result_rows if row.external_publication_ref)
-        if dry_run:
-            published_count = len(result_rows)
-        return XBatchPublicationResult(
-            dry_run=dry_run,
-            published_count=published_count,
-            rows=result_rows,
-        )
+        return self.publish_candidates([row.id for row in rows], dry_run=dry_run)

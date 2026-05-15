@@ -13,6 +13,7 @@ from app.services.editorial_quality_checks import EditorialQualityChecksService
 from app.services.export_base_service import ExportBaseService
 from app.services.export_json_service import ExportJsonService
 from app.services.publication_dispatcher import PublicationDispatcherService
+from app.services.x_publication_service import XPublicationService
 
 
 class EditorialReleasePipelineService:
@@ -26,6 +27,7 @@ class EditorialReleasePipelineService:
         dispatch_service: PublicationDispatcherService | None = None,
         export_base_service: ExportBaseService | None = None,
         legacy_export_service: ExportJsonService | None = None,
+        x_publication_service: XPublicationService | None = None,
     ) -> None:
         self.session = session
         self.settings = settings or get_settings()
@@ -35,6 +37,7 @@ class EditorialReleasePipelineService:
         self.dispatch_service = dispatch_service or PublicationDispatcherService(session)
         self.export_base_service = export_base_service or ExportBaseService(session, settings=self.settings)
         self.legacy_export_service = legacy_export_service
+        self.x_publication_service = x_publication_service or XPublicationService(session)
         if self.legacy_export_service is None and self.settings.legacy_export_json_enabled:
             self.legacy_export_service = ExportJsonService(session, settings=self.settings)
 
@@ -45,6 +48,7 @@ class EditorialReleasePipelineService:
         limit: int = 200,
         dry_run: bool = False,
         prefer_rewrite: bool | None = None,
+        publish_to_x: bool = False,
     ) -> EditorialReleaseResult:
         if dry_run:
             with self.session.begin_nested() as nested:
@@ -53,6 +57,7 @@ class EditorialReleasePipelineService:
                     limit=limit,
                     prefer_rewrite=prefer_rewrite,
                     export_dry_run=True,
+                    publish_to_x=publish_to_x,
                 )
                 nested.rollback()
             self.session.expire_all()
@@ -62,6 +67,7 @@ class EditorialReleasePipelineService:
             limit=limit,
             prefer_rewrite=prefer_rewrite,
             export_dry_run=False,
+            publish_to_x=publish_to_x,
         )
 
     def _run_internal(
@@ -71,6 +77,7 @@ class EditorialReleasePipelineService:
         limit: int,
         prefer_rewrite: bool | None,
         export_dry_run: bool,
+        publish_to_x: bool,
     ) -> EditorialReleaseResult:
         quality_candidate_ids = self.approval_service.candidate_ids_for_quality_precheck(
             reference_date=reference_date,
@@ -124,6 +131,12 @@ class EditorialReleasePipelineService:
             legacy_export_blocked_series_count = legacy_export_result.blocked_series_count
             legacy_export_blocked_series = legacy_export_result.blocked_series
             legacy_export_rows = legacy_export_result.rows
+        x_publish_result = None
+        if publish_to_x and dispatch_result.rows:
+            x_publish_result = self.x_publication_service.publish_candidates(
+                [row.id for row in dispatch_result.rows],
+                dry_run=export_dry_run,
+            )
         return EditorialReleaseResult(
             dry_run=export_dry_run,
             reference_date=reference_date,
@@ -134,12 +147,15 @@ class EditorialReleasePipelineService:
             dispatched_count=dispatch_result.dispatched_count,
             export_base_total_items=export_base_result.total_items,
             export_base_path=export_base_result.path,
+            x_publish_enabled=publish_to_x,
+            x_published_count=x_publish_result.published_count if x_publish_result is not None else 0,
             legacy_export_json_count=legacy_export_count,
             legacy_export_json_path=legacy_export_path,
             legacy_export_blocked_series_count=legacy_export_blocked_series_count,
             legacy_export_blocked_series=legacy_export_blocked_series,
             approval_rows=approval_result.rows,
             dispatched_rows=dispatch_result.rows,
+            x_publication_rows=x_publish_result.rows if x_publish_result is not None else [],
             legacy_export_json_rows=legacy_export_rows,
         )
 

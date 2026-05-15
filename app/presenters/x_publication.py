@@ -16,7 +16,7 @@ def render_x_rows(rows: Iterable[XPublicationCandidateView]) -> str:
         attempted_at = row.external_publication_attempted_at.isoformat() if row.external_publication_attempted_at else "-"
         lines.append(
             f"{row.id:>3} | {row.competition_slug} | {row.content_type} | priority={row.priority} | "
-            f"status={row.status} | scheduled_at={scheduled_at} | external_ref={row.external_publication_ref or '-'} | "
+            f"status={row.status} | text_source={row.selected_text_source or '-'} | scheduled_at={scheduled_at} | external_ref={row.external_publication_ref or '-'} | "
             f"attempted_at={attempted_at} | {row.excerpt}"
         )
     return "\n".join(lines) if lines else "sin piezas pendientes"

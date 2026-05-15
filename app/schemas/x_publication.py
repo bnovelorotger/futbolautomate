@@ -13,6 +13,7 @@ class XPublicationCandidateView(BaseModel):
     content_type: ContentType
     priority: int
     status: ContentCandidateStatus
+    selected_text_source: str | None = None
     scheduled_at: datetime | None = None
     external_publication_ref: str | None = None
     external_publication_timestamp: datetime | None = None

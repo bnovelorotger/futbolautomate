@@ -2,7 +2,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 if (-not $args -or $args.Count -lt 1) {
-    Write-Error "Uso: run_slot.ps1 <refresh|readiness|editorial-day|editorial-release> [YYYY-MM-DD] [-PreviewOnly] [-DryRun] [-UseDraft] [-UseRewrite] [-RefreshSource futbolme]"
+    Write-Error "Uso: run_slot.ps1 <refresh|readiness|editorial-day|editorial-release> [YYYY-MM-DD] [-PreviewOnly] [-DryRun] [-UseDraft] [-UseRewrite] [-PublishX] [-RefreshSource futbolme]"
     exit 2
 }
 
@@ -12,6 +12,7 @@ $previewOnly = $false
 $dryRun = $false
 $useDraft = $false
 $useRewrite = $false
+$publishX = $false
 $refreshSource = "futbolme"
 
 for ($index = 1; $index -lt $args.Count; $index++) {
@@ -30,6 +31,10 @@ for ($index = 1; $index -lt $args.Count; $index++) {
         }
         "-UseRewrite" {
             $useRewrite = $true
+            continue
+        }
+        "-PublishX" {
+            $publishX = $true
             continue
         }
         "-RefreshSource" {
@@ -72,10 +77,10 @@ switch ($slotName) {
     }
     "editorial-release" {
         if ($targetDate) {
-            & "$PSScriptRoot\editorial_release.ps1" -TargetDate $targetDate -DryRun:$dryRun -UseDraft:$useDraft -UseRewrite:$useRewrite
+            & "$PSScriptRoot\editorial_release.ps1" -TargetDate $targetDate -DryRun:$dryRun -UseDraft:$useDraft -UseRewrite:$useRewrite -PublishX:$publishX
         }
         else {
-            & "$PSScriptRoot\editorial_release.ps1" -DryRun:$dryRun -UseDraft:$useDraft -UseRewrite:$useRewrite
+            & "$PSScriptRoot\editorial_release.ps1" -DryRun:$dryRun -UseDraft:$useDraft -UseRewrite:$useRewrite -PublishX:$publishX
         }
         exit $LASTEXITCODE
     }
