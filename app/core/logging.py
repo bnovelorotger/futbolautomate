@@ -40,9 +40,9 @@ def configure_logging(level: str = "INFO", json_output: bool = False) -> None:
     root.handlers.clear()
 
     run_id_filter = RunIdFilter()
-    root.addFilter(run_id_filter)
 
     handler = logging.StreamHandler(sys.stdout)
+    handler.addFilter(run_id_filter)
     if json_output:
         handler.setFormatter(JsonFormatter())
     else:

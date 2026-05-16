@@ -5,7 +5,9 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from sqlalchemy import case, func, select
+from datetime import timedelta
+
+from sqlalchemy import case, func, select, update
 from sqlalchemy.orm import Session
 
 from app.channels.x_browser.publisher import (
@@ -74,13 +76,34 @@ class XBrowserPublicationService:
         selection = self.text_selector.select_text(candidate, prefer_rewrite=True)
         return selection.text, selection.source
 
+    def mark_pre_browser_published(self, *, cutoff_hours: int = 48) -> None:
+        """Mark old published candidates as handled so they are never queued for browser publish.
+
+        Candidates published more than cutoff_hours ago predate the browser publisher
+        and should not be re-published to X as they would flood the timeline with stale content.
+        """
+        from app.utils.time import utcnow
+        cutoff = utcnow() - timedelta(hours=cutoff_hours)
+        self.session.execute(
+            update(ContentCandidate)
+            .where(
+                ContentCandidate.status == str(ContentCandidateStatus.PUBLISHED),
+                ContentCandidate.external_publication_ref.is_(None),
+                ContentCandidate.published_at < cutoff,
+            )
+            .values(external_publication_ref="pre_browser:skipped")
+        )
+
     def _pending_candidates(self, *, limit: int | None = None) -> list[ContentCandidate]:
+        from app.utils.time import utcnow
+        cutoff = utcnow() - timedelta(hours=48)
         query = (
             select(ContentCandidate)
             .where(
                 ContentCandidate.status == str(ContentCandidateStatus.PUBLISHED),
                 ContentCandidate.external_publication_ref.is_(None),
                 func.length(func.trim(ContentCandidate.text_draft)) > 0,
+                ContentCandidate.published_at >= cutoff,
             )
             .order_by(
                 case((ContentCandidate.published_at.is_(None), 1), else_=0),

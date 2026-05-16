@@ -62,7 +62,7 @@ class XBrowserPublisher:
                 if "/login" in page.url or "/i/flow/login" in page.url:
                     raise XBrowserSessionError("Session expired. Run: x_browser_auth capture")
                 page.wait_for_selector(self.TEXTAREA_SELECTOR, timeout=15_000)
-                textarea = page.locator(self.TEXTAREA_SELECTOR)
+                textarea = page.locator(self.TEXTAREA_SELECTOR).first
                 textarea.click()
                 textarea.type(text, delay=self.typing_delay_ms)
                 # Small pause before posting (human-like)

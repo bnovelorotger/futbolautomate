@@ -7,7 +7,7 @@ import sqlalchemy as sa
 
 
 revision = "20260516_0015"
-down_revision = "20260512_add_pipeline_metrics"
+down_revision = "20260512_0015"
 branch_labels = None
 depends_on = None
 
