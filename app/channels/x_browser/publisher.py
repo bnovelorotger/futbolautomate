@@ -36,16 +36,26 @@ class XBrowserPublisher:
         self.headless = headless
         self.typing_delay_ms = typing_delay_ms
 
-    def publish_text(self, text: str, *, dry_run: bool = False) -> XBrowserPublishResponse:
+    def publish_text(
+        self,
+        text: str,
+        *,
+        image_path: Path | None = None,
+        dry_run: bool = False,
+    ) -> XBrowserPublishResponse:
         if not text or not text.strip():
             raise XBrowserPublishError("Tweet text cannot be empty")
         if len(text) > MAX_POST_LENGTH:
             raise XBrowserPublishError(f"Tweet text exceeds {MAX_POST_LENGTH} chars ({len(text)})")
         if dry_run:
             logger.info("[dry-run] Would publish: %s…", text[:60])
+            if image_path is not None and image_path.exists():
+                logger.info("[dry-run] Would attach image: %s", image_path.name)
             return XBrowserPublishResponse(text=text, dry_run=True)
         if not self.state_file.exists():
             raise XBrowserSessionError(f"No session file at {self.state_file}. Run: browser-auth-capture")
+
+        resolved_image: Path | None = image_path if (image_path is not None and image_path.exists()) else None
 
         with sync_playwright() as p:
             browser = p.chromium.launch(
@@ -76,6 +86,13 @@ class XBrowserPublisher:
                 if "/login" in page.url or "/i/flow/login" in page.url:
                     raise XBrowserSessionError("Session expired. Run: browser-auth-capture")
                 page.wait_for_selector(self.TEXTAREA_SELECTOR, timeout=15_000)
+                if resolved_image is not None:
+                    try:
+                        page.set_input_files('[data-testid="fileInput"]', str(resolved_image))
+                        page.wait_for_selector('[data-testid="attachments"]', timeout=20_000)
+                        logger.info("Image attached: %s", resolved_image.name)
+                    except Exception as exc:
+                        logger.warning("Image attachment failed, continuing without image: %s", exc)
                 textarea = page.locator(self.TEXTAREA_SELECTOR).first
                 textarea.scroll_into_view_if_needed(timeout=5_000)
                 textarea.click(force=True, timeout=15_000)
@@ -118,4 +135,5 @@ class XBrowserPublisher:
             text=text,
             published_at=datetime.now(timezone.utc),
             dry_run=False,
+            image_path=str(resolved_image) if resolved_image is not None else None,
         )

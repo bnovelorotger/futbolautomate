@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 from unittest.mock import Mock
 from zoneinfo import ZoneInfo
 
@@ -48,6 +49,7 @@ def test_x_browser_publication_service_lists_and_publishes_with_x_channel() -> N
         assert candidate.external_publication_error is None
         publisher.publish_text.assert_called_once_with(
             "Torrent CF 1-0 UE Porreres. Final en Segunda RFEF balear.",
+            image_path=None,
             dry_run=False,
         )
     finally:
@@ -197,5 +199,67 @@ def test_x_browser_publication_service_publish_pending_respects_schedule_and_ret
         assert candidate_6.publication_attempts == 3
         assert candidate_7 is not None
         assert candidate_7.external_publication_ref is None
+    finally:
+        session.close()
+
+
+def _make_standings_candidate(tmp_path: Path, candidate_id: int = 42) -> tuple[ContentCandidate, Path]:
+    now = datetime(2026, 3, 17, 10, 0, tzinfo=timezone.utc)
+    image_dir = tmp_path / "exports" / "images" / "tercera_rfef_g11" / "2026-03-17"
+    image_dir.mkdir(parents=True)
+    image_file = image_dir / f"standings_roundup_{candidate_id}.png"
+    image_file.write_bytes(b"\x89PNG\r\n")
+    candidate = ContentCandidate(
+        id=candidate_id,
+        competition_slug="tercera_rfef_g11",
+        content_type="standings_roundup",
+        priority=80,
+        text_draft="Clasificación actualizada.",
+        source_summary_hash=f"hash-{candidate_id}",
+        status="published",
+        created_at=now,
+        updated_at=now,
+    )
+    return candidate, image_file
+
+
+def test_find_image_for_candidate_returns_path_when_file_exists(tmp_path: Path) -> None:
+    session = build_session()
+    try:
+        candidate, expected_image = _make_standings_candidate(tmp_path, candidate_id=42)
+
+        from app.core.config import Settings
+
+        settings = Settings(app_root=tmp_path)
+        service = XBrowserPublicationService(session, settings=settings)
+
+        result = service._find_image_for_candidate(candidate)
+
+        assert result == expected_image
+    finally:
+        session.close()
+
+
+def test_find_image_for_candidate_returns_none_when_file_missing(tmp_path: Path) -> None:
+    session = build_session()
+    try:
+        candidate = ContentCandidate(
+            id=99,
+            competition_slug="tercera_rfef_g11",
+            content_type="standings_roundup",
+            priority=80,
+            text_draft="Clasificación.",
+            source_summary_hash="hash-99",
+            status="published",
+        )
+
+        from app.core.config import Settings
+
+        settings = Settings(app_root=tmp_path)
+        service = XBrowserPublicationService(session, settings=settings)
+
+        result = service._find_image_for_candidate(candidate)
+
+        assert result is None
     finally:
         session.close()

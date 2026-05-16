@@ -75,6 +75,10 @@ Register-FutbolTask "futbol_summary"            "scripts\windows\daily_summary.p
 # --- Engagement diario (like a tweets del timeline) ---
 Register-FutbolTask "futbol_engagement"         "scripts\windows\daily_engagement.ps1"  "12:30" @("Monday","Tuesday","Wednesday","Thursday","Friday")
 
+# --- Verificacion de sesion de X browser ---
+# Lunes a las 06:00: antes del scraping (06:30) y del editorial (07:30) para alertar a tiempo
+Register-FutbolTask "futbol_session_check"      "scripts\windows\check_browser_session.ps1" "06:00" @("Monday")
+
 # --- Backup de base de datos ---
 Register-FutbolTask "futbol_backup"             "scripts\windows\backup_db.ps1"         "03:00" @("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday")
 

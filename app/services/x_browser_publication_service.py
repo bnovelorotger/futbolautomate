@@ -89,6 +89,20 @@ class XBrowserPublicationService:
             raise ConfigurationError(f"Content candidate desconocido: {candidate_id}")
         return candidate
 
+    def _find_image_for_candidate(self, candidate: ContentCandidate) -> Path | None:
+        try:
+            competition_slug = candidate.competition_slug or ""
+            exports_root = self.settings.app_root / "exports"
+            pattern = f"images/{competition_slug}/**/standings_roundup_{candidate.id}.png"
+            matches = sorted(
+                exports_root.glob(pattern),
+                key=lambda p: p.stat().st_mtime,
+                reverse=True,
+            )
+            return matches[0] if matches else None
+        except Exception:
+            return None
+
     def _selected_text(self, candidate: ContentCandidate) -> tuple[str, str]:
         selection = self.text_selector.select_text(candidate, prefer_rewrite=True)
         return selection.text, selection.source
@@ -222,8 +236,13 @@ class XBrowserPublicationService:
         candidate = self._candidate(candidate_id)
         selected_text, selected_text_source = self._validate_candidate(candidate)
         excerpt = _excerpt(selected_text)
+
+        image_path: Path | None = None
+        if candidate.content_type == str(ContentType.STANDINGS_ROUNDUP):
+            image_path = self._find_image_for_candidate(candidate)
+
         if dry_run:
-            self.publisher.publish_text(selected_text, dry_run=True)
+            self.publisher.publish_text(selected_text, image_path=image_path, dry_run=True)
             return XPublicationResult(
                 dry_run=True,
                 candidate=self._row_to_view(
@@ -235,7 +254,7 @@ class XBrowserPublicationService:
 
         attempted_at = utcnow()
         try:
-            response = self.publisher.publish_text(selected_text, dry_run=False)
+            response = self.publisher.publish_text(selected_text, image_path=image_path, dry_run=False)
         except (XBrowserSessionError, XBrowserPublishError) as exc:
             self._record_failure(candidate, attempted_at=attempted_at, error=str(exc))
             raise
@@ -331,13 +350,17 @@ class XBrowserPublicationService:
 
             excerpt = _excerpt(selected_text)
 
+            image_path: Path | None = None
+            if candidate.content_type == str(ContentType.STANDINGS_ROUNDUP):
+                image_path = self._find_image_for_candidate(candidate)
+
             if idx > 0 and not dry_run and stagger_seconds > 0:
                 logger.info("Esperando %ss antes del siguiente tweet...", stagger_seconds)
                 time.sleep(stagger_seconds)
 
             attempted_at = utcnow()
             try:
-                response = self.publisher.publish_text(selected_text, dry_run=dry_run)
+                response = self.publisher.publish_text(selected_text, image_path=image_path, dry_run=dry_run)
             except XBrowserSessionError as exc:
                 logger.error("Sesion de browser X invalida, abortando batch: %s", exc)
                 if not dry_run:

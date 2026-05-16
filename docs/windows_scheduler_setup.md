@@ -26,6 +26,7 @@ Ruta: `scripts/windows/`
 | `daily_engagement.ps1` | Likes diarios en el timeline de X para humanizar la cuenta (3 likes/dia por defecto) |
 | `backup_db.ps1` | Backup diario de PostgreSQL en `backups/` |
 | `auto_publish_browser.ps1` | Reintento batch de publicacion via navegador, desacoplado del release |
+| `check_browser_session.ps1` | Comprueba que `.x_browser_state.json` existe y que la sesion de X esta activa; alerta si ha caducado |
 | `setup_scheduler.ps1` | Crea o recrea todas las tareas en el Programador de tareas (ejecutar como Admin) |
 
 ---
@@ -36,6 +37,7 @@ Todas las tareas usan `-LogonType Interactive`: requieren sesion de Windows abie
 
 | Tarea | Lun | Mar | Mie | Jue | Vie | Sab | Dom |
 |-------|-----|-----|-----|-----|-----|-----|-----|
+| `futbol_session_check` | 06:00 | — | — | — | — | — | — |
 | `futbol_refresh_morning` | 06:30 | — | — | — | — | — | 06:30 |
 | `futbol_refresh_midweek` | — | — | 07:00 | — | 07:00 | — | — |
 | `futbol_refresh_other` | — | 07:00 | — | 07:00 | — | 07:00 | — |
@@ -52,7 +54,8 @@ Todas las tareas usan `-LogonType Interactive`: requieren sesion de Windows abie
 | `futbol_backup` | 03:00 | 03:00 | 03:00 | 03:00 | 03:00 | 03:00 | 03:00 |
 
 **Logica de secuencia por dia activo:**
-- Lunes/domingo: refresh a las 06:30 → editorial a las 07:30 → release (+ publicacion en X) a las 08:30
+- Lunes: session check a las 06:00 → refresh a las 06:30 → editorial a las 07:30 → release (+ publicacion en X) a las 08:30
+- Domingo: refresh a las 06:30 → editorial a las 07:30 → release (+ publicacion en X) a las 08:30
 - Miercoles: refresh a las 07:00 → editorial a las 18:30 → release (+ publicacion en X) a las 19:30
 - Viernes: refresh a las 07:00 → editorial a las 08:00 → release (+ publicacion en X) a las 09:00
 - Martes/jueves/sabado: solo refresh matutino + release estandar a las 10:30
@@ -146,6 +149,33 @@ X_ENGAGEMENT_DAILY_LIKES=3
 | `logs\cron_release.log` | editorial_release |
 | `logs\cron_engagement.log` | daily_engagement |
 | `logs\cron_backup.log` | backup_db |
+| `logs\cron_session_check.log` | check_browser_session |
+
+---
+
+## Verificacion de sesion de X browser
+
+`futbol_session_check` se ejecuta los lunes a las 06:00, antes del scraping matutino (06:30) y la ventana de publicacion (08:30).
+
+### Que hace
+
+1. Comprueba que `.x_browser_state.json` existe en la raiz del proyecto
+2. Llama a `python -m app.pipelines.runner x_browser_session_check`, que abre Chromium con la sesion guardada y navega a `x.com/home`
+3. Registra el resultado en `logs\cron_session_check.log`
+
+### Que hacer si se dispara la alerta ERROR
+
+Si el log contiene `ALERTA: Sesion de X browser caducada`, renovar la sesion antes de que llegue la ventana de publicacion:
+
+```powershell
+python -m app.pipelines.runner x_browser_auth capture
+```
+
+Abre un navegador interactivo para hacer login. Guarda la sesion en `.x_browser_state.json`. El archivo esta en `.gitignore` y nunca se sube al repositorio.
+
+### Por que solo los lunes
+
+El lunes es el dia de mayor carga de publicacion (resultados del fin de semana). Un aviso a las 06:00 da tiempo de actuar antes de las 08:30 cuando arranca `editorial_release`. Si la sesion caduca otro dia, el diagnostico manual con `python scripts/debug_browser_publish.py` o el log de `editorial_release` lo detectara igualmente.
 
 ---
 
