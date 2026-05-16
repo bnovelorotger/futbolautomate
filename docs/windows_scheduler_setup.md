@@ -69,7 +69,7 @@ El pipeline publica en X usando Playwright con Chromium en modo visible (`headle
 2. `XBrowserPublicationService` busca candidatos `published` sin `external_publication_ref` de las ultimas 48h
 3. Para cada candidato: abre Chromium, navega a `x.com/compose/post`, escribe el texto, espera que el boton Post este activo y envia con `Ctrl+Enter`
 4. Verifica que X navega fuera de `/compose/post` (confirmacion de exito)
-5. Guarda `external_publication_ref=browser:<timestamp>` en BD
+5. Guarda `external_publication_ref=x-browser:<timestamp>` y `external_channel=x` en BD
 
 ### Requisitos para que funcione
 
@@ -174,6 +174,7 @@ Get-ScheduledTask | Where-Object { $_.TaskName -like "futbol_*" } | Select-Objec
 - Por defecto: `run` + `--publish-browser` (sin fecha = hoy)
 - `-DryRun`: simula sin escribir nada en BD ni publicar
 - `-SkipPublishBrowser`: omite la publicacion via navegador
+- `-PublishX` y `-PublishTypefully`: rutas de compatibilidad/manuales; no forman parte del carril programado por defecto
 
 ---
 

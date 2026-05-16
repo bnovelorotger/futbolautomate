@@ -16,7 +16,6 @@ from app.schemas.editorial_approval import (
 )
 from app.services.editorial_candidate_window import EditorialCandidateWindowService
 from app.services.editorial_quality_checks import EditorialQualityChecksService
-from app.services.story_importance import StoryImportanceService
 from app.utils.time import utcnow
 
 
@@ -39,7 +38,9 @@ FRIDAY_AUTOAPPROVABLE_CONTENT_TYPES = (
     ContentType.FEATURED_MATCH_PREVIEW,
     ContentType.MATCH_IMPACT_SCENARIO,
 )
-CONDITIONAL_AUTOAPPROVABLE_CONTENT_TYPES: tuple[ContentType, ...] = ()
+CONDITIONAL_AUTOAPPROVABLE_CONTENT_TYPES = (
+    ContentType.RACE_NARRATIVE,
+)
 MANUAL_REVIEW_CONTENT_TYPES = (
     ContentType.MATCH_RESULT,
     ContentType.STANDINGS,
@@ -56,6 +57,34 @@ MANUAL_REVIEW_CONTENT_TYPES = (
     ContentType.MILESTONE_STORY,
     ContentType.TOP_SCORER_UPDATE,
 )
+_CONDITIONAL_POLICY_PENDING_REASON = "conditional_policy_pending"
+_RACE_NARRATIVE_ALLOWED_WEEKDAYS = frozenset({0})
+_RACE_NARRATIVE_AUTO_RULES: dict[str, dict[str, int]] = {
+    "title_race": {
+        "min_priority": 86,
+        "min_team_count": 2,
+        "max_team_count": 4,
+        "max_points_span": 2,
+        "max_rounds_remaining": 10,
+        "type_rank": 3,
+    },
+    "playoff_race": {
+        "min_priority": 83,
+        "min_team_count": 3,
+        "max_team_count": 5,
+        "max_points_span": 2,
+        "max_rounds_remaining": 8,
+        "type_rank": 2,
+    },
+    "relegation_race": {
+        "min_priority": 82,
+        "min_team_count": 3,
+        "max_team_count": 5,
+        "max_points_span": 2,
+        "max_rounds_remaining": 8,
+        "type_rank": 1,
+    },
+}
 
 
 def _excerpt(text: str, limit: int = 100) -> str:
@@ -71,7 +100,6 @@ class EditorialApprovalPolicyService:
         self.settings = settings or get_settings()
         self.window_service = EditorialCandidateWindowService(session, settings=self.settings)
         self.quality_service = EditorialQualityChecksService(session, settings=self.settings)
-        self.story_service = StoryImportanceService(session, settings=self.settings)
 
     def status(
         self,
@@ -187,7 +215,7 @@ class EditorialApprovalPolicyService:
                 quality_snapshot=quality_snapshot,
                 reference_date=reference_date,
             )
-            if policy_reason == "story_importance_pending":
+            if policy_reason == _CONDITIONAL_POLICY_PENDING_REASON:
                 conditional_candidates.append(candidate)
                 continue
             views_by_id[candidate.id] = self._row_to_view(
@@ -196,22 +224,56 @@ class EditorialApprovalPolicyService:
                 policy_reason=policy_reason,
             )
 
-        decisions = self.story_service.select_automatic_narratives(conditional_candidates)
+        decisions = self._evaluate_conditional_candidates(
+            conditional_candidates,
+            reference_date=reference_date,
+        )
         for candidate in conditional_candidates:
-            decision = decisions[candidate.id]
+            autoapprovable, policy_reason = decisions[candidate.id]
             views_by_id[candidate.id] = self._row_to_view(
                 candidate,
-                autoapprovable=decision.allowed,
-                policy_reason=(
-                    "policy_autoapprove_story_importance"
-                    if decision.allowed
-                    else decision.reason
-                ),
-                importance_score=decision.importance_score,
-                priority_bucket=decision.priority_bucket,
-                importance_reasoning=decision.importance_reasoning,
+                autoapprovable=autoapprovable,
+                policy_reason=policy_reason,
             )
         return [views_by_id[candidate.id] for candidate in candidates]
+
+    def _evaluate_conditional_candidates(
+        self,
+        candidates: list[ContentCandidate],
+        *,
+        reference_date: date,
+    ) -> dict[int, tuple[bool, str]]:
+        decisions: dict[int, tuple[bool, str]] = {}
+        race_candidates_by_competition: dict[str, list[ContentCandidate]] = {}
+
+        for candidate in candidates:
+            content_type = ContentType(candidate.content_type)
+            if content_type == ContentType.RACE_NARRATIVE:
+                race_candidates_by_competition.setdefault(candidate.competition_slug, []).append(candidate)
+                continue
+            decisions[candidate.id] = (False, "manual_review_policy")
+
+        for competition_slug in sorted(race_candidates_by_competition):
+            rows = race_candidates_by_competition[competition_slug]
+            eligible_rows: list[ContentCandidate] = []
+            for row in rows:
+                allowed, reason = self._race_narrative_eligibility(
+                    row,
+                    reference_date=reference_date,
+                )
+                if allowed:
+                    eligible_rows.append(row)
+                else:
+                    decisions[row.id] = (False, reason)
+            if not eligible_rows:
+                continue
+            selected = max(eligible_rows, key=self._race_narrative_selection_key)
+            decisions[selected.id] = (True, "policy_autoapprove_race_narrative")
+            for row in eligible_rows:
+                if row.id != selected.id:
+                    decisions[row.id] = (False, "race_narrative_competition_limit")
+
+        return decisions
 
     def _base_policy(
         self,
@@ -238,11 +300,96 @@ class EditorialApprovalPolicyService:
             if content_type in self._autoapprovable_types_for_date(reference_date):
                 return True, "policy_autoapprove_safe_type"
             if content_type in CONDITIONAL_AUTOAPPROVABLE_CONTENT_TYPES:
-                return False, "story_importance_pending"
+                return False, _CONDITIONAL_POLICY_PENDING_REASON
             elif content_type in MANUAL_REVIEW_CONTENT_TYPES:
                 return False, "manual_review_policy"
             else:
                 return False, "content_type_not_configured"
+
+    def _race_narrative_eligibility(
+        self,
+        candidate: ContentCandidate,
+        *,
+        reference_date: date,
+    ) -> tuple[bool, str]:
+        if reference_date.weekday() not in _RACE_NARRATIVE_ALLOWED_WEEKDAYS:
+            return False, "race_narrative_day_not_enabled"
+
+        source_payload = self._source_payload(candidate)
+        narrative_type = str(source_payload.get("narrative_type") or "")
+        if not narrative_type:
+            return False, "race_narrative_type_missing"
+
+        rules = _RACE_NARRATIVE_AUTO_RULES.get(narrative_type)
+        if rules is None:
+            return False, f"race_narrative_manual_only_type:{narrative_type}"
+
+        team_count = source_payload.get("team_count")
+        if not isinstance(team_count, int):
+            return False, "race_narrative_team_count_invalid"
+        if team_count < rules["min_team_count"]:
+            return False, f"race_narrative_team_count<{rules['min_team_count']}"
+        if team_count > rules["max_team_count"]:
+            return False, f"race_narrative_team_count>{rules['max_team_count']}"
+
+        points_span = source_payload.get("points_span")
+        if not isinstance(points_span, int):
+            return False, "race_narrative_points_span_invalid"
+        if points_span > rules["max_points_span"]:
+            return False, f"race_narrative_points_span>{rules['max_points_span']}"
+
+        rounds_remaining = source_payload.get("rounds_remaining")
+        if not isinstance(rounds_remaining, int) or rounds_remaining < 1:
+            return False, "race_narrative_rounds_remaining_invalid"
+        if rounds_remaining > rules["max_rounds_remaining"]:
+            return False, f"race_narrative_rounds_remaining>{rules['max_rounds_remaining']}"
+
+        target_position = source_payload.get("target_position")
+        if narrative_type == "title_race":
+            if target_position != 1:
+                return False, "race_narrative_target_position_invalid"
+        elif not isinstance(target_position, int) or target_position < 2:
+            return False, "race_narrative_target_position_invalid"
+
+        if candidate.priority < rules["min_priority"]:
+            return False, f"race_narrative_priority<{rules['min_priority']}"
+
+        teams = source_payload.get("teams")
+        if not isinstance(teams, list) or not teams:
+            return False, "race_narrative_teams_missing"
+        team_names = [
+            item.get("team")
+            for item in teams
+            if isinstance(item, dict) and isinstance(item.get("team"), str) and item.get("team").strip()
+        ]
+        if len(team_names) != len(teams) or len(set(team_names)) != len(team_names):
+            return False, "race_narrative_teams_invalid"
+        if len(teams) != team_count:
+            return False, "race_narrative_team_count_mismatch"
+
+        return True, "race_narrative_policy_ready"
+
+    def _race_narrative_selection_key(self, candidate: ContentCandidate) -> tuple[int, int, int, int, int]:
+        source_payload = self._source_payload(candidate)
+        narrative_type = str(source_payload.get("narrative_type") or "")
+        rules = _RACE_NARRATIVE_AUTO_RULES.get(narrative_type, {})
+        points_span = source_payload.get("points_span")
+        rounds_remaining = source_payload.get("rounds_remaining")
+        team_count = source_payload.get("team_count")
+        return (
+            candidate.priority,
+            int(rules.get("type_rank", 0)),
+            -int(points_span) if isinstance(points_span, int) else -99,
+            -int(rounds_remaining) if isinstance(rounds_remaining, int) else -99,
+            -int(team_count) if isinstance(team_count, int) else -99,
+        )
+
+    def _source_payload(self, candidate: ContentCandidate) -> dict[str, object]:
+        payload_json = candidate.payload_json or {}
+        source_payload = payload_json.get("source_payload", {}) if isinstance(payload_json, dict) else {}
+        if isinstance(source_payload, dict):
+            return source_payload
+        return {}
 
     def _is_potential_autoapprovable(self, candidate: ContentCandidate, *, reference_date: date) -> bool:
         status = ContentCandidateStatus(candidate.status)

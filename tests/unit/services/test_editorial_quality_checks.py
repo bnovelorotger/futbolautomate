@@ -80,6 +80,100 @@ def test_quality_checks_block_trivial_viral_story() -> None:
         session.close()
 
 
+def test_quality_precheck_passes_for_strong_race_narrative_draft() -> None:
+    session = build_session()
+    try:
+        seed_narratives_data(session)
+        candidate = ContentCandidate(
+            competition_slug="tercera_rfef_g11",
+            content_type="race_narrative",
+            priority=87,
+            text_draft="CD Llosetense y CD Manacor llegan a la recta final separados por un punto en la pelea por el liderato.",
+            payload_json={
+                "content_key": "race_narrative:title_race:tercera_rfef_g11:1:llosetense-manacor",
+                "source_payload": {
+                    "narrative_type": "title_race",
+                    "target_label": "liderato",
+                    "target_position": 1,
+                    "team_count": 2,
+                    "points_span": 1,
+                    "rounds_remaining": 4,
+                    "teams": [
+                        {"team": "CD Llosetense", "position": 1, "points": 58, "gap_to_target": 0},
+                        {"team": "CD Manacor", "position": 2, "points": 57, "gap_to_target": 1},
+                    ],
+                },
+            },
+            source_summary_hash="quality-race-strong",
+            status="draft",
+            created_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+            updated_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+        )
+        session.add(candidate)
+        session.commit()
+
+        result = EditorialQualityChecksService(
+            session,
+            settings=build_settings(),
+            policy=build_export_policy(),
+        ).check_candidates([candidate.id], dry_run=True, require_published=False)
+
+        assert result.checked_count == 1
+        assert result.passed_count == 1
+        assert result.rows[0].passed is True
+        assert result.rows[0].errors == []
+    finally:
+        session.close()
+
+
+def test_quality_precheck_blocks_manual_only_race_narrative_variant() -> None:
+    session = build_session()
+    try:
+        seed_narratives_data(session)
+        candidate = ContentCandidate(
+            competition_slug="tercera_rfef_g11",
+            content_type="race_narrative",
+            priority=79,
+            text_draft="Cinco equipos mantienen opciones matematicas de alcanzar la 4a plaza de playoff.",
+            payload_json={
+                "content_key": "race_narrative:alive_mathematics:tercera_rfef_g11:4",
+                "source_payload": {
+                    "narrative_type": "alive_mathematics",
+                    "target_label": "4a plaza de playoff",
+                    "target_position": 4,
+                    "team_count": 5,
+                    "points_span": 3,
+                    "rounds_remaining": 6,
+                    "teams": [
+                        {"team": "CD Llosetense", "position": 3, "points": 51, "gap_to_target": -1},
+                        {"team": "CD Manacor", "position": 4, "points": 50, "gap_to_target": 0},
+                        {"team": "CE Mercadal", "position": 5, "points": 49, "gap_to_target": 1},
+                        {"team": "SD Portmany", "position": 6, "points": 48, "gap_to_target": 2},
+                        {"team": "CD Binissalem", "position": 7, "points": 47, "gap_to_target": 3},
+                    ],
+                },
+            },
+            source_summary_hash="quality-race-manual-only",
+            status="draft",
+            created_at=datetime(2026, 3, 18, 10, 5, tzinfo=timezone.utc),
+            updated_at=datetime(2026, 3, 18, 10, 5, tzinfo=timezone.utc),
+        )
+        session.add(candidate)
+        session.commit()
+
+        result = EditorialQualityChecksService(
+            session,
+            settings=build_settings(),
+            policy=build_export_policy(),
+        ).check_candidates([candidate.id], dry_run=True, require_published=False)
+
+        assert result.failed_count == 1
+        assert result.rows[0].passed is False
+        assert "race_narrative_manual_only_type:alive_mathematics" in result.rows[0].errors
+    finally:
+        session.close()
+
+
 def test_quality_checks_block_recent_duplicates() -> None:
     session = build_session()
     try:

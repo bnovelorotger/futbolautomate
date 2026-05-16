@@ -19,7 +19,7 @@ _SLOW_MO_MS = 200
 
 
 class XBrowserSessionError(RuntimeError):
-    """Session expired or invalid — re-run x_browser_auth capture."""
+    """Session expired or invalid - re-run browser-auth-capture."""
 
 
 class XBrowserPublishError(RuntimeError):
@@ -45,7 +45,7 @@ class XBrowserPublisher:
             logger.info("[dry-run] Would publish: %s…", text[:60])
             return XBrowserPublishResponse(text=text, dry_run=True)
         if not self.state_file.exists():
-            raise XBrowserSessionError(f"No session file at {self.state_file}. Run: x_browser_auth capture")
+            raise XBrowserSessionError(f"No session file at {self.state_file}. Run: browser-auth-capture")
 
         with sync_playwright() as p:
             browser = p.chromium.launch(
@@ -74,7 +74,7 @@ class XBrowserPublisher:
             try:
                 page.goto(self.COMPOSE_URL, wait_until="domcontentloaded", timeout=30_000)
                 if "/login" in page.url or "/i/flow/login" in page.url:
-                    raise XBrowserSessionError("Session expired. Run: x_browser_auth capture")
+                    raise XBrowserSessionError("Session expired. Run: browser-auth-capture")
                 page.wait_for_selector(self.TEXTAREA_SELECTOR, timeout=15_000)
                 textarea = page.locator(self.TEXTAREA_SELECTOR).first
                 textarea.scroll_into_view_if_needed(timeout=5_000)

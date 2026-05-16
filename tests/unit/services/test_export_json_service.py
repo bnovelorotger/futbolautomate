@@ -115,7 +115,7 @@ def build_standings_payload(
 
 
 def build_service(session, tmp_path: Path) -> tuple[ExportJsonService, Path]:
-    export_path = tmp_path / "export" / "export_base.json"
+    export_path = tmp_path / "export" / "legacy_export.json"
     return (
         ExportJsonService(
             session,
@@ -124,6 +124,20 @@ def build_service(session, tmp_path: Path) -> tuple[ExportJsonService, Path]:
         ),
         export_path,
     )
+
+
+def test_export_json_service_uses_legacy_default_output_path(tmp_path: Path) -> None:
+    session = build_session()
+    try:
+        settings = build_settings(app_root=tmp_path)
+        service = ExportJsonService(session, settings=settings)
+
+        assert service.export_kind == "legacy_compatibility"
+        assert service.is_legacy_compatibility is True
+        assert service.output_path == tmp_path / "export" / "legacy_export.json"
+        assert ExportJsonService.default_output_path(settings) == tmp_path / "export" / "legacy_export.json"
+    finally:
+        session.close()
 
 
 def test_export_json_service_filters_jornadas_and_overwrites_file(tmp_path: Path) -> None:

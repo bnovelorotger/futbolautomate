@@ -17,7 +17,7 @@ Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolida
 - agregados editoriales `results_roundup` y `standings_roundup`
 - `editorial_formatter` como capa determinista previa a exportacion
 - `editorial_release` + `export_base_service` para generar `exports/export_base.json` como salida estructurada por defecto
-- `legacy_export_json_enabled` para reactivar `export/legacy_export.json` via `export_json_service` solo por compatibilidad
+- `legacy_export_json_enabled` para reactivar `export/legacy_export.json` via `export_json_service` solo por compatibilidad con consumidores antiguos
 - catalogo integrado ampliado con `primera_rfef_baleares`, `tercera_federacion_femenina_g11`, `division_honor_ibiza_form` y `division_honor_menorca`
 - planner semanal afinado: lunes cubre `results_roundup + standings_roundup` en las siete integradas y suma `race_narrative + milestone_story + top_scorer_update` en las cinco principales; miercoles reduce la narrativa automatica al duo (`metric_narrative`, `viral_story`) para `tercera_rfef_g11`, `segunda_rfef_g3_baleares` y `tercera_federacion_femenina_g11`; jueves queda sin slots activos por defecto; y viernes se centra en `featured_match_preview + match_impact_scenario` para `tercera_rfef_g11`, `segunda_rfef_g3_baleares`, `division_honor_mallorca`, `tercera_federacion_femenina_g11` y `primera_rfef_baleares`
 - `top_scorer_update` ya no sale por simple existencia de goles: exige temporada activa, cobertura de goleadores y umbral minimo de senal editorial
@@ -116,7 +116,7 @@ pytest
 
 - La base tecnica de scraping, persistencia y consultas ya existe y tiene tests.
 - El catalogo operativo ya no se limita a tres competiciones: ahora incluye tambien `primera_rfef_baleares`, `tercera_federacion_femenina_g11`, `division_honor_ibiza_form` y `division_honor_menorca`.
-- El repo contiene capa editorial, cola de aprobacion y release hacia `exports/export_base.json`, con `export/legacy_export.json` solo como compatibilidad opcional y publicacion en X todavia desacoplada.
+- El repo contiene capa editorial, cola de aprobacion y release hacia `exports/export_base.json`, con `export/legacy_export.json` solo como compatibilidad opcional y publicacion real en X ya resuelta por browser automation.
 - El release seguro ya diferencia entre aprobacion y publicacion: una previa futura puede quedar `approved` sin entrar todavia en `published` ni en el snapshot exportado.
 - `export_base` ya puede adjuntar un artefacto visual PNG para `standings_roundup`; el entorno que genere el snapshot necesita `playwright install chromium`.
 - La operativa real depende de credenciales, base de datos y tareas programadas locales.
@@ -567,6 +567,11 @@ Uso operativo:
 
 La salida automatica actual del release no crea drafts en un canal externo. Genera por defecto `exports/export_base.json`.
 
+Source of truth de esta capa:
+- `exports/export_base.json` es el snapshot estructurado canonico para handoff y consumo local/posterior.
+- `export_base_service` es la unica capa que define ese snapshot.
+- el fichero es un artefacto generado; no se edita a mano ni sustituye el estado en BD.
+
 Flujo actual:
 - `editorial_quality_checks`
 - `editorial_approval`
@@ -627,6 +632,7 @@ Si activas `LEGACY_EXPORT_JSON_ENABLED=true`, el release vuelve a generar ademas
 Reglas operativas:
 - usa `export_json_service`
 - queda orientado a compatibilidad con consumidores antiguos
+- no sustituye a `exports/export_base.json` ni redefine el snapshot estructurado
 - su ruta por defecto es `export/legacy_export.json`
 
 ## Story Importance
@@ -735,7 +741,7 @@ Notas operativas:
 - `editorial_release` no se limita a lo generado en el mismo dia: tambien puede publicar candidatas ya aprobadas si su ventana real ya ha llegado
 - `editorial_release` genera `exports/export_base.json` como snapshot estructurado por defecto
 - `export_base generate` regenera ese mismo snapshot de forma manual si lo necesitas fuera del release
-- `editorial_release.ps1` publica en X por defecto salvo `-SkipPublishX`, y `auto_publish.ps1` deja un batch separado para retries o ventanas horarias propias
+- `editorial_release.ps1` publica en X via browser por defecto salvo `-SkipPublishBrowser`, y `auto_publish_browser.ps1` deja un batch separado para retries o ventanas horarias propias
 - `LEGACY_EXPORT_JSON_ENABLED=true` reactiva `export/legacy_export.json` solo para compatibilidad
 - no se anaden nuevas features en esta fase; las mejoras futuras quedan para una iteracion posterior
 

@@ -20,6 +20,7 @@ from app.services.standings_card_service import generate_standings_card
 from app.utils.time import utcnow
 
 _SNAPSHOT_SCOPE = "weekly_snapshot"
+_DEFAULT_EXPORT_BASE_SUBPATH = Path("exports") / "export_base.json"
 _PREVIEW_TYPES = {
     ContentType.PREVIEW,
     ContentType.FEATURED_MATCH_PREVIEW,
@@ -54,6 +55,10 @@ def _usable_text(text: str | None) -> str | None:
 
 
 class ExportBaseService:
+    export_kind = "structured_snapshot"
+    is_legacy_compatibility = False
+    default_output_subpath = _DEFAULT_EXPORT_BASE_SUBPATH
+
     def __init__(
         self,
         session: Session,
@@ -63,9 +68,13 @@ class ExportBaseService:
     ) -> None:
         self.session = session
         self.settings = settings or get_settings()
-        self.output_path = output_path or (self.settings.app_root / "exports" / "export_base.json")
+        self.output_path = output_path or self.default_output_path(self.settings)
         self.window = EditorialCandidateWindowService(session, settings=self.settings)
         self.selector = EditorialTextSelectorService(session, settings=self.settings)
+
+    @classmethod
+    def default_output_path(cls, settings: Settings) -> Path:
+        return settings.app_root / cls.default_output_subpath
 
     def generate_export_file(
         self,
@@ -128,11 +137,7 @@ class ExportBaseService:
             competitions=competitions,
         )
         if not dry_run:
-            self.output_path.parent.mkdir(parents=True, exist_ok=True)
-            self.output_path.write_text(
-                json.dumps(document.model_dump(mode="json"), ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
+            self._write_document(document)
         return ExportBaseResult(
             scope=_SNAPSHOT_SCOPE,
             target_date=target_date,
@@ -142,6 +147,13 @@ class ExportBaseService:
             total_items=document.total_items,
             generated_at=generated_at,
             document=document,
+        )
+
+    def _write_document(self, document: ExportBaseDocument) -> None:
+        self.output_path.parent.mkdir(parents=True, exist_ok=True)
+        self.output_path.write_text(
+            json.dumps(document.model_dump(mode="json"), ensure_ascii=False, indent=2),
+            encoding="utf-8",
         )
 
     def _candidates_for_snapshot(self) -> list[ContentCandidate]:

@@ -98,6 +98,20 @@ def build_service(session, tmp_path: Path) -> tuple[ExportBaseService, Path]:
     )
 
 
+def test_export_base_service_uses_canonical_default_output_path(tmp_path: Path) -> None:
+    session = build_session()
+    try:
+        settings = build_settings(app_root=tmp_path)
+        service = ExportBaseService(session, settings=settings)
+
+        assert service.export_kind == "structured_snapshot"
+        assert service.is_legacy_compatibility is False
+        assert service.output_path == tmp_path / "exports" / "export_base.json"
+        assert ExportBaseService.default_output_path(settings) == tmp_path / "exports" / "export_base.json"
+    finally:
+        session.close()
+
+
 def test_export_base_service_builds_weekly_snapshot_from_editorial_window(tmp_path: Path) -> None:
     session = build_session()
     try:

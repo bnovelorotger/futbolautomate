@@ -6,9 +6,8 @@ from pathlib import Path
 from unittest.mock import Mock
 
 from app.db.models import ContentCandidate
-from app.core.enums import ContentCandidateStatus, ContentType
-from app.schemas.x_publication import XBatchPublicationResult, XPublicationCandidateView
 from app.services.editorial_approval_policy import EditorialApprovalPolicyService
+from app.services.x_browser_publication_service import XBrowserBatchResult
 from app.services.editorial_release_pipeline import EditorialReleasePipelineService
 from tests.unit.services.service_test_support import build_session, build_settings
 from tests.unit.services.test_editorial_narratives import seed_competition
@@ -592,42 +591,28 @@ def test_editorial_release_pipeline_can_generate_legacy_export_when_enabled(tmp_
         session.close()
 
 
-def test_editorial_release_pipeline_can_auto_publish_in_x_for_dispatched_candidates(tmp_path: Path) -> None:
+def test_editorial_release_pipeline_publish_via_browser_calls_pending(tmp_path: Path) -> None:
     session = build_session()
     try:
         seed_release_candidates(session)
-        x_publication_service = Mock()
-        x_publication_service.publish_candidates.return_value = XBatchPublicationResult(
+        x_browser_publication_service = Mock()
+        x_browser_publication_service.publish_pending.return_value = XBrowserBatchResult(
             dry_run=False,
             published_count=4,
-            rows=[
-                XPublicationCandidateView(
-                    id=102,
-                    competition_slug="tercera_rfef_g11",
-                    content_type=ContentType.STANDINGS_ROUNDUP,
-                    priority=80,
-                    status=ContentCandidateStatus.PUBLISHED,
-                    selected_text_source="formatted_text",
-                    excerpt="Clasificacion",
-                )
-            ],
+            error_count=0,
+            skipped_count=0,
         )
         service = EditorialReleasePipelineService(
             session,
             settings=build_settings(app_root=tmp_path),
-            x_publication_service=x_publication_service,
+            x_browser_publication_service=x_browser_publication_service,
         )
 
-        result = service.run(reference_date=REFERENCE_DATE, dry_run=False, publish_to_x=True)
+        result = service.run(reference_date=REFERENCE_DATE, dry_run=False, publish_via_browser=True)
         session.commit()
 
         assert result.dispatched_count == 4
-        assert result.x_publish_enabled is True
-        assert result.x_published_count == 4
-        assert [row.id for row in result.x_publication_rows] == [102]
-        x_publication_service.publish_candidates.assert_called_once()
-        args, kwargs = x_publication_service.publish_candidates.call_args
-        assert set(args[0]) == {102, 103, 106, 109}
-        assert kwargs == {"dry_run": False}
+        x_browser_publication_service.mark_pre_browser_published.assert_called_once()
+        x_browser_publication_service.publish_pending.assert_called_once_with(dry_run=False)
     finally:
         session.close()

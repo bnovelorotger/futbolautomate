@@ -877,7 +877,7 @@ La planificacion queda separada de:
 - `editorial_summary`
 - generacion de contenido
 - cola editorial
-- exportacion a Typefully
+- publicacion/exportacion externa compatible
 
 ### CLI del planner
 
@@ -923,7 +923,7 @@ total_updated=0
 3. generar borradores planificados con `generate-today` o `generate-date`
 4. opcionalmente refinar piezas con `editorial_rewrite`
 5. revisar la cola editorial manual
-6. despachar internamente y exportar a Typefully cuando proceda
+6. despachar internamente y, cuando proceda, exportar o publicar en el canal externo compatible
 
 ### Limitaciones actuales del planning
 
@@ -963,7 +963,6 @@ python -m app.pipelines.competition_catalog seed --integrated-only --missing-onl
 - competiciones integradas presentes en catalogo y en BD
 - recuento real de `matches`, `finished_matches`, `scheduled_matches` y `standings`
 - si cada competicion tiene datos suficientes para el planning semanal configurado
-- si Typefully esta configurado
 - cuantos `content_candidates` existen y cuantos siguen pendientes de exportacion
 
 ### Vista previa operativa
@@ -1034,7 +1033,7 @@ blocked_tasks=10
 4. revisar la cola editorial con `editorial_queue`
 5. aprobar manualmente las piezas que salgan
 6. despachar internamente con `publication_dispatch`
-7. exportar a Typefully las piezas `published`
+7. exportar el snapshot estructurado y, si aplica, publicar externamente las piezas `published`
 
 ## Narrativas metricas editoriales
 
@@ -1063,7 +1062,7 @@ Su funcion es detectar piezas sociales breves basadas en datos reales ya persist
 - `best_attack`, `best_defense`, `most_wins`: salen de la clasificacion actual almacenada en `standings`
 - `goals_average`: se calcula con todos los partidos `finished` de la competicion y su total de goles real
 
-Las plantillas son deterministas, limpias y sin exageracion. El texto sale apto para Typefully/X, pero sin convertir la metrica en opinion.
+Las plantillas son deterministas, limpias y sin exageracion. El texto sale apto para X o para cualquier consumidor externo compatible, pero sin convertir la metrica en opinion.
 
 ### CLI de narrativas
 
@@ -1167,7 +1166,7 @@ El planner semanal incorpora un bloque especifico de `viral_story` en miercoles:
 - `segunda_rfef_g3_baleares -> viral_story + metric_narrative`
 - `tercera_federacion_femenina_g11 -> viral_story + metric_narrative`
 
-Las `viral_story` recorren el mismo circuito que cualquier otro `content_candidate`: generacion, review, dispatch y exportacion a canal. Por politica editorial, su salida a Typefully sigue siendo manual salvo cambio explicito de config.
+Las `viral_story` recorren el mismo circuito que cualquier otro `content_candidate`: generacion, review, dispatch y exportacion a canal. Por politica editorial, su salida externa sigue siendo manual salvo cambio explicito de config.
 
 ## Reescritura editorial opcional con LLM
 
@@ -1208,7 +1207,7 @@ La politica de reescritura impone:
 - no inventar contexto, antecedentes, opiniones ni hype
 - no recalcular cifras ni corregir datos con conocimiento externo
 - tono directo, periodistico y limpio
-- texto breve y apto para Typefully/X
+- texto breve y apto para X o salida externa compatible
 - maximo configurable de caracteres
 - estilo de marca uFutbolBalear sin emojis ni hashtags
 
@@ -1434,16 +1433,22 @@ La integracion de X vive desacoplada en:
 - `app/channels/x/auth.py`
 - `app/channels/x/client.py`
 - `app/channels/x/publisher.py`
+- `app/services/x_browser_publication_service.py`
 - `app/services/x_auth_service.py`
 - `app/services/x_publication_service.py`
 - `app/pipelines/x_auth.py`
 - `app/pipelines/x_publish.py`
 
-La logica editorial no conoce la API de X. El flujo es:
+La logica editorial no conoce el detalle del canal. En la capa X hoy conviven dos rutas con roles distintos:
+
+- browser automation (`XBrowserPublicationService`): camino operativo real para Windows/scheduler
+- API directa (`XPublicationService`): compatibilidad/manual con OAuth PKCE, fuera del carril programado por defecto
+
+El flujo comun es:
 
 1. la pieza pasa a `published` por el dispatcher interno
-2. `x_auth` autoriza una cuenta de usuario de X mediante OAuth 2.0 Authorization Code with PKCE
-3. el adaptador de X busca piezas `published` sin `external_publication_ref`
+2. el adaptador del canal busca piezas `published` sin `external_publication_ref`
+3. si se usa la ruta API, `x_auth` autoriza una cuenta de usuario de X mediante OAuth 2.0 Authorization Code with PKCE
 4. si la publicacion externa sale bien, guarda el id del tweet y la trazabilidad del intento
 
 El cliente publica contra `POST https://api.x.com/2/tweets`.
@@ -1527,10 +1532,11 @@ No son publicables:
 
 ### Scheduling real de X
 
-La publicacion automatica en X ya no es solo manual. Hoy existe doble via:
+La publicacion automatica en X ya no es solo manual. Hoy existe doble via, pero solo una forma parte del scheduler por defecto:
 
-- `scripts/windows/editorial_release.ps1` pasa `--publish-x` por defecto salvo que se use `-SkipPublishX`
-- `scripts/windows/auto_publish.ps1` ejecuta `x_publish publish-pending` como batch independiente
+- `scripts/windows/editorial_release.ps1` pasa `--publish-browser` por defecto salvo que se use `-SkipPublishBrowser`
+- `scripts/windows/auto_publish_browser.ps1` ejecuta `x_publish browser-pending` como batch independiente de reintento
+- `x_publish publish` y `x_publish publish-pending` quedan como via API/manual de compatibilidad, no como camino programado por defecto
 
 Horario vigente en `app/config/publication_schedule.json`:
 
@@ -1547,8 +1553,8 @@ Horario vigente en `app/config/publication_schedule.json`:
 
 Tras una publicacion correcta se guardan:
 
-- `external_publication_ref`: id del tweet devuelto por X
-- `external_channel`: `x`
+- `external_publication_ref`: id del tweet o marcador local de la salida externa
+- `external_channel`: `x` tanto en browser automation como en la via API; el prefijo de `external_publication_ref` distingue el backend real (`x-browser:*` en browser automation)
 - `external_exported_at`: momento local en que el candidato se exporto al canal
 - `external_publication_timestamp`: timestamp local del exito
 - `external_publication_attempted_at`: ultimo intento de salida
@@ -1735,18 +1741,20 @@ export_base_total_items=15
 - `Editorial Release` autoaprueba solo piezas seguras
 - las narrativas sensibles siguen en `editorial_queue`
 - `export_base.json` pasa a ser el handoff estructurado para consumo externo
-- `editorial_release.ps1` puede encadenar publicacion en X por defecto
-- `x_publish publish-pending` queda disponible como batch separado cuando se quiere desacoplar el publish del release
+- `export/legacy_export.json` queda solo como compatibilidad opcional y no redefine el snapshot estructurado
+- `editorial_release.ps1` puede encadenar publicacion en X via browser por defecto
+- `x_publish browser-pending` queda disponible como batch separado cuando se quiere desacoplar el publish del release
+- `x_publish publish-pending` sigue existiendo como via API/manual de compatibilidad
 
 ### Verificar configuracion
 
-`verify-config` valida:
+Antes de un publish real conviene revisar al menos:
 
-- presencia de `TYPEFULLY_API_KEY`
-- presencia de `TYPEFULLY_API_URL`
-- estrategia de seleccion del `social_set`
+- para browser publish: `X_BROWSER_STATE_FILE` valido y `playwright install chromium`
+- para API directa: `X_CLIENT_ID`, `X_REDIRECT_URI` y token OAuth vigente
+- para Typefully, solo si se usa esa compatibilidad: `TYPEFULLY_API_KEY`
 
-No imprime secretos. Solo informa si la configuracion minima local esta lista.
+La configuracion minima depende del canal que vayas a activar; no toda la operativa necesita todas las credenciales.
 
 ### Dry-run y validacion local
 
@@ -1793,10 +1801,9 @@ En este entorno la integracion queda preparada para:
 
 Para una validacion real local hace falta:
 
-- credenciales validas de X
-- un token de usuario vigente
-- ejecutar `python -m app.pipelines.x_publish publish --id <ID>`
-- la publicacion real sigue ocurriendo fuera del sistema, dentro de Typefully
+- en browser publish: sesion valida en `.x_browser_state.json` y ejecutar `python -m app.pipelines.x_publish browser-pending --limit 1`
+- en API directa: credenciales validas de X, un token de usuario vigente y ejecutar `python -m app.pipelines.x_publish publish --id <ID>`
+- la publicacion real ocurre dentro del propio sistema, segun el adaptador de canal activado
 
 ## Testing
 

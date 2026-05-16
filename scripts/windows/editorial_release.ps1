@@ -26,10 +26,10 @@ try {
         throw "PublishBrowser y SkipPublishBrowser no se pueden usar a la vez."
     }
 
-    # X API desactivado por defecto (sin acceso a API de X)
+    # Browser publishing es la unica via operativa real para X.
+    # PublishX se mantiene como alias legacy para no romper automatizaciones existentes.
     $shouldPublishX = $PublishX.IsPresent
-    # Browser publishing activo por defecto
-    $shouldPublishBrowser = $PublishBrowser.IsPresent -or (-not $SkipPublishBrowser.IsPresent)
+    $shouldPublishBrowser = $PublishX.IsPresent -or $PublishBrowser.IsPresent -or (-not $SkipPublishBrowser.IsPresent)
 
     Write-Log -Level "INFO" -Message "=== editorial_release.ps1 date=$TargetDate dry_run=$($DryRun.IsPresent) publish_x=$shouldPublishX publish_browser=$shouldPublishBrowser publish_typefully=$($PublishTypefully.IsPresent) ==="
 
@@ -50,13 +50,13 @@ try {
     elseif ($UseRewrite.IsPresent) {
         $arguments += "--use-rewrite"
     }
-    if ($shouldPublishX) {
-        $arguments += "--publish-x"
-    }
     if ($PublishTypefully.IsPresent) {
         $arguments += "--publish-typefully"
     }
     if ($shouldPublishBrowser) {
+        if ($shouldPublishX) {
+            Write-Log -Level "INFO" -Message "PublishX actua como alias legacy y delega en --publish-browser."
+        }
         $arguments += "--publish-browser"
     }
     else {

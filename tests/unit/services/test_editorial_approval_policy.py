@@ -210,6 +210,179 @@ def test_monday_autoapproves_top_scorer_update_when_configured() -> None:
         session.close()
 
 
+def test_monday_autoapproves_strongest_race_narrative_per_competition_and_keeps_milestone_manual() -> None:
+    session = build_session()
+    try:
+        seed_competition(
+            session,
+            code="tercera_rfef_g11",
+            name="3a RFEF Baleares",
+            teams=["CD Manacor", "CE Mercadal", "SD Portmany", "RCD Mallorca B"],
+            standings_rows=[],
+            match_rows=[],
+        )
+        session.add_all(
+            [
+                ContentCandidate(
+                    id=907,
+                    competition_slug="tercera_rfef_g11",
+                    content_type="race_narrative",
+                    priority=87,
+                    text_draft="CD Manacor y CE Mercadal sostienen un pulso directo por el liderato con solo un punto de margen.",
+                    payload_json={
+                        "reference_date": "2026-03-16",
+                        "content_key": "race_narrative:title_race:tercera_rfef_g11:1:manacor-mercadal",
+                        "source_payload": {
+                            "narrative_type": "title_race",
+                            "target_label": "liderato",
+                            "target_position": 1,
+                            "team_count": 2,
+                            "points_span": 1,
+                            "rounds_remaining": 4,
+                            "teams": [
+                                {"team": "CD Manacor", "position": 1, "points": 58, "gap_to_target": 0},
+                                {"team": "CE Mercadal", "position": 2, "points": 57, "gap_to_target": 1},
+                            ],
+                        },
+                    },
+                    source_summary_hash="approval-race-907",
+                    status="draft",
+                    created_at=datetime(2026, 3, 16, 8, 30, tzinfo=timezone.utc),
+                    updated_at=datetime(2026, 3, 16, 8, 30, tzinfo=timezone.utc),
+                ),
+                ContentCandidate(
+                    id=908,
+                    competition_slug="tercera_rfef_g11",
+                    content_type="race_narrative",
+                    priority=83,
+                    text_draft="SD Portmany, CE Mercadal y RCD Mallorca B siguen apretando por la ultima plaza de playoff.",
+                    payload_json={
+                        "reference_date": "2026-03-16",
+                        "content_key": "race_narrative:playoff_race:tercera_rfef_g11:4:portmany-mercadal-mallorca-b",
+                        "source_payload": {
+                            "narrative_type": "playoff_race",
+                            "target_label": "4a plaza de playoff",
+                            "target_position": 4,
+                            "team_count": 3,
+                            "points_span": 1,
+                            "rounds_remaining": 4,
+                            "teams": [
+                                {"team": "SD Portmany", "position": 4, "points": 49, "gap_to_target": 0},
+                                {"team": "CE Mercadal", "position": 5, "points": 49, "gap_to_target": 0},
+                                {"team": "RCD Mallorca B", "position": 6, "points": 48, "gap_to_target": 1},
+                            ],
+                        },
+                    },
+                    source_summary_hash="approval-race-908",
+                    status="draft",
+                    created_at=datetime(2026, 3, 16, 8, 31, tzinfo=timezone.utc),
+                    updated_at=datetime(2026, 3, 16, 8, 31, tzinfo=timezone.utc),
+                ),
+                ContentCandidate(
+                    id=909,
+                    competition_slug="tercera_rfef_g11",
+                    content_type="milestone_story",
+                    priority=81,
+                    text_draft="CD Manacor alcanza un nuevo hito ofensivo, pero esta pieza sigue en revision manual.",
+                    payload_json={
+                        "reference_date": "2026-03-16",
+                        "content_key": "milestone_story:top_scoring_team:manacor",
+                        "source_payload": {
+                            "milestone_type": "top_scoring_team",
+                            "team": "CD Manacor",
+                            "teams": ["CD Manacor"],
+                            "goals_for": 42,
+                            "leader_margin": 3,
+                        },
+                    },
+                    source_summary_hash="approval-milestone-909",
+                    status="draft",
+                    created_at=datetime(2026, 3, 16, 8, 32, tzinfo=timezone.utc),
+                    updated_at=datetime(2026, 3, 16, 8, 32, tzinfo=timezone.utc),
+                ),
+            ]
+        )
+        session.commit()
+
+        service = EditorialApprovalPolicyService(session, settings=build_settings())
+        service.quality_service = Mock()
+        service.quality_service.check_candidates.return_value = SimpleNamespace(
+            rows=[
+                SimpleNamespace(id=907, passed=True, errors=[]),
+                SimpleNamespace(id=908, passed=True, errors=[]),
+            ]
+        )
+
+        result = service.autoapprove(reference_date=date(2026, 3, 16), dry_run=True)
+        rows = {row.id: row for row in result.rows}
+
+        assert rows[907].autoapprovable is True
+        assert rows[907].policy_reason == "policy_autoapprove_race_narrative"
+        assert rows[908].autoapprovable is False
+        assert rows[908].policy_reason == "race_narrative_competition_limit"
+        assert rows[909].autoapprovable is False
+        assert rows[909].policy_reason == "manual_review_policy"
+    finally:
+        session.close()
+
+
+def test_race_narrative_stays_manual_outside_monday_even_when_quality_passes() -> None:
+    session = build_session()
+    try:
+        seed_competition(
+            session,
+            code="tercera_rfef_g11",
+            name="3a RFEF Baleares",
+            teams=["CD Manacor", "CE Mercadal"],
+            standings_rows=[],
+            match_rows=[],
+        )
+        session.add(
+            ContentCandidate(
+                id=910,
+                competition_slug="tercera_rfef_g11",
+                content_type="race_narrative",
+                priority=87,
+                text_draft="CD Manacor y CE Mercadal siguen en un margen minimo por el liderato.",
+                payload_json={
+                    "reference_date": "2026-03-20",
+                    "content_key": "race_narrative:title_race:tercera_rfef_g11:1:manacor-mercadal:friday",
+                    "source_payload": {
+                        "narrative_type": "title_race",
+                        "target_label": "liderato",
+                        "target_position": 1,
+                        "team_count": 2,
+                        "points_span": 1,
+                        "rounds_remaining": 4,
+                        "teams": [
+                            {"team": "CD Manacor", "position": 1, "points": 58, "gap_to_target": 0},
+                            {"team": "CE Mercadal", "position": 2, "points": 57, "gap_to_target": 1},
+                        ],
+                    },
+                },
+                source_summary_hash="approval-race-910",
+                status="draft",
+                created_at=datetime(2026, 3, 20, 8, 30, tzinfo=timezone.utc),
+                updated_at=datetime(2026, 3, 20, 8, 30, tzinfo=timezone.utc),
+            )
+        )
+        session.commit()
+
+        service = EditorialApprovalPolicyService(session, settings=build_settings())
+        service.quality_service = Mock()
+        service.quality_service.check_candidates.return_value = SimpleNamespace(
+            rows=[SimpleNamespace(id=910, passed=True, errors=[])]
+        )
+
+        result = service.autoapprove(reference_date=date(2026, 3, 20), dry_run=True)
+        rows = {row.id: row for row in result.rows}
+
+        assert rows[910].autoapprovable is False
+        assert rows[910].policy_reason == "race_narrative_day_not_enabled"
+    finally:
+        session.close()
+
+
 def test_friday_autoapproves_preview_and_match_impact_and_keeps_race_manual() -> None:
     session = build_session()
     try:
@@ -282,6 +455,6 @@ def test_friday_autoapproves_preview_and_match_impact_and_keeps_race_manual() ->
         assert rows[904].autoapprovable is True
         assert rows[905].autoapprovable is True
         assert rows[906].autoapprovable is False
-        assert rows[906].policy_reason == "manual_review_policy"
+        assert rows[906].policy_reason == "race_narrative_day_not_enabled"
     finally:
         session.close()

@@ -20,6 +20,7 @@ from app.services.editorial_formatter import EditorialFormatterService
 
 _PARTITION_SUFFIX_PATTERN = re.compile(r"\((\d+)/(\d+)\)\s*$")
 _ROUND_TITLE_PATTERN = re.compile(r"\bJ\d+\b", re.IGNORECASE)
+_DEFAULT_LEGACY_EXPORT_SUBPATH = Path("export") / "legacy_export.json"
 
 
 @dataclass(slots=True)
@@ -35,6 +36,10 @@ class _PartitionSeriesMember:
 
 
 class ExportJsonService:
+    export_kind = "legacy_compatibility"
+    is_legacy_compatibility = True
+    default_output_subpath = _DEFAULT_LEGACY_EXPORT_SUBPATH
+
     def __init__(
         self,
         session: Session,
@@ -44,11 +49,15 @@ class ExportJsonService:
     ) -> None:
         self.session = session
         self.settings = settings or get_settings()
-        self.output_path = output_path or (self.settings.app_root / "export" / "legacy_export.json")
-        self.selector = EditorialTextSelectorService(session)
+        self.output_path = output_path or self.default_output_path(self.settings)
+        self.selector = EditorialTextSelectorService(session, settings=self.settings)
         self.window = EditorialCandidateWindowService(session, settings=self.settings)
         self.quality = EditorialQualityChecksService(session, settings=self.settings)
         self.formatter = EditorialFormatterService(session, settings=self.settings)
+
+    @classmethod
+    def default_output_path(cls, settings: Settings) -> Path:
+        return settings.app_root / cls.default_output_subpath
 
     def generate_export_file(
         self,
@@ -109,11 +118,7 @@ class ExportJsonService:
         )
         payload = [row.model_dump(mode="json") for row in rows]
         if not dry_run:
-            self.output_path.parent.mkdir(parents=True, exist_ok=True)
-            self.output_path.write_text(
-                json.dumps(payload, ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
+            self._write_payload(payload)
         return ExportJsonResult(
             dry_run=dry_run,
             reference_date=selected_date,
@@ -122,6 +127,13 @@ class ExportJsonService:
             blocked_series_count=len(blocked_series),
             blocked_series=blocked_series,
             rows=rows,
+        )
+
+    def _write_payload(self, payload: list[dict[str, object]]) -> None:
+        self.output_path.parent.mkdir(parents=True, exist_ok=True)
+        self.output_path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
         )
 
     def _published_candidates(self) -> list[ContentCandidate]:

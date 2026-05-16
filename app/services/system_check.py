@@ -41,7 +41,7 @@ class SystemCheckService:
         for code in integrated_codes:
             catalog_row = catalog_rows[code]
             weekly_types = planned_types.get(code, [])
-            scorer_season, scorer_matches_count, goal_events_count = self._scorer_coverage_stats(code)
+            scorer_season, scorer_matches_count, goal_events_count, scorer_coverage_summary = self._scorer_coverage_stats(code)
             readiness_row = EditorialCompetitionReadinessRow(
                 code=code,
                 name=catalog_row.name,
@@ -52,7 +52,7 @@ class SystemCheckService:
                 finished_matches_count=catalog_row.finished_matches_count,
                 scheduled_matches_count=catalog_row.scheduled_matches_count,
                 standings_count=catalog_row.standings_count,
-                scorer_season=scorer_season,
+                scorer_season=scorer_coverage_summary or scorer_season,
                 scorer_matches_count=scorer_matches_count,
                 goal_events_count=goal_events_count,
                 content_candidates_count=0,
@@ -196,7 +196,7 @@ class SystemCheckService:
     ) -> list[str]:
         return self.missing_dependencies_for_planning_type(catalog_row, content_type)
 
-    def _scorer_coverage_stats(self, competition_code: str) -> tuple[str | None, int, int]:
+    def _scorer_coverage_stats(self, competition_code: str) -> tuple[str | None, int, int, str | None]:
         season = self.session.scalar(
             select(Match.season)
             .where(
@@ -209,7 +209,16 @@ class SystemCheckService:
             .limit(1)
         )
         if not season:
-            return None, 0, 0
+            return None, 0, 0, None
+        finished_matches_count = self.session.scalar(
+            select(func.count())
+            .select_from(Match)
+            .where(
+                Match.competition.has(code=competition_code),
+                Match.status == str(MatchStatus.FINISHED),
+                Match.season == season,
+            )
+        ) or 0
         scorer_matches_count = self.session.scalar(
             select(func.count())
             .select_from(Match)
@@ -231,4 +240,8 @@ class SystemCheckService:
                 MatchEvent.event_type == str(MatchEventType.GOAL),
             )
         ) or 0
-        return season, scorer_matches_count, goal_events_count
+        scorer_backlog_count = max(finished_matches_count - scorer_matches_count, 0)
+        scorer_coverage_summary = (
+            f"{season} ({scorer_matches_count}/{finished_matches_count} covered, backlog={scorer_backlog_count})"
+        )
+        return season, scorer_matches_count, goal_events_count, scorer_coverage_summary

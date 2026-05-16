@@ -38,6 +38,7 @@ class TopScorerTrackerService:
             .where(
                 Match.competition.has(code=competition_slug),
                 Match.status == str(MatchStatus.FINISHED),
+                Match.has_scorers.is_(True),
                 Match.match_date.is_not(None),
                 Match.match_date <= selected_date,
                 MatchEvent.event_type == str(MatchEventType.GOAL),

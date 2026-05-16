@@ -12,14 +12,14 @@ $ErrorActionPreference = "Stop"
 Initialize-Runtime -LogName "cron_publish_browser.log" -SlotName "cron_publish_browser"
 
 try {
-    Write-Log -Level "INFO" -Message "=== auto_publish_browser.ps1 limit=$Limit dry_run=$($DryRun.IsPresent) ==="
+    Write-Log -Level "INFO" -Message "=== auto_publish_browser.ps1 limit=$Limit dry_run=$($DryRun.IsPresent) mode=browser_canonical ==="
 
     $arguments = @("browser-pending", "--limit", $Limit)
     if ($DryRun.IsPresent) {
         $arguments += "--dry-run"
     }
 
-    Invoke-PythonModule -Label "x_browser_publish" -Module "app.pipelines.x_publish" -Arguments $arguments
+    Invoke-PythonModule -Label "x_publish" -Module "app.pipelines.x_publish" -Arguments $arguments
 
     Complete-Script
     exit 0

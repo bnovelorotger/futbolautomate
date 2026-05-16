@@ -101,6 +101,10 @@ def test_match_event_enricher_persists_goal_events_and_marks_match_enriched() ->
         assert stored_match.extra_data["detail_url"] == (
             "https://futbolme.com/resultados-directo/partido/ce-constancia-inter-ibiza-cd/1258230"
         )
+        assert stored_match.extra_data["match_events"]["status"] == "complete"
+        assert stored_match.extra_data["match_events"]["expected_goal_events"] == 3
+        assert stored_match.extra_data["match_events"]["stored_events_count"] == 3
+        assert stored_match.extra_data["match_events"]["attempt_count"] == 1
         assert len(events) == 3
         assert events[0].team_side == "home"
         assert events[0].minute == 38
@@ -134,6 +138,81 @@ def test_match_event_enricher_marks_scoreless_match_without_persisting_events() 
         assert row.events_found == 0
         assert stored_match is not None
         assert stored_match.has_scorers is True
+        assert stored_match.extra_data is not None
+        assert stored_match.extra_data["match_events"]["status"] == "scoreless_complete"
+        assert stored_match.extra_data["match_events"]["expected_goal_events"] == 0
         assert events == []
+    finally:
+        session.close()
+
+
+def test_match_event_enricher_is_idempotent_when_events_do_not_change() -> None:
+    session = build_session()
+    try:
+        match = _seed_finished_match(session)
+        service = MatchEventEnricherService(
+            session,
+            settings=build_settings(),
+            fetch_html=lambda url: read_fixture("futbolme_match_detail_multiple_goals.html"),
+        )
+
+        service.enrich_match(match.id)
+        session.commit()
+        first_ids = [
+            event.id
+            for event in session.execute(
+                select(MatchEvent).where(MatchEvent.match_id == match.id).order_by(MatchEvent.sort_order.asc())
+            ).scalars().all()
+        ]
+
+        service.enrich_match(match.id)
+        session.commit()
+        second_events = session.execute(
+            select(MatchEvent).where(MatchEvent.match_id == match.id).order_by(MatchEvent.sort_order.asc())
+        ).scalars().all()
+        stored_match = session.get(Match, match.id)
+
+        assert [event.id for event in second_events] == first_ids
+        assert stored_match is not None
+        assert stored_match.extra_data["match_events"]["attempt_count"] == 2
+        assert stored_match.extra_data["match_events"]["status"] == "complete"
+    finally:
+        session.close()
+
+
+def test_match_event_enricher_leaves_partial_goal_matches_pending_and_applies_retry_cooldown() -> None:
+    session = build_session()
+    try:
+        match = _seed_finished_match(
+            session,
+            external_id="1259555",
+            home_score=3,
+            away_score=0,
+        )
+        service = MatchEventEnricherService(
+            session,
+            settings=build_settings(),
+            fetch_html=lambda url: read_fixture("futbolme_match_detail_goals_home_away.html"),
+        )
+
+        first_run = service.enrich_pending(limit=10)
+        session.commit()
+
+        stored_match = session.get(Match, match.id)
+        stored_events = session.execute(
+            select(MatchEvent).where(MatchEvent.match_id == match.id).order_by(MatchEvent.sort_order.asc())
+        ).scalars().all()
+        second_run = service.enrich_pending(limit=10)
+
+        assert first_run.checked_count == 1
+        assert first_run.rows[0].events_found == 2
+        assert first_run.rows[0].has_scorers is False
+        assert stored_match is not None
+        assert stored_match.has_scorers is False
+        assert stored_match.extra_data is not None
+        assert stored_match.extra_data["match_events"]["status"] == "partial_retry"
+        assert stored_match.extra_data["match_events"]["stored_events_count"] == 2
+        assert len(stored_events) == 2
+        assert second_run.checked_count == 0
     finally:
         session.close()

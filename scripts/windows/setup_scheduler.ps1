@@ -69,6 +69,9 @@ Register-FutbolTask "futbol_release_fri"        "scripts\windows\editorial_relea
 # Resto de dias: release estandar
 Register-FutbolTask "futbol_release_other"      "scripts\windows\editorial_release.ps1" "10:30" @("Tuesday","Thursday","Saturday")
 
+# --- Resumen operativo diario ---
+Register-FutbolTask "futbol_summary"            "scripts\windows\daily_summary.ps1"     "21:00" @("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday")
+
 # --- Engagement diario (like a tweets del timeline) ---
 Register-FutbolTask "futbol_engagement"         "scripts\windows\daily_engagement.ps1"  "12:30" @("Monday","Tuesday","Wednesday","Thursday","Friday")
 

@@ -49,6 +49,7 @@ def test_system_check_reports_missing_and_ready_competitions() -> None:
         assert "finished_matches" in rows["division_honor_mallorca"].missing_dependencies
         assert "standings" in rows["division_honor_mallorca"].missing_dependencies
         assert "scheduled_matches" in rows["primera_rfef_baleares"].missing_dependencies
+        assert rows["tercera_rfef_g11"].scorer_season == "2025-26 (0/4 covered, backlog=4)"
     finally:
         session.close()
 
@@ -78,6 +79,7 @@ def test_system_check_reports_missing_match_events_for_top_scorer_readiness() ->
         assert row.finished_matches_count == 2
         assert row.scorer_matches_count == 0
         assert row.goal_events_count == 0
+        assert row.scorer_season == "2025-26 (0/2 covered, backlog=2)"
         assert "match_events" in row.missing_dependencies
     finally:
         session.close()

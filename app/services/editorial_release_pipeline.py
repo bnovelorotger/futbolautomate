@@ -153,7 +153,7 @@ class EditorialReleasePipelineService:
             legacy_export_blocked_series = legacy_export_result.blocked_series
             legacy_export_rows = legacy_export_result.rows
         x_publish_result = None
-        if publish_to_x and dispatch_result.rows:
+        if publish_to_x and self.x_publication_service is not None and dispatch_result.rows:
             x_publish_result = self.x_publication_service.publish_candidates(
                 [row.id for row in dispatch_result.rows],
                 dry_run=export_dry_run,

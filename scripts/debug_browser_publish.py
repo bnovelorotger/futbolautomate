@@ -38,7 +38,7 @@ with sync_playwright() as p:
     print(f">>> URL actual: {page.url}")
 
     if "/login" in page.url:
-        print("❌ Sesión expirada — necesitas hacer login de nuevo con x_browser_auth capture")
+        print("❌ Sesión expirada — necesitas hacer login de nuevo con browser-auth-capture")
         browser.close()
         raise SystemExit(1)
 

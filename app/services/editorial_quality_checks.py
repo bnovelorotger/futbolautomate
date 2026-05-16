@@ -35,6 +35,29 @@ from app.utils.time import utcnow
 _TEAM_KEYS = {"team", "teams", "home_team", "away_team", "runner_up_team"}
 _METRIC_VALUE_KEYS = {"metric_value", "recent_points", "recent_goals_for", "delta"}
 _MIN_STAT_NARRATIVE_MATCHES = 4
+_RACE_NARRATIVE_AUTO_RULES: dict[str, dict[str, int]] = {
+    "title_race": {
+        "min_priority": 86,
+        "min_team_count": 2,
+        "max_team_count": 4,
+        "max_points_span": 2,
+        "max_rounds_remaining": 10,
+    },
+    "playoff_race": {
+        "min_priority": 83,
+        "min_team_count": 3,
+        "max_team_count": 5,
+        "max_points_span": 2,
+        "max_rounds_remaining": 8,
+    },
+    "relegation_race": {
+        "min_priority": 82,
+        "min_team_count": 3,
+        "max_team_count": 5,
+        "max_points_span": 2,
+        "max_rounds_remaining": 8,
+    },
+}
 _HANDLE_PATTERN = re.compile(r"(?<!\w)@[A-Za-z0-9_]{1,15}")
 _HASHTAG_PATTERN = re.compile(r"(?<!\w)#[A-Za-z0-9_]+")
 _MAX_EDITORIAL_TEXT_LENGTH = 240
@@ -81,7 +104,11 @@ class EditorialQualityChecksService:
     ) -> EditorialQualityCheckResult:
         candidate = self._candidate(candidate_id)
         rewrite_preference = self.policy.use_rewrite_by_default if prefer_rewrite is None else prefer_rewrite
-        detail = self._check_candidate(candidate, prefer_rewrite=rewrite_preference, persist=not dry_run)
+        detail = self._check_candidate(
+            candidate,
+            prefer_rewrite=rewrite_preference,
+            persist=not dry_run,
+        )
         return EditorialQualityCheckResult(dry_run=dry_run, candidate=detail)
 
     def check_pending(
@@ -98,7 +125,11 @@ class EditorialQualityChecksService:
         passed_count = 0
         failed_count = 0
         for row in rows:
-            detail = self._check_candidate(row, prefer_rewrite=rewrite_preference, persist=not dry_run)
+            detail = self._check_candidate(
+                row,
+                prefer_rewrite=rewrite_preference,
+                persist=not dry_run,
+            )
             result_rows.append(self._detail_to_view(detail))
             if detail.passed:
                 passed_count += 1
@@ -150,7 +181,12 @@ class EditorialQualityChecksService:
                     "Los quality checks de exportacion solo aplican a candidatos en estado published. "
                     f"Estado actual: {row.status}"
                 )
-            detail = self._check_candidate(row, prefer_rewrite=rewrite_preference, persist=not dry_run)
+            detail = self._check_candidate(
+                row,
+                prefer_rewrite=rewrite_preference,
+                persist=not dry_run,
+                approval_precheck=not require_published,
+            )
             result_rows.append(self._detail_to_view(detail))
             if detail.passed:
                 passed_count += 1
@@ -182,13 +218,19 @@ class EditorialQualityChecksService:
         *,
         prefer_rewrite: bool,
         persist: bool,
+        approval_precheck: bool = False,
     ) -> EditorialQualityCheckCandidateDetail:
         selection = self.text_selector.select_text(
             candidate,
             prefer_rewrite=prefer_rewrite,
         )
         selected_text = selection.text
-        errors, warnings = self._evaluate(candidate, selected_text, prefer_rewrite=prefer_rewrite)
+        errors, warnings = self._evaluate(
+            candidate,
+            selected_text,
+            prefer_rewrite=prefer_rewrite,
+            approval_precheck=approval_precheck,
+        )
         checked_at = utcnow()
         if persist:
             candidate.quality_check_passed = not errors
@@ -237,6 +279,7 @@ class EditorialQualityChecksService:
         selected_text: str,
         *,
         prefer_rewrite: bool,
+        approval_precheck: bool = False,
     ) -> tuple[list[str], list[str]]:
         errors: list[str] = []
         warnings: list[str] = []
@@ -317,7 +360,13 @@ class EditorialQualityChecksService:
         errors.extend(self._coherence_errors(candidate, source_payload))
         errors.extend(self._structure_errors(candidate, selected_text, source_payload))
         errors.extend(self._duplicate_errors(candidate, selected_text, prefer_rewrite=prefer_rewrite))
-        errors.extend(self._significance_errors(candidate, source_payload))
+        errors.extend(
+            self._significance_errors(
+                candidate,
+                source_payload,
+                approval_precheck=approval_precheck,
+            )
+        )
 
         return sorted(set(errors)), sorted(set(warnings))
 
@@ -524,6 +573,8 @@ class EditorialQualityChecksService:
         self,
         candidate: ContentCandidate,
         source_payload: dict[str, Any],
+        *,
+        approval_precheck: bool = False,
     ) -> list[str]:
         content_type = ContentType(candidate.content_type)
         if content_type == ContentType.STAT_NARRATIVE:
@@ -531,6 +582,11 @@ class EditorialQualityChecksService:
             if isinstance(played_matches, int) and played_matches < _MIN_STAT_NARRATIVE_MATCHES:
                 return [f"stat_narrative_played_matches<{_MIN_STAT_NARRATIVE_MATCHES}"]
             return []
+
+        if content_type == ContentType.RACE_NARRATIVE:
+            if not approval_precheck:
+                return []
+            return self._race_narrative_threshold_errors(candidate, source_payload)
 
         if content_type == ContentType.METRIC_NARRATIVE:
             narrative_type = source_payload.get("narrative_type")
@@ -544,6 +600,67 @@ class EditorialQualityChecksService:
             return self._top_scorer_threshold_errors(source_payload)
 
         return []
+
+    def _race_narrative_threshold_errors(
+        self,
+        candidate: ContentCandidate,
+        source_payload: dict[str, Any],
+    ) -> list[str]:
+        narrative_type = str(source_payload.get("narrative_type") or "")
+        if not narrative_type:
+            return ["race_narrative_type_missing"]
+
+        rules = _RACE_NARRATIVE_AUTO_RULES.get(narrative_type)
+        if rules is None:
+            return [f"race_narrative_manual_only_type:{narrative_type}"]
+
+        errors: list[str] = []
+        team_count = source_payload.get("team_count")
+        if not isinstance(team_count, int):
+            errors.append("race_narrative_team_count_invalid")
+        else:
+            if team_count < rules["min_team_count"]:
+                errors.append(f"race_narrative_team_count<{rules['min_team_count']}")
+            if team_count > rules["max_team_count"]:
+                errors.append(f"race_narrative_team_count>{rules['max_team_count']}")
+
+        points_span = source_payload.get("points_span")
+        if not isinstance(points_span, int):
+            errors.append("race_narrative_points_span_invalid")
+        elif points_span > rules["max_points_span"]:
+            errors.append(f"race_narrative_points_span>{rules['max_points_span']}")
+
+        rounds_remaining = source_payload.get("rounds_remaining")
+        if not isinstance(rounds_remaining, int) or rounds_remaining < 1:
+            errors.append("race_narrative_rounds_remaining_invalid")
+        elif rounds_remaining > rules["max_rounds_remaining"]:
+            errors.append(f"race_narrative_rounds_remaining>{rules['max_rounds_remaining']}")
+
+        target_position = source_payload.get("target_position")
+        if narrative_type == "title_race":
+            if target_position != 1:
+                errors.append("race_narrative_target_position_invalid")
+        elif not isinstance(target_position, int) or target_position < 2:
+            errors.append("race_narrative_target_position_invalid")
+
+        if candidate.priority < rules["min_priority"]:
+            errors.append(f"race_narrative_priority<{rules['min_priority']}")
+
+        teams = source_payload.get("teams")
+        if not isinstance(teams, list) or not teams:
+            errors.append("race_narrative_teams_missing")
+        else:
+            team_names = [
+                item.get("team")
+                for item in teams
+                if isinstance(item, dict) and isinstance(item.get("team"), str) and item.get("team").strip()
+            ]
+            if len(team_names) != len(teams) or len(set(team_names)) != len(team_names):
+                errors.append("race_narrative_teams_invalid")
+            if isinstance(team_count, int) and len(teams) != team_count:
+                errors.append("race_narrative_team_count_mismatch")
+
+        return errors
 
     def _top_scorer_threshold_errors(self, source_payload: dict[str, Any]) -> list[str]:
         errors: list[str] = []

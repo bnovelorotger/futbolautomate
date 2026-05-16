@@ -4,6 +4,7 @@
     "types": [
       "results_roundup",
       "standings_roundup",
+      "race_narrative",
       "top_scorer_update"
     ]
   },
