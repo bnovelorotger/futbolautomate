@@ -1,362 +1,244 @@
 # Automatizacion Windows con PowerShell y Task Scheduler
 
-Windows es el entorno principal actual de operacion de uFutbolBalear. La automatizacion se hace con PowerShell y el Programador de tareas de Windows, sin WSL y sin mover logica al backend.
+Windows es el entorno principal de operacion de futbolbalear. La automatizacion se hace con PowerShell y el Programador de tareas de Windows.
 
 ## Principios
 
-- PowerShell es la capa externa de orquestacion
-- toda la logica sigue en `app.pipelines.*`
-- no hay scheduler interno
-- ya existe autopublicacion controlada en X
-- `editorial_release` deja por defecto el handoff final en `exports/export_base.json`
-- `export_base` puede regenerar manualmente ese mismo snapshot
-- la produccion v1 mantiene automatizacion controlada por tipo de pieza, dia de semana y quality checks
+- PowerShell es la capa externa de orquestacion; toda la logica vive en `app.pipelines.*`
+- No hay scheduler interno: el Programador de tareas de Windows es la unica fuente de verdad de horarios
+- `editorial_release` activa por defecto la publicacion en X via navegador (`--publish-browser`)
+- X API directa desactivada por defecto (sin acceso de escritura a la API v2 de X)
+- El handoff final es `exports/export_base.json`
+
+---
 
 ## Scripts activos
 
 Ruta: `scripts/windows/`
 
-- `common.ps1`
-  - carga `.env` y `.env.windows`
-  - resuelve el root del proyecto
-  - usa `.venv\Scripts\python.exe` si existe
-  - crea `logs\` y `.locks\`
-  - escribe logs con timestamp
-  - evita solapes con lock file exclusivo
-- `refresh_data.ps1`
-  - siembra competiciones integradas si faltan
-  - refresca explicitamente `matches` y `standings` de:
-    - `tercera_rfef_g11`
-    - `segunda_rfef_g3_baleares`
-    - `division_honor_mallorca`
-    - `tercera_federacion_femenina_g11`
-    - `primera_rfef_baleares`
-    - `division_honor_ibiza_form`
-    - `division_honor_menorca`
-- `readiness_check.ps1`
-  - ejecuta `competition_catalog status --integrated-only`
-  - ejecuta `system_check editorial-readiness`
-- `run_editorial_day.ps1`
-  - ejecuta `preview-day`
-  - aborta si `preview-day` falla
-  - si `PREVIEW_ONLY=true` o `-PreviewOnly`, termina sin `run-daily`
-  - si no, ejecuta `run-daily`
-  - los lunes el planner ya cubre `results_roundup + standings_roundup` para las siete competiciones integradas
-  - en cinco competiciones principales tambien genera `race_narrative + milestone_story + top_scorer_update`
-  - los miercoles la narrativa automatica queda en `metric_narrative + viral_story` para `tercera_rfef_g11`, `segunda_rfef_g3_baleares` y `tercera_federacion_femenina_g11`
-  - los jueves no tienen slots activos por defecto en el planner semanal
-  - la consulta editorial de previas puede seguir extendiendo el horizonte hasta el siguiente domingo cuando se usa en jueves o viernes
-  - los viernes el planner se centra en `featured_match_preview + match_impact_scenario` para `tercera_rfef_g11`, `segunda_rfef_g3_baleares`, `division_honor_mallorca`, `tercera_federacion_femenina_g11` y `primera_rfef_baleares`
-- `editorial_release.ps1`
-  - ejecuta `editorial_release dry-run` o `run`
-  - pasa `--publish-x` por defecto salvo `-SkipPublishX`
-  - el pipeline interno hace `quality_checks -> autoapprove -> dispatch -> export_base`
-  - `dispatch` publica `preview` antes del kickoff y usa `scheduled_at` como gating para el resto
-  - en produccion v1 genera por defecto `exports/export_base.json` para las piezas que realmente lleguen a `published`
-  - `export_base` solo recoge piezas ya `published`
-- `auto_publish.ps1`
-  - ejecuta `x_publish publish-pending`
-  - sirve como batch separado cuando quieres desacoplar el publish en X del release principal
-- `run_slot.ps1`
-  - wrapper opcional para `refresh`, `readiness`, `editorial-day` y `editorial-release`
+| Script | Descripcion |
+|--------|-------------|
+| `common.ps1` | Carga `.env`, resuelve Python, crea `logs/` y `.locks/`, escribe logs con timestamp, evita solapamientos con lock file |
+| `refresh_data.ps1` | Scraping de matches y standings para las 7 competiciones integradas |
+| `readiness_check.ps1` | `competition_catalog status` + `system_check editorial-readiness` |
+| `run_editorial_day.ps1` | `preview-day` + `run-daily` (generacion de contenido editorial) |
+| `editorial_release.ps1` | Quality checks + aprobacion + dispatch + export + publicacion en X via navegador |
+| `daily_engagement.ps1` | Likes diarios en el timeline de X para humanizar la cuenta (3 likes/dia por defecto) |
+| `backup_db.ps1` | Backup diario de PostgreSQL en `backups/` |
+| `auto_publish_browser.ps1` | Reintento batch de publicacion via navegador, desacoplado del release |
+| `setup_scheduler.ps1` | Crea o recrea todas las tareas en el Programador de tareas (ejecutar como Admin) |
 
-## Variables y entorno
+---
 
-Orden de carga:
+## Horario de tareas por dia
 
-1. `.env`
-2. `.env.windows`
+Todas las tareas usan `-LogonType Interactive`: requieren sesion de Windows abierta (la pantalla puede estar bloqueada).
 
-Variables utiles:
+| Tarea | Lun | Mar | Mie | Jue | Vie | Sab | Dom |
+|-------|-----|-----|-----|-----|-----|-----|-----|
+| `futbol_refresh_morning` | 06:30 | — | — | — | — | — | 06:30 |
+| `futbol_refresh_midweek` | — | — | 07:00 | — | 07:00 | — | — |
+| `futbol_refresh_other` | — | 07:00 | — | 07:00 | — | 07:00 | — |
+| `futbol_refresh_afternoon` | 14:00 | 14:00 | 14:00 | 14:00 | 14:00 | 14:00 | 14:00 |
+| `futbol_editorial_day_mon_sun` | 07:30 | — | — | — | — | — | 07:30 |
+| `futbol_editorial_day_wed` | — | — | 18:30 | — | — | — | — |
+| `futbol_editorial_day_fri` | — | — | — | — | 08:00 | — | — |
+| `futbol_editorial_day_other` | — | 09:00 | — | 09:00 | — | 09:00 | — |
+| `futbol_release_mon_sun` | 08:30 | — | — | — | — | — | 08:30 |
+| `futbol_release_wed` | — | — | 19:30 | — | — | — | — |
+| `futbol_release_fri` | — | — | — | — | 09:00 | — | — |
+| `futbol_release_other` | — | 10:30 | — | 10:30 | — | 10:30 | — |
+| `futbol_engagement` | 12:30 | 12:30 | 12:30 | 12:30 | 12:30 | — | — |
+| `futbol_backup` | 03:00 | 03:00 | 03:00 | 03:00 | 03:00 | 03:00 | 03:00 |
+
+**Logica de secuencia por dia activo:**
+- Lunes/domingo: refresh a las 06:30 → editorial a las 07:30 → release (+ publicacion en X) a las 08:30
+- Miercoles: refresh a las 07:00 → editorial a las 18:30 → release (+ publicacion en X) a las 19:30
+- Viernes: refresh a las 07:00 → editorial a las 08:00 → release (+ publicacion en X) a las 09:00
+- Martes/jueves/sabado: solo refresh matutino + release estandar a las 10:30
+
+---
+
+## Publicacion automatica en X via navegador
+
+El pipeline publica en X usando Playwright con Chromium en modo visible (`headless=False`). No requiere API key de X.
+
+### Como funciona
+
+1. `editorial_release.ps1` llama a `editorial_release run --publish-browser`
+2. `XBrowserPublicationService` busca candidatos `published` sin `external_publication_ref` de las ultimas 48h
+3. Para cada candidato: abre Chromium, navega a `x.com/compose/post`, escribe el texto, espera que el boton Post este activo y envia con `Ctrl+Enter`
+4. Verifica que X navega fuera de `/compose/post` (confirmacion de exito)
+5. Guarda `external_publication_ref=browser:<timestamp>` en BD
+
+### Requisitos para que funcione
+
+- El archivo `.x_browser_state.json` debe existir en la raiz del proyecto (sesion de X guardada)
+- La sesion de Windows debe estar abierta (Interactive logon) — la pantalla puede estar bloqueada
+- Chromium instalado: `playwright install chromium`
+
+### Intervalo entre tweets
+
+15 minutos entre tweets (`X_BROWSER_STAGGER_SECONDS=900`). Con varios candidatos pendientes la tarea puede durar `n * 15 minutos`.
+
+### Si la sesion de X expira
 
 ```powershell
-DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/futbol_balear
-PYTHON_BIN=C:\Users\bnove\Documents\futbolbalear\.venv\Scripts\python.exe
-APP_TIMEZONE=Europe/Madrid
+python -m app.pipelines.runner x_browser_auth capture
 ```
 
-Si `PYTHON_BIN` no esta definido, el script intenta usar:
+Abre un navegador interactivo para hacer login. Guarda la sesion en `.x_browser_state.json`. El archivo esta en `.gitignore` y nunca se sube al repositorio.
 
-1. `.venv\Scripts\python.exe`
-2. `python.exe` del sistema
+### Reintento manual de publicacion
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\windows\auto_publish_browser.ps1"
+```
+
+### Script de diagnostico
+
+```bash
+python scripts/debug_browser_publish.py
+```
+
+Abre Chromium visible con `slow_mo=300` y publica un tweet de prueba. Util para verificar que la sesion esta activa y que el flujo funciona antes de dejarlo en automatico.
+
+---
+
+## Engagement automatico
+
+`futbol_engagement` se ejecuta de lunes a viernes a las 12:30. Da like a tweets del timeline de X para mantener la cuenta activa.
+
+Configuracion en `.env`:
+```
+X_ENGAGEMENT_DAILY_LIKES=3
+```
+
+---
+
+## Variables de entorno clave
+
+Orden de carga: `.env` → `.env.windows`
+
+```env
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/futbol_balear
+PYTHON_BIN=C:\Users\bnove\Documents\futbolbalear\.venv\Scripts\python.exe
+
+# Browser publisher
+X_BROWSER_STATE_FILE=.x_browser_state.json
+X_BROWSER_HEADLESS=false
+X_BROWSER_TYPING_DELAY_MS=30
+X_BROWSER_STAGGER_SECONDS=900
+
+# Engagement
+X_ENGAGEMENT_DAILY_LIKES=3
+```
+
+---
 
 ## Logs
 
-Logs operativos:
+| Archivo | Tarea |
+|---------|-------|
+| `logs\cron_refresh.log` | refresh_data |
+| `logs\cron_readiness.log` | readiness_check |
+| `logs\cron_editorial.log` | run_editorial_day |
+| `logs\cron_release.log` | editorial_release |
+| `logs\cron_engagement.log` | daily_engagement |
+| `logs\cron_backup.log` | backup_db |
 
-- `logs\cron_refresh.log`
-- `logs\cron_readiness.log`
-- `logs\cron_editorial.log`
-- `logs\cron_release.log`
+---
 
-Cada linea incluye:
+## Recrear las tareas desde cero
 
-- timestamp local
-- nivel (`INFO`, `WARN`, `ERROR`)
-- paso ejecutado
+Ejecutar como Administrador:
 
-## Produccion v1
+```powershell
+powershell.exe -ExecutionPolicy Bypass -File ".\scripts\windows\setup_scheduler.ps1"
+```
 
-Frontera automatica base:
+Verificar que se crearon:
 
-- `results_roundup`
-- `standings_roundup`
-- `preview`
-- `ranking`
+```powershell
+Get-ScheduledTask | Where-Object { $_.TaskName -like "futbol_*" } | Select-Object TaskName, State | Format-Table
+```
 
-Autoaprobacion segura de lunes:
+---
 
+## Parametros de editorial_release.ps1
+
+```powershell
+.\scripts\windows\editorial_release.ps1 [-TargetDate YYYY-MM-DD] [-DryRun] [-PublishBrowser] [-SkipPublishBrowser] [-PublishX] [-PublishTypefully]
+```
+
+- Por defecto: `run` + `--publish-browser` (sin fecha = hoy)
+- `-DryRun`: simula sin escribir nada en BD ni publicar
+- `-SkipPublishBrowser`: omite la publicacion via navegador
+
+---
+
+## Flujo completo de editorial_release
+
+`editorial_release run --publish-browser` ejecuta internamente:
+
+1. `editorial_quality_checks` — valida calidad de los borradores
+2. `editorial_approval_policy` — autoaprueba segun reglas del dia
+3. `publication_dispatcher` — mueve candidatos aprobados a `published`
+4. `export_base_service` → `exports/export_base.json`
+5. `XBrowserPublicationService.mark_pre_browser_published()` — marca como omitidos los candidatos publicados hace mas de 48h (evita flood del timeline con contenido obsoleto)
+6. `XBrowserPublicationService.publish_pending()` — publica los candidatos recientes pendientes
+
+---
+
+## Frontera de autoaprobacion v1
+
+**Siempre autoaprobados:**
+- `results_roundup`, `standings_roundup`, `preview`, `ranking`
+
+**Lunes:**
 - `top_scorer_update`
 
-Autoaprobacion condicional (martes/miercoles + quality checks):
+**Martes/miercoles (si pasan quality checks):**
+- `stat_narrative`, `metric_narrative`, `viral_story`
 
-- `stat_narrative`
-- `metric_narrative`
-- `viral_story`
+**Viernes:**
+- `featured_match_preview`, `match_impact_scenario`
 
-Autoaprobacion segura de viernes:
+**Siempre manuales:**
+- `match_result`, `standings`, `featured_match_event`, `race_narrative`, `milestone_story`, `standings_event`, `form_event`, `form_ranking`
 
-- `featured_match_preview`
-- `match_impact_scenario`
+---
 
-Todo lo demas queda manual en esta fase:
-
-- `match_result`
-- `standings`
-- `featured_match_event`
-- `race_narrative`
-- `milestone_story`
-- `standings_event`
-- `form_event`
-- `form_ranking`
-
-La frontera automatica real vive en codigo:
-
-- `EditorialApprovalPolicyService` autoaprueba por defecto `results_roundup`, `standings_roundup`, `preview` y `ranking`, suma `top_scorer_update` los lunes y `featured_match_preview + match_impact_scenario` los viernes, y en martes/miercoles puede incluir `stat_narrative`, `metric_narrative` y `viral_story` si pasan quality checks
-- `EditorialCandidateWindowService` limita la ventana temporal del release
-- `XPublicationService` usa esa misma ventana editorial para bloquear retries caducados en X
-- `PublicationDispatcherService` filtra por readiness real antes de publicar
-- `ContentCandidateRepository` puede reconciliar previews legacy usando un ancla estructural de jornada, fecha y equipos
-- `EditorialReleasePipelineService` puede recuperar candidatas ya `approved` de ejecuciones anteriores si ahora ya estan listas
-- `ExportBaseService` escribe `exports/export_base.json` como snapshot estructurado por defecto
-- `legacy_export_json_enabled` reactiva `ExportJsonService` hacia `export/legacy_export.json` solo si hace falta compatibilidad
-
-Regla especifica para `top_scorer_update`:
-
-- solo se genera si la temporada activa tiene al menos `2` partidos con goleadores, `4` eventos `goal` y un lider con `3+` goles
-- `system_check editorial-readiness` lo bloquea como `match_events` o `scorer_coverage` si la capa de goleadores no esta lista
-- `editorial_ops preview-day` puede marcarlo como `signal_threshold` cuando hay datos pero aun no hay historia suficiente
-
-## Ejecucion manual exacta
-
-Desde PowerShell en la raiz del proyecto:
+## Ejecucion manual
 
 ```powershell
+# Scraping
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\windows\refresh_data.ps1"
+
+# Verificacion de salud
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\windows\readiness_check.ps1"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\windows\run_editorial_day.ps1" -TargetDate 2026-03-17
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\windows\editorial_release.ps1" -TargetDate 2026-03-17 -DryRun
-python -m app.pipelines.editorial_quality_checks dry-run --date 2026-03-17
-python -m app.pipelines.editorial_approval dry-run --date 2026-03-17
-python -m app.pipelines.editorial_release dry-run --date 2026-03-17
-python -m app.pipelines.editorial_release run --date 2026-03-17
-python -m app.pipelines.export_base generate --date 2026-03-26
-python -m app.pipelines.system_check editorial-readiness
+
+# Generacion de contenido
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\windows\run_editorial_day.ps1" -TargetDate 2026-05-16
+
+# Release en modo simulacion
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\windows\editorial_release.ps1" -DryRun
+
+# Release real con publicacion en X
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\windows\editorial_release.ps1"
+
+# Solo publicacion via navegador (reintento)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\windows\auto_publish_browser.ps1"
+
+# Diagnostico de sesion del navegador
+python scripts/debug_browser_publish.py
 ```
 
-Modo seguro de primer despliegue:
+---
 
-```powershell
-$env:PREVIEW_ONLY = "true"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\windows\run_editorial_day.ps1" -TargetDate 2026-03-17
-Remove-Item Env:PREVIEW_ONLY
-```
+## Limitaciones conocidas
 
-O equivalente por parametro:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\windows\run_editorial_day.ps1" -TargetDate 2026-03-17 -PreviewOnly
-```
-
-## Task Scheduler
-
-Configuracion recomendada:
-
-- `uFutbolBalear Refresh`
-- `uFutbolBalear Readiness`
-- `uFutbolBalear Editorial Day`
-- `uFutbolBalear Editorial Release`
-- `uFutbolBalear Auto Publish X`
-
-Accion base:
-
-```text
-Program/script: powershell.exe
-Start in: C:\Users\bnove\Documents\futbolbalear
-```
-
-En `Settings`:
-
-- activar `Run task as soon as possible after a scheduled start is missed`
-- marcar `If the task is already running, then the following rule applies: Do not start a new instance`
-
-### Triggers recomendados
-
-- Lunes
-  - Refresh: `08:35`
-  - Readiness: `08:45`
-  - Editorial Day: `09:00`
-  - Editorial Release: `09:20`
-- Miercoles
-  - Refresh: `10:30`
-  - Readiness: `10:45`
-  - Editorial Day: `11:00`
-  - Editorial Release: `11:20`
-- Viernes
-  - Refresh: `09:30`
-  - Readiness: `09:45`
-  - Editorial Day: `10:00`
-  - Editorial Release: `10:20`
-- Domingo
-  - Refresh: `20:00`
-  - Readiness: `20:15`
-  - Editorial Day: `20:30`
-  - Editorial Release: `20:50`
-
-### Acciones exactas
-
-Refresh:
-
-```text
-Program/script: powershell.exe
-Add arguments: -NoProfile -ExecutionPolicy Bypass -File "C:\Users\bnove\Documents\futbolbalear\scripts\windows\refresh_data.ps1"
-Start in: C:\Users\bnove\Documents\futbolbalear
-```
-
-Readiness:
-
-```text
-Program/script: powershell.exe
-Add arguments: -NoProfile -ExecutionPolicy Bypass -File "C:\Users\bnove\Documents\futbolbalear\scripts\windows\readiness_check.ps1"
-Start in: C:\Users\bnove\Documents\futbolbalear
-```
-
-Editorial Day:
-
-```text
-Program/script: powershell.exe
-Add arguments: -NoProfile -ExecutionPolicy Bypass -File "C:\Users\bnove\Documents\futbolbalear\scripts\windows\run_editorial_day.ps1"
-Start in: C:\Users\bnove\Documents\futbolbalear
-```
-
-Editorial Release en modo seguro:
-
-```text
-Program/script: powershell.exe
-Add arguments: -NoProfile -ExecutionPolicy Bypass -File "C:\Users\bnove\Documents\futbolbalear\scripts\windows\editorial_release.ps1" -DryRun
-Start in: C:\Users\bnove\Documents\futbolbalear
-```
-
-Editorial Release en modo real:
-
-```text
-Program/script: powershell.exe
-Add arguments: -NoProfile -ExecutionPolicy Bypass -File "C:\Users\bnove\Documents\futbolbalear\scripts\windows\editorial_release.ps1"
-Start in: C:\Users\bnove\Documents\futbolbalear
-```
-
-Auto Publish X:
-
-```text
-Program/script: powershell.exe
-Add arguments: -NoProfile -ExecutionPolicy Bypass -File "C:\Users\bnove\Documents\futbolbalear\scripts\windows\auto_publish.ps1"
-Start in: C:\Users\bnove\Documents\futbolbalear
-```
-
-## Flujo recomendado de activacion
-
-1. ejecutar manualmente `refresh_data.ps1`
-2. ejecutar manualmente `readiness_check.ps1`
-3. ejecutar manualmente `run_editorial_day.ps1 -PreviewOnly`
-4. ejecutar manualmente `editorial_release.ps1 -DryRun`
-5. revisar:
-   - `logs\cron_refresh.log`
-   - `logs\cron_readiness.log`
-   - `logs\cron_editorial.log`
-   - `logs\cron_release.log`
-6. revisar `python -m app.pipelines.system_check editorial-readiness`
-7. revisar `exports/export_base.json` tras un `editorial_release run`
-8. si todo es correcto, crear las tareas en Task Scheduler
-9. quitar `-PreviewOnly` y `-DryRun` cuando el comportamiento ya sea estable
-
-## Editorial Release como cierre operativo v1
-
-El flujo recomendado es:
-
-1. `Refresh`
-2. `Readiness`
-3. `Editorial Day`
-4. `Editorial Release`
-
-`Editorial Release` hace internamente:
-
-- `editorial_quality_checks`
-- `editorial_approval_policy`
-- `publication_dispatch`
-- `export_base_service`
-
-Con eso, `exports/export_base.json` pasa a ser el handoff estable para las piezas seguras de produccion v1.
-
-La publicacion automatica en X queda desacoplada pero lista:
-
-- `editorial_release.ps1` publica en X por defecto salvo `-SkipPublishX`
-- `auto_publish.ps1` permite reintentos batch separados
-- el horario real de X vive en `app/config/publication_schedule.json`
-- lunes `09:00`: `results_roundup`, `standings_roundup`, `top_scorer_update`
-- miercoles `18:00`: `viral_story`, `metric_narrative`
-- viernes `10:00`: `featured_match_preview`, `match_impact_scenario`
-
-## Export base del release
-
-`editorial_release run` genera `exports/export_base.json` con un snapshot estructurado para consumo externo:
-
-- agrupa por competicion y tipo de contenido
-- para `preview` y `featured_match_preview` puede elegir `viral_formatted_text` via `EditorialTextSelectorService`
-- en el resto usa `rewritten_text`, despues `formatted_text` y por ultimo `text_draft`
-- para `standings_roundup` puede anadir `image_path` con una tarjeta PNG local generada durante el export
-- la tarjeta de `standings_roundup` intenta usar clasificacion completa desde BD y adapta layout/altura segun filas y columnas reales
-- deduplica piezas ya incluidas en el mismo snapshot, y en `standings_roundup` colapsa variantes de la misma ronda para quedarse con la mas reciente
-- deja trazabilidad con `export_base_total_items` y `export_base_path`
-- si el render visual falla, el JSON sigue saliendo y `image_path` queda vacio
-- el PNG de `standings_roundup` se escribe usando la fecha objetivo del snapshot para mantener rutas estables por release
-
-El consumo y publicacion final del JSON siguen siendo externos al scheduler.
-
-Dependencia visual:
-
-- ejecutar `playwright install chromium` en el entorno que vaya a generar el snapshot con PNG
-
-## Legacy export JSON
-
-Si necesitas mantener el formato plano anterior, activa `LEGACY_EXPORT_JSON_ENABLED=true`.
-
-- el release generara ademas `export/legacy_export.json`
-- usa `ExportJsonService`
-- queda pensado solo para compatibilidad con consumidores antiguos
-
-
-## Tareas que siguen siendo manuales
-
-- revisar drafts en `editorial_queue`
-- `approve/reject` de piezas fuera de la frontera v1
-- `publication_dispatch` de piezas sensibles
-- revisar `exports/export_base.json` antes de entregarlo al canal final
-- regenerar `exports/export_base.json` con `python -m app.pipelines.export_base generate --date <fecha>` si necesitas rehacer el snapshot
-- revisar `export/legacy_export.json` solo si has activado el modo legacy
-- edicion final y programacion en la herramienta externa que toque
-
-## Limitaciones abiertas
-
-- no hay rotacion automatica de logs en Windows; la limpieza es manual por ahora
-- el lock evita duplicados del mismo slot, pero no sustituye la opcion `Do not start a new instance` de Task Scheduler
-- el scheduler no resuelve logica editorial por hora; solo dispara scripts
+- Los logs no rotan automaticamente; limpiar `logs\*.log` periodicamente
+- El lock previene solapamientos del mismo slot, pero Task Scheduler debe tener `Do not start a new instance` activado como segunda linea de defensa
+- `headless=False` requiere sesion de Windows interactiva; no funciona en sesiones de servicio (SYSTEM)
+- Si el ordenador entra en suspension durante una publicacion en curso, Playwright puede quedar colgado; el lock file evita reinicio automatico hasta que se libere manualmente

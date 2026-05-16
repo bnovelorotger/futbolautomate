@@ -110,7 +110,19 @@ python -m app.pipelines.runner story_importance rank-pending
 python -m app.pipelines.runner export_base generate --date 2026-05-12
 ```
 
-### Publishing
+### Publishing (browser — default)
+```bash
+# Capture/renew X session (opens interactive browser for login)
+python -m app.pipelines.runner x_browser_auth capture
+
+# Publish all pending candidates via browser (Playwright + Chromium)
+python -m app.pipelines.runner editorial_release run --publish-browser
+
+# Diagnose browser session
+python scripts/debug_browser_publish.py
+```
+
+### Publishing (X API — optional, requires API credentials)
 ```bash
 python -m app.pipelines.runner x_auth start-auth
 python -m app.pipelines.runner x_publish --id <candidate_id>

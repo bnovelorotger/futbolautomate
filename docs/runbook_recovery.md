@@ -15,7 +15,7 @@ Instalar antes de empezar:
 - **Python 3.11+** — anadir al PATH del sistema
 - **PostgreSQL 17** (nativo) o **Docker Desktop** con `docker-compose`
 - **Git**
-- **Playwright / Chromium** — solo si se generan tarjetas PNG de standings (paso 4)
+- **Playwright / Chromium** — necesario tanto para publicacion en X como para tarjetas PNG de standings
 
 ---
 
@@ -28,6 +28,7 @@ cd C:\Users\bnove\Documents\futbolbalear
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
+playwright install chromium
 ```
 
 ---
@@ -43,8 +44,12 @@ notepad .env
 
 Variables obligatorias:
 
-- `DATABASE_URL` — URL de conexion (ver formato abajo)
-- `X_CLIENT_ID`, `X_CLIENT_SECRET`, `X_BEARER_TOKEN` — credenciales de la app en [developer.x.com](https://developer.x.com)
+- `DATABASE_URL` — URL de conexion PostgreSQL
+
+Variables opcionales pero recomendadas:
+
+- `EDITORIAL_REWRITE_API_KEY` — clave de OpenAI para reescritura editorial
+- `X_CLIENT_ID`, `X_CLIENT_SECRET` — solo si se usa la API de X (no necesario para publicacion via navegador)
 
 Formato de `DATABASE_URL` para instalacion local estandar:
 
@@ -52,7 +57,7 @@ Formato de `DATABASE_URL` para instalacion local estandar:
 DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/futbol_balear
 ```
 
-El resto de variables del `.env.example` tienen valores por defecto funcionales. Si la ruta de Python no esta en el PATH del sistema, crear `.env.windows` con:
+Si la ruta de Python no esta en el PATH del sistema, crear `.env.windows` con:
 
 ```
 PYTHON_BIN=C:\Users\bnove\Documents\futbolbalear\.venv\Scripts\python.exe
@@ -64,9 +69,9 @@ PYTHON_BIN=C:\Users\bnove\Documents\futbolbalear\.venv\Scripts\python.exe
 
 ### Opcion A: Desde un backup (preferida)
 
-Los backups se guardan en `backups/` con el formato `backup_YYYYMMDD_HHmmss.dump` (formato custom de `pg_dump`).
+Los backups se guardan en `backups/` con el formato `backup_YYYYMMDD_HHmmss.dump`.
 
-Primero crear la base de datos si no existe:
+Crear la base de datos si no existe:
 
 ```powershell
 $env:PGPASSWORD = "postgres"
@@ -78,17 +83,13 @@ Restaurar desde el dump mas reciente:
 ```powershell
 $env:PGPASSWORD = "postgres"
 pg_restore `
-    --host=localhost `
-    --port=5432 `
-    --username=postgres `
-    --dbname=futbol_balear `
-    --no-owner `
-    --no-privileges `
+    --host=localhost --port=5432 --username=postgres `
+    --dbname=futbol_balear --no-owner --no-privileges `
     backups\backup_YYYYMMDD_HHmmss.dump
 Remove-Item Env:PGPASSWORD
 ```
 
-Sustituir `backup_YYYYMMDD_HHmmss.dump` por el nombre real del archivo. Para listar los disponibles:
+Para listar los backups disponibles:
 
 ```powershell
 Get-ChildItem backups\*.dump | Sort-Object LastWriteTime -Descending | Select-Object -First 5
@@ -97,7 +98,7 @@ Get-ChildItem backups\*.dump | Sort-Object LastWriteTime -Descending | Select-Ob
 Verificar que la restauracion es correcta:
 
 ```bash
-python -m app.pipelines.system_check editorial-readiness
+python -m app.pipelines.runner system_check editorial-readiness
 ```
 
 ### Opcion B: Base de datos vacia (sin backup)
@@ -124,40 +125,75 @@ python scripts/seed_team_socials.py
 
 ---
 
-## Paso 4: Reinstalar Playwright
+## Paso 4: Restaurar la sesion del navegador de X
 
-Necesario para generar tarjetas PNG de `standings_roundup`:
+La publicacion en X funciona via Playwright con Chromium. La sesion se guarda en `.x_browser_state.json` (no incluido en el repositorio — esta en `.gitignore`).
+
+Si tienes una copia del archivo en un lugar seguro, copiarla a la raiz del proyecto:
+
+```powershell
+Copy-Item "ruta\segura\.x_browser_state.json" ".x_browser_state.json"
+```
+
+Si no tienes copia, iniciar sesion de nuevo:
+
+```powershell
+python -m app.pipelines.runner x_browser_auth capture
+```
+
+Abre un navegador interactivo. Inicia sesion en X con la cuenta de la plataforma. La sesion se guarda automaticamente en `.x_browser_state.json`.
+
+Verificar que la sesion funciona:
 
 ```bash
-playwright install chromium
+python scripts/debug_browser_publish.py
 ```
+
+Abre un navegador visible y publica un tweet de prueba. Si el tweet aparece en la cuenta, la sesion es valida.
 
 ---
 
 ## Paso 5: Reconfigurar el Programador de tareas de Windows
 
-Ver `docs/windows_scheduler_setup.md` para la configuracion completa y detallada.
-
-Verificar que las cuatro tareas existen:
+Ejecutar como Administrador:
 
 ```powershell
-Get-ScheduledTask | Where-Object { $_.TaskName -like "uFutbolBalear*" } | Select-Object TaskName, State
+powershell.exe -ExecutionPolicy Bypass -File ".\scripts\windows\setup_scheduler.ps1"
 ```
 
-Si no existen, recrearlas desde el Programador de tareas con los parametros de `docs/windows_scheduler_setup.md`. Las cuatro tareas son:
-
-- `uFutbolBalear Refresh`
-- `uFutbolBalear Readiness`
-- `uFutbolBalear Editorial Day`
-- `uFutbolBalear Editorial Release`
-
-Probar manualmente antes de activar las tareas programadas:
+Verificar que las tareas se crearon:
 
 ```powershell
+Get-ScheduledTask | Where-Object { $_.TaskName -like "futbol_*" } | Select-Object TaskName, State | Format-Table
+```
+
+Deben aparecer las siguientes tareas:
+
+- `futbol_refresh_morning`, `futbol_refresh_midweek`, `futbol_refresh_other`, `futbol_refresh_afternoon`
+- `futbol_editorial_day_mon_sun`, `futbol_editorial_day_wed`, `futbol_editorial_day_fri`, `futbol_editorial_day_other`
+- `futbol_release_mon_sun`, `futbol_release_wed`, `futbol_release_fri`, `futbol_release_other`
+- `futbol_engagement`
+- `futbol_backup`
+
+Ver `docs/windows_scheduler_setup.md` para el horario detallado y la logica de secuencia por dia.
+
+Probar manualmente antes de dejar en automatico:
+
+```powershell
+# 1. Scraping
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\windows\refresh_data.ps1"
+
+# 2. Verificacion
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\windows\readiness_check.ps1"
+
+# 3. Contenido (modo seguro)
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\windows\run_editorial_day.ps1" -PreviewOnly
+
+# 4. Release simulado
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\windows\editorial_release.ps1" -DryRun
+
+# 5. Release real con publicacion en X
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\windows\editorial_release.ps1"
 ```
 
 ---
@@ -165,8 +201,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\windows\edito
 ## Paso 6: Verificar que el sistema esta sano
 
 ```bash
-python -m app.pipelines.system_check editorial-readiness
-python -m app.pipelines.competition_catalog status --integrated-only
+python -m app.pipelines.runner system_check editorial-readiness
+python -m app.pipelines.runner competition_catalog status --integrated-only
 ```
 
 Revisar los logs tras la primera ejecucion completa:
@@ -178,11 +214,11 @@ logs\cron_editorial.log
 logs\cron_release.log
 ```
 
-Generar un snapshot de prueba:
+Verificar que se generan los exports:
 
 ```bash
-python -m app.pipelines.editorial_release dry-run --date <fecha-hoy>
-python -m app.pipelines.export_base generate --date <fecha-hoy>
+python -m app.pipelines.runner editorial_release dry-run --date <fecha-hoy>
+python -m app.pipelines.runner export_base generate --date <fecha-hoy>
 ```
 
 Comprobar que `exports/export_base.json` se genera correctamente.
@@ -200,16 +236,26 @@ Comprobar que `exports/export_base.json` se genera correctamente.
 ## Fallos habituales y como resolverlos
 
 **1. `pg_restore` falla con "role does not exist"**
-Anadir `--no-owner --no-privileges` al comando (ya incluido en el ejemplo de arriba). Si sigue fallando, crear el rol manualmente: `psql -c "CREATE ROLE postgres SUPERUSER LOGIN PASSWORD 'postgres';"`.
+Anadir `--no-owner --no-privileges` al comando (ya incluido en el ejemplo). Si sigue fallando, crear el rol: `psql -c "CREATE ROLE postgres SUPERUSER LOGIN PASSWORD 'postgres';"`.
 
 **2. `alembic upgrade head` falla con "can't connect to server"**
 La base de datos no esta corriendo. Comprobar con `docker-compose ps` (Docker) o desde Servicios de Windows (instalacion nativa). Verificar que `DATABASE_URL` en `.env` apunta al host y puerto correctos.
 
-**3. `playwright install chromium` falla por red corporativa o proxy**
-El render de PNG es opcional: si falla, `export_base.json` sigue generandose y `image_path` queda en `null`. Se puede omitir este paso si no se necesitan las tarjetas visuales.
+**3. El publisher de X no publica (no navega fuera de /compose/post)**
+La sesion ha expirado o el archivo `.x_browser_state.json` no existe. Ejecutar:
+```bash
+python -m app.pipelines.runner x_browser_auth capture
+```
+Luego verificar con `python scripts/debug_browser_publish.py`.
 
 **4. Los scripts PowerShell no se ejecutan ("no se puede cargar el archivo")**
-El sistema bloquea scripts sin firmar. Ejecutar con: `powershell.exe -ExecutionPolicy Bypass -File ".\scripts\windows\refresh_data.ps1"`. Para evitarlo permanentemente en el usuario actual: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
+El sistema bloquea scripts sin firmar. Ejecutar con `-ExecutionPolicy Bypass`. Para evitarlo permanentemente en el usuario actual: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
 
 **5. `system_check editorial-readiness` reporta competiciones sin datos**
-La BD esta vacia o el scraping no ha corrido aun. Ejecutar manualmente `refresh_data.ps1` y esperar a que termine. Si la fuente de datos esta caida, ver documentacion de cada scraper en `app/scrapers/`.
+La BD esta vacia o el scraping no ha corrido. Ejecutar manualmente `refresh_data.ps1` y esperar. Si la fuente de datos esta caida, ver `app/scrapers/`.
+
+**6. `playwright install chromium` falla por red o proxy**
+Intentar con proxy configurado o instalar manualmente desde https://playwright.dev. El navegador es necesario tanto para publicacion en X como para render de tarjetas PNG de standings.
+
+**7. Tareas del scheduler no corren con la pantalla bloqueada**
+Normal si la sesion de Windows esta cerrada. Las tareas usan `-LogonType Interactive`: requieren sesion abierta, pero no hace falta ver la pantalla. La pantalla bloqueada (no cerrar sesion) funciona correctamente.
