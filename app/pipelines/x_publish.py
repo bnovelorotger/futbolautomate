@@ -220,5 +220,25 @@ def browser_pending(
             typer.echo(_render_browser_batch(result))
 
 
+@app.command("engage-daily")
+def engage_daily(
+    dry_run: bool = typer.Option(False, "--dry-run", help="Simula los likes sin hacer clic"),
+) -> None:
+    """Like tweets del timeline para simular actividad humana."""
+    from app.services.x_engagement_service import XEngagementService
+    from app.channels.x_browser.publisher import XBrowserSessionError
+
+    try:
+        result = XEngagementService().run_daily_engagement(dry_run=dry_run)
+    except XBrowserSessionError as exc:
+        _exit_error(str(exc))
+        return
+
+    if dry_run:
+        typer.echo(f"[dry-run] Would like {result.attempted} candidate tweets (daily target: 3)")
+    else:
+        typer.echo(f"Engagement: liked {result.liked} tweets")
+
+
 if __name__ == "__main__":
     app()

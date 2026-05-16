@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     x_browser_headless: bool = True
     x_browser_typing_delay_ms: int = 30
     x_browser_stagger_seconds: int = 60
+    x_engagement_daily_likes: int = 3
     app_root: Path = Field(default_factory=lambda: Path(__file__).resolve().parents[2])
 
     @property
