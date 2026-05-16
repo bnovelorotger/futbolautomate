@@ -68,3 +68,4 @@ backups/*.gz
 Thumbs.db
 Desktop.ini
 .DS_Store
+.x_browser_profile/
