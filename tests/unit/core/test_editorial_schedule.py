@@ -13,7 +13,7 @@ def test_default_editorial_schedule_loads_expected_rules() -> None:
     thursday_rules = schedule.rules_for_weekday("thursday")
     sunday_rules = schedule.rules_for_weekday("sunday")
 
-    assert len(monday_rules) == 24
+    assert len(monday_rules) == 29
     assert monday_rules[0].competition_slug == "tercera_rfef_g11"
     assert monday_rules[0].content_type == EditorialPlanningContent.RESULTS_ROUNDUP
     assert any(rule.content_type == EditorialPlanningContent.STANDINGS_ROUNDUP for rule in monday_rules)
@@ -105,14 +105,19 @@ def test_monday_schedule_includes_race_and_milestone_slots_for_main_competitions
     expected_pairs = {
         ("tercera_rfef_g11", EditorialPlanningContent.RACE_NARRATIVE),
         ("tercera_rfef_g11", EditorialPlanningContent.MILESTONE_STORY),
+        ("tercera_rfef_g11", EditorialPlanningContent.TOP_SCORER_UPDATE),
         ("segunda_rfef_g3_baleares", EditorialPlanningContent.RACE_NARRATIVE),
         ("segunda_rfef_g3_baleares", EditorialPlanningContent.MILESTONE_STORY),
+        ("segunda_rfef_g3_baleares", EditorialPlanningContent.TOP_SCORER_UPDATE),
         ("division_honor_mallorca", EditorialPlanningContent.RACE_NARRATIVE),
         ("division_honor_mallorca", EditorialPlanningContent.MILESTONE_STORY),
+        ("division_honor_mallorca", EditorialPlanningContent.TOP_SCORER_UPDATE),
         ("tercera_federacion_femenina_g11", EditorialPlanningContent.RACE_NARRATIVE),
         ("tercera_federacion_femenina_g11", EditorialPlanningContent.MILESTONE_STORY),
+        ("tercera_federacion_femenina_g11", EditorialPlanningContent.TOP_SCORER_UPDATE),
         ("primera_rfef_baleares", EditorialPlanningContent.RACE_NARRATIVE),
         ("primera_rfef_baleares", EditorialPlanningContent.MILESTONE_STORY),
+        ("primera_rfef_baleares", EditorialPlanningContent.TOP_SCORER_UPDATE),
     }
 
     assert expected_pairs.issubset(monday_pairs)

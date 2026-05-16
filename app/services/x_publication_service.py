@@ -14,6 +14,7 @@ from app.schemas.x_publication import (
     XPublicationCandidateView,
     XPublicationResult,
 )
+from app.services.editorial_candidate_window import EditorialCandidateWindowService
 from app.services.editorial_text_selector import EditorialTextSelectorService
 from app.services.x_publication_scheduler import XPublicationScheduler
 from app.services.x_auth_service import XAuthService
@@ -45,6 +46,7 @@ class XPublicationService:
         auth_service: XAuthService | None = None,
         text_selector: EditorialTextSelectorService | None = None,
         scheduler: XPublicationScheduler | None = None,
+        window_service: EditorialCandidateWindowService | None = None,
     ) -> None:
         self.session = session
         settings = get_settings()
@@ -52,6 +54,7 @@ class XPublicationService:
         self.auth_service = auth_service or XAuthService(session, settings=settings)
         self.text_selector = text_selector or EditorialTextSelectorService(session, settings=settings)
         self.scheduler = scheduler or XPublicationScheduler(settings=settings)
+        self.window_service = window_service or EditorialCandidateWindowService(session, settings=settings)
 
     def _candidate(self, candidate_id: int) -> ContentCandidate:
         candidate = self.session.get(ContentCandidate, candidate_id)
@@ -103,7 +106,7 @@ class XPublicationService:
         )
 
     def list_pending(self, *, limit: int = 50) -> list[XPublicationCandidateView]:
-        rows = self._pending_candidates(limit=limit)
+        rows = self._fresh_candidates(self._pending_candidates())[:limit]
         return [self._row_to_view(row) for row in rows]
 
     def _pending_candidates(self, *, limit: int | None = None) -> list[ContentCandidate]:
@@ -169,7 +172,9 @@ class XPublicationService:
         candidates = [self.session.get(ContentCandidate, candidate_id) for candidate_id in candidate_ids]
         selected_candidates = [candidate for candidate in candidates if candidate is not None]
         if respect_schedule:
-            selected_candidates = self.scheduler.filter_candidates(selected_candidates)
+            selected_candidates = self.scheduler.filter_candidates(
+                self._fresh_candidates(selected_candidates),
+            )
         for candidate in selected_candidates:
             try:
                 result = self.publish_candidate(candidate.id, dry_run=dry_run)
@@ -192,5 +197,13 @@ class XPublicationService:
         limit: int = 20,
         dry_run: bool = False,
     ) -> XBatchPublicationResult:
-        rows = self.scheduler.filter_candidates(self._pending_candidates())
+        rows = self.scheduler.filter_candidates(self._fresh_candidates(self._pending_candidates()))
         return self.publish_candidates([row.id for row in rows[:limit]], dry_run=dry_run, respect_schedule=False)
+
+    def _fresh_candidates(self, candidates: list[ContentCandidate]) -> list[ContentCandidate]:
+        reference_date = self.scheduler.current_local_time().date()
+        return [
+            candidate
+            for candidate in candidates
+            if self.window_service.matches_release_window(candidate, reference_date=reference_date)
+        ]

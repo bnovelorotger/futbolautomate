@@ -18,6 +18,8 @@ def _seed_finished_match(
     external_id: str = "1258230",
     home_team: str = "CE Constancia",
     away_team: str = "Inter Ibiza CD",
+    home_score: int = 3,
+    away_score: int = 0,
     source_url: str | None = None,
 ) -> Match:
     competition = Competition(
@@ -57,8 +59,8 @@ def _seed_finished_match(
         away_team_id=away.id,
         home_team_raw=home_team,
         away_team_raw=away_team,
-        home_score=3,
-        away_score=0,
+        home_score=home_score,
+        away_score=away_score,
         status="finished",
         venue=None,
         has_lineups=False,
@@ -111,9 +113,11 @@ def test_match_event_enricher_persists_goal_events_and_marks_match_enriched() ->
 def test_match_event_enricher_marks_scoreless_match_without_persisting_events() -> None:
     session = build_session()
     try:
-        match = _seed_finished_match(session, external_id="1259000", home_score=0 if False else 3)
-        session.execute(
-            select(Match).where(Match.id == match.id)
+        match = _seed_finished_match(
+            session,
+            external_id="1259000",
+            home_score=0,
+            away_score=0,
         )
         service = MatchEventEnricherService(
             session,

@@ -17,6 +17,9 @@ class EditorialCompetitionReadinessRow(BaseModel):
     finished_matches_count: int = 0
     scheduled_matches_count: int = 0
     standings_count: int = 0
+    scorer_season: str | None = None
+    scorer_matches_count: int = 0
+    goal_events_count: int = 0
     content_candidates_count: int = 0
     pending_export_count: int = 0
     planner_ready: bool = False

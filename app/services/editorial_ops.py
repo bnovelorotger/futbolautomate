@@ -172,6 +172,12 @@ class EditorialOperationsService:
                         task.competition_slug,
                         reference_date=target_date,
                     )
+            elif task.planning_type == EditorialPlanningContent.TOP_SCORER_UPDATE:
+                if not missing:
+                    candidate_cache[key] = self.planner._build_top_scorer_candidates(
+                        task.competition_slug,
+                        reference_date=target_date,
+                    )
             elif task.planning_type == EditorialPlanningContent.VIRAL_STORY:
                 if not missing:
                     candidate_cache[key] = self.viral_stories.build_candidate_drafts(
@@ -212,30 +218,14 @@ class EditorialOperationsService:
             return ["competition_seed"]
         if not readiness_row.seeded_in_db:
             return ["competition_seed"]
-        if task.planning_type in {
-            EditorialPlanningContent.LATEST_RESULTS,
-            EditorialPlanningContent.RESULTS_ROUNDUP,
-            EditorialPlanningContent.STAT_NARRATIVE,
-            EditorialPlanningContent.METRIC_NARRATIVE,
-            EditorialPlanningContent.MILESTONE_STORY,
-            EditorialPlanningContent.VIRAL_STORY,
-        } and readiness_row.finished_matches_count == 0:
-            return ["finished_matches"]
-        if task.planning_type in {
-            EditorialPlanningContent.PREVIEW,
-            EditorialPlanningContent.FEATURED_MATCH_PREVIEW,
-            EditorialPlanningContent.MATCH_IMPACT_SCENARIO,
-        } and readiness_row.scheduled_matches_count == 0:
-            return ["scheduled_matches"]
-        if task.planning_type in {
-            EditorialPlanningContent.STANDINGS,
-            EditorialPlanningContent.STANDINGS_ROUNDUP,
-            EditorialPlanningContent.RANKING,
-            EditorialPlanningContent.FEATURED_MATCH_PREVIEW,
-            EditorialPlanningContent.MATCH_IMPACT_SCENARIO,
-            EditorialPlanningContent.RACE_NARRATIVE,
-        } and readiness_row.standings_count == 0:
-            return ["standings"]
+        configured_missing = self.system_check.missing_dependencies_for_planning_type(
+            readiness_row,
+            task.planning_type,
+        )
+        if configured_missing:
+            return configured_missing
+        if task.planning_type == EditorialPlanningContent.TOP_SCORER_UPDATE:
+            return ["signal_threshold"]
         return ["no_candidates_available"]
 
     def _task_missing_dependencies(
@@ -245,31 +235,10 @@ class EditorialOperationsService:
     ) -> list[str]:
         if readiness_row is None or not readiness_row.seeded_in_db:
             return ["competition_seed"]
-        if task.planning_type in {
-            EditorialPlanningContent.LATEST_RESULTS,
-            EditorialPlanningContent.RESULTS_ROUNDUP,
-            EditorialPlanningContent.STAT_NARRATIVE,
-            EditorialPlanningContent.METRIC_NARRATIVE,
-            EditorialPlanningContent.MILESTONE_STORY,
-            EditorialPlanningContent.VIRAL_STORY,
-        } and readiness_row.finished_matches_count == 0:
-            return ["finished_matches"]
-        if task.planning_type in {
-            EditorialPlanningContent.PREVIEW,
-            EditorialPlanningContent.FEATURED_MATCH_PREVIEW,
-            EditorialPlanningContent.MATCH_IMPACT_SCENARIO,
-        } and readiness_row.scheduled_matches_count == 0:
-            return ["scheduled_matches"]
-        if task.planning_type in {
-            EditorialPlanningContent.STANDINGS,
-            EditorialPlanningContent.STANDINGS_ROUNDUP,
-            EditorialPlanningContent.RANKING,
-            EditorialPlanningContent.FEATURED_MATCH_PREVIEW,
-            EditorialPlanningContent.MATCH_IMPACT_SCENARIO,
-            EditorialPlanningContent.RACE_NARRATIVE,
-        } and readiness_row.standings_count == 0:
-            return ["standings"]
-        return []
+        return self.system_check.missing_dependencies_for_planning_type(
+            readiness_row,
+            task.planning_type,
+        )
 
     def _target_content_type(self, planning_type: EditorialPlanningContent) -> ContentType:
         return {
@@ -285,6 +254,7 @@ class EditorialOperationsService:
             EditorialPlanningContent.METRIC_NARRATIVE: ContentType.METRIC_NARRATIVE,
             EditorialPlanningContent.RACE_NARRATIVE: ContentType.RACE_NARRATIVE,
             EditorialPlanningContent.MILESTONE_STORY: ContentType.MILESTONE_STORY,
+            EditorialPlanningContent.TOP_SCORER_UPDATE: ContentType.TOP_SCORER_UPDATE,
             EditorialPlanningContent.VIRAL_STORY: ContentType.VIRAL_STORY,
         }[planning_type]
 

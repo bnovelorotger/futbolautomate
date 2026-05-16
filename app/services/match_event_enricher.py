@@ -118,7 +118,7 @@ class MatchEventEnricherService:
             Match.has_scorers.is_(False),
         )
         if competition_slug is not None:
-            query = query.join(Match.competition).where(Match.competition.has(code=competition_slug))
+            query = query.where(Match.competition.has(code=competition_slug))
         query = query.order_by(Match.match_date.desc().nullslast(), Match.id.desc()).limit(limit)
         return self.session.execute(query).scalars().all()
 

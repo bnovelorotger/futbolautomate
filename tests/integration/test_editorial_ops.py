@@ -4,12 +4,48 @@ from datetime import date, time
 
 from sqlalchemy import select
 
-from app.core.enums import EditorialPlanningContent
-from app.db.models import ContentCandidate
+from app.core.enums import EditorialPlanningContent, MatchEventType
+from app.db.models import ContentCandidate, Match, MatchEvent
 from app.services.competition_catalog_service import CompetitionCatalogService
 from app.services.editorial_ops import EditorialOperationsService
 from tests.unit.services.test_match_importance import add_scheduled_match
 from tests.unit.services.test_editorial_narratives import build_session, seed_competition, seed_narratives_data
+
+
+def seed_top_scorer_events(session, competition_code: str) -> None:
+    matches = session.execute(
+        select(Match)
+        .where(Match.competition.has(code=competition_code))
+        .order_by(Match.match_date.desc().nullslast(), Match.id.desc())
+    ).scalars().all()
+    if len(matches) < 2:
+        return
+
+    payloads = [
+        (matches[0], "home", "Joan Serra", 1),
+        (matches[0], "home", "Joan Serra", 2),
+        (matches[1], "away", "Joan Serra", 1),
+        (matches[1], "away", "Pep Vidal", 2),
+    ]
+    for index, (match, team_side, player, minute) in enumerate(payloads, start=1):
+        team_id = match.home_team_id if team_side == "home" else match.away_team_id
+        session.add(
+            MatchEvent(
+                match_id=match.id,
+                team_id=team_id,
+                team_side=team_side,
+                event_type=str(MatchEventType.GOAL),
+                minute_raw=str(minute),
+                minute=minute,
+                player_raw=player,
+                sort_order=index,
+                source_event_key=f"{match.external_id}:{player}:{index}",
+                raw_payload={"player": player},
+            )
+        )
+        match.has_scorers = True
+        session.add(match)
+    session.commit()
 
 
 def test_editorial_ops_preview_and_run_daily_for_real_schedule() -> None:
@@ -17,6 +53,8 @@ def test_editorial_ops_preview_and_run_daily_for_real_schedule() -> None:
     try:
         CompetitionCatalogService(session).seed_competitions(integrated_only=True, missing_only=True)
         seed_narratives_data(session)
+        seed_top_scorer_events(session, "tercera_rfef_g11")
+        seed_top_scorer_events(session, "segunda_rfef_g3_baleares")
         service = EditorialOperationsService(session)
 
         preview = service.preview_day(date(2026, 3, 16))
@@ -25,18 +63,21 @@ def test_editorial_ops_preview_and_run_daily_for_real_schedule() -> None:
 
         rows = session.execute(select(ContentCandidate).order_by(ContentCandidate.id.asc())).scalars().all()
 
-        assert preview.total_tasks == 24
-        assert preview.ready_tasks == 5
-        assert preview.blocked_tasks == 19
-        assert preview.expected_total == 5
-        assert run.generated_total == 5
-        assert run.inserted_total == 5
-        assert run.blocked_tasks == 19
-        assert len(rows) == 5
-        assert {row.content_type for row in rows} == {"results_roundup", "standings_roundup", "race_narrative"}
+        assert preview.total_tasks == 29
+        assert preview.ready_tasks == 6
+        assert preview.blocked_tasks == 23
+        assert preview.expected_total == 6
+        assert run.generated_total == 6
+        assert run.inserted_total == 6
+        assert run.blocked_tasks == 23
+        assert len(rows) == 6
+        assert {row.content_type for row in rows} == {"results_roundup", "standings_roundup", "race_narrative", "top_scorer_update"}
         race_row = next(row for row in rows if row.content_type == "race_narrative")
+        top_scorer_rows = [row for row in rows if row.content_type == "top_scorer_update"]
         assert "team_analytics" in race_row.payload_json["source_payload"]
         assert "puntos por partido en sus ultimos 5" in race_row.text_draft
+        assert len(top_scorer_rows) == 1
+        assert all("Joan Serra" in row.text_draft for row in top_scorer_rows)
     finally:
         session.close()
 
@@ -209,5 +250,39 @@ def test_editorial_ops_featured_match_marks_no_candidates_when_top_match_is_not_
         )
         assert featured_row.expected_count == 0
         assert featured_row.missing_dependencies == ["no_candidates_available"]
+    finally:
+        session.close()
+
+
+def test_editorial_ops_marks_top_scorer_missing_match_events_when_results_exist_without_scorers() -> None:
+    session = build_session()
+    try:
+        CompetitionCatalogService(session).seed_competitions(integrated_only=True, missing_only=True)
+        seed_competition(
+            session,
+            code="division_honor_mallorca",
+            name="Division Honor Mallorca",
+            teams=["Portol FC", "Inter Manacor", "CD Serverense", "CE Esporles"],
+            standings_rows=[
+                {"position": 1, "team": "Portol FC", "played": 2, "wins": 2, "draws": 0, "losses": 0, "goals_for": 4, "goals_against": 1, "goal_difference": 3, "points": 6},
+                {"position": 2, "team": "Inter Manacor", "played": 2, "wins": 1, "draws": 1, "losses": 0, "goals_for": 3, "goals_against": 1, "goal_difference": 2, "points": 4},
+            ],
+            match_rows=[
+                {"round_name": "Jornada 2", "match_date": date(2026, 3, 14), "match_time": time(18, 0), "home_team": "Portol FC", "away_team": "CD Serverense", "home_score": 2, "away_score": 1},
+                {"round_name": "Jornada 1", "match_date": date(2026, 3, 7), "match_time": time(17, 0), "home_team": "Inter Manacor", "away_team": "CE Esporles", "home_score": 1, "away_score": 0},
+            ],
+        )
+        service = EditorialOperationsService(session)
+
+        preview = service.preview_day(date(2026, 3, 16))
+
+        top_scorer_row = next(
+            row
+            for row in preview.rows
+            if row.competition_slug == "division_honor_mallorca"
+            and row.planning_type == EditorialPlanningContent.TOP_SCORER_UPDATE
+        )
+        assert top_scorer_row.expected_count == 0
+        assert top_scorer_row.missing_dependencies == ["match_events"]
     finally:
         session.close()

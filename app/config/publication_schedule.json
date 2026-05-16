@@ -3,7 +3,8 @@
     "publish_after": "09:00",
     "types": [
       "results_roundup",
-      "standings_roundup"
+      "standings_roundup",
+      "top_scorer_update"
     ]
   },
   "miercoles": {

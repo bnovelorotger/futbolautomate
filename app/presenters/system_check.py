@@ -23,6 +23,8 @@ def render_editorial_readiness(report: EditorialReadinessReport) -> str:
             f"{row.code} | seeded={str(row.seeded_in_db).lower()} | planner_ready={str(row.planner_ready).lower()} | "
             f"planned={planned} | matches={row.matches_count} | finished={row.finished_matches_count} | "
             f"scheduled={row.scheduled_matches_count} | standings={row.standings_count} | "
+            f"scorer_season={row.scorer_season or '-'} | scorer_matches={row.scorer_matches_count} | "
+            f"goal_events={row.goal_events_count} | "
             f"candidates={row.content_candidates_count} | pending_export={row.pending_export_count} | missing={missing}"
         )
 

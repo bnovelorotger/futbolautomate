@@ -39,6 +39,7 @@ _WEEKLY_TYPES = {
     ContentType.RACE_NARRATIVE,
     ContentType.STAT_NARRATIVE,
     ContentType.MILESTONE_STORY,
+    ContentType.TOP_SCORER_UPDATE,
     ContentType.VIRAL_STORY,
     ContentType.FORM_EVENT,
     ContentType.FORM_RANKING,

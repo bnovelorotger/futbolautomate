@@ -565,6 +565,10 @@ def test_build_narrative_label_unknown_content_type_returns_dato() -> None:
     assert build_narrative_label(ContentType.RESULTS_ROUNDUP, {}) == "Dato"
 
 
+def test_build_narrative_label_top_scorer_update_returns_goleadores() -> None:
+    assert build_narrative_label(ContentType.TOP_SCORER_UPDATE, {}) == "Goleadores"
+
+
 # ---------------------------------------------------------------------------
 # build_narrative_title
 # ---------------------------------------------------------------------------
@@ -578,6 +582,7 @@ def test_build_narrative_label_unknown_content_type_returns_dato() -> None:
         (ContentType.VIRAL_STORY, {"story_type": str(ViralStoryType.GOALS_TREND)}, "📈 Tendencia"),
         (ContentType.VIRAL_STORY, {"story_type": str(ViralStoryType.BEST_ATTACK)}, "🔥 Dato"),
         (ContentType.METRIC_NARRATIVE, {"narrative_type": str(NarrativeMetricType.BEST_ATTACK)}, "🔥 Dato"),
+        (ContentType.TOP_SCORER_UPDATE, {}, "🔥 Goleadores"),
         (ContentType.STANDINGS_EVENT, {"event_type": str(StandingsEventType.NEW_LEADER)}, "🔥 Nuevo líder"),
         (ContentType.STANDINGS_EVENT, {"event_type": str(StandingsEventType.ENTERED_PLAYOFF)}, "🔥 Playoff"),
         (ContentType.STANDINGS_EVENT, {"event_type": str(StandingsEventType.ENTERED_RELEGATION)}, "🔥 Descenso"),

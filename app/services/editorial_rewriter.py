@@ -103,6 +103,10 @@ TYPE_SPECIFIC_GUIDANCE = {
         "Presenta el hito de forma concreta y compartible, sin adornos. "
         "No exageres la racha ni anadas contexto que no este medido."
     ),
+    ContentType.TOP_SCORER_UPDATE: (
+        "Resume la pelea de goleadores con lectura rapida y verificable. "
+        "No cambies nombres, equipos, goles ni posiciones del ranking."
+    ),
     ContentType.VIRAL_STORY: (
         "Refuerza la claridad y el ritmo de lectura sin convertirlo en clickbait. "
         "No exageres, no dramatices y no anadas causas que el sistema no haya medido."

@@ -643,6 +643,36 @@ def test_format_narrative_keeps_fire_emoji_for_data_variants() -> None:
         session.close()
 
 
+def test_format_narrative_uses_top_scorer_update_label_and_hashtags() -> None:
+    session = build_session()
+    try:
+        seed_catalog(session)
+        service = EditorialFormatterService(session)
+        draft = ContentCandidateDraft(
+            competition_slug="tercera_rfef_g11",
+            content_type=ContentType.TOP_SCORER_UPDATE,
+            priority=72,
+            text_draft="Joan Serra (CD Manacor) manda con 8 goles y abre hueco en 3a RFEF Baleares.",
+            source_summary_hash="hash-top-scorer",
+            status=ContentCandidateStatus.DRAFT,
+            payload_json={
+                "competition_name": "3a RFEF Baleares",
+                "source_payload": {
+                    "leader": {"player": "Joan Serra", "team": "CD Manacor", "goals": 8},
+                    "teams": ["CD Manacor", "CE Mercadal"],
+                },
+            },
+        )
+
+        formatted = service.apply_to_draft(draft).formatted_text
+
+        assert formatted is not None
+        assert formatted.startswith("🔥 Goleadores")
+        assert "#FutbolBalear #3aRFEF" in formatted
+    finally:
+        session.close()
+
+
 def test_build_text_layers_produce_viral_results_roundup_with_curated_mentions() -> None:
     session = build_session()
     try:

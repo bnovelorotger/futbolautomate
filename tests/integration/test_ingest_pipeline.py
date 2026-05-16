@@ -63,6 +63,39 @@ def test_ingest_matches_is_idempotent_and_updates_content() -> None:
         session.close()
 
 
+def test_ingest_matches_reconstructs_futbolme_detail_url_in_extra_data() -> None:
+    session = build_session()
+    try:
+        record = MatchRecord(
+            source_name=SourceName.FUTBOLME,
+            source_url="https://example.com/calendar#match-1258230",
+            competition_code="tercera_rfef_g11",
+            home_team="CE Constancia",
+            away_team="Inter Ibiza CD",
+            home_score=3,
+            away_score=0,
+            status=MatchStatus.FINISHED,
+            status_raw="Finalizado",
+            external_id="1258230",
+            match_date_raw="15/03/2026",
+            match_time_raw="18:00",
+            scraped_at=utcnow(),
+            raw_payload={},
+        )
+
+        stats = ingest_matches(session, [record], dry_run=False)
+        session.commit()
+        stored = session.scalars(select(Match)).one()
+
+        assert stats.inserted == 1
+        assert stored.extra_data is not None
+        assert stored.extra_data["detail_url"] == (
+            "https://futbolme.com/resultados-directo/partido/ce-constancia-inter-ibiza-cd/1258230"
+        )
+    finally:
+        session.close()
+
+
 def test_ingest_standings_updates_existing_row_when_team_name_parsing_improves() -> None:
     session = build_session()
     try:

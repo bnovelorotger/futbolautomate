@@ -37,6 +37,12 @@ from app.services.standings_roundup import StandingsRoundupService
 from app.services.match_importance import MatchImportanceService
 from app.services.editorial_narratives import EditorialNarrativesService
 from app.services.team_analytics import TeamAnalyticsService
+from app.services.top_scorer_tracker import (
+    MIN_TOP_SCORER_GOAL_EVENTS,
+    MIN_TOP_SCORER_LEADER_GOALS,
+    MIN_TOP_SCORER_SCORER_MATCHES,
+    TopScorerTrackerService,
+)
 from app.services.editorial_viral_stories import EditorialViralStoriesService
 from app.utils.hashing import stable_hash
 
@@ -53,6 +59,7 @@ _PLANNING_CONTENT_MAP = {
     EditorialPlanningContent.METRIC_NARRATIVE: ContentType.METRIC_NARRATIVE,
     EditorialPlanningContent.RACE_NARRATIVE: ContentType.RACE_NARRATIVE,
     EditorialPlanningContent.MILESTONE_STORY: ContentType.MILESTONE_STORY,
+    EditorialPlanningContent.TOP_SCORER_UPDATE: ContentType.TOP_SCORER_UPDATE,
     EditorialPlanningContent.VIRAL_STORY: ContentType.VIRAL_STORY,
 }
 
@@ -92,6 +99,7 @@ class EditorialPlannerService:
         self.race_narratives = RaceNarrativeService()
         self.milestones = MilestoneDetectorService(session, settings=self.settings)
         self.team_analytics = TeamAnalyticsService(session, settings=self.settings)
+        self.top_scorers = TopScorerTrackerService(session)
         self.viral_stories = EditorialViralStoriesService(session)
         self.competition_catalog = load_competition_catalog()
 
@@ -157,6 +165,7 @@ class EditorialPlannerService:
         generated_narratives_cache: dict[str, list[ContentCandidateDraft]] = {}
         generated_race_cache: dict[str, list[ContentCandidateDraft]] = {}
         generated_milestone_cache: dict[str, list[ContentCandidateDraft]] = {}
+        generated_top_scorer_cache: dict[str, list[ContentCandidateDraft]] = {}
         generated_viral_cache: dict[str, list[ContentCandidateDraft]] = {}
         for competition_slug in sorted(grouped_tasks):
             for task in grouped_tasks[competition_slug]:
@@ -244,6 +253,18 @@ class EditorialPlannerService:
                             generated_milestone_cache[competition_slug],
                         )
                     selected_candidates = generated_milestone_cache[competition_slug]
+                    stats = self.generator.store_candidates(selected_candidates)
+                elif task.planning_type == EditorialPlanningContent.TOP_SCORER_UPDATE:
+                    if competition_slug not in generated_top_scorer_cache:
+                        generated_top_scorer_cache[competition_slug] = self._build_top_scorer_candidates(
+                            competition_slug,
+                            reference_date=plan.date,
+                        )
+                        self._validate_candidates_for_competition(
+                            competition_slug,
+                            generated_top_scorer_cache[competition_slug],
+                        )
+                    selected_candidates = generated_top_scorer_cache[competition_slug]
                     stats = self.generator.store_candidates(selected_candidates)
                 elif task.planning_type == EditorialPlanningContent.VIRAL_STORY:
                     if competition_slug not in generated_viral_cache:
@@ -462,6 +483,102 @@ class EditorialPlannerService:
                 )
             )
         return candidates
+
+    def _build_top_scorer_candidates(
+        self,
+        competition_slug: str,
+        *,
+        reference_date: date,
+    ) -> list[ContentCandidateDraft]:
+        result = self.top_scorers.top_scorers_for_competition(
+            competition_slug,
+            limit=3,
+            reference_date=reference_date,
+        )
+        if not result.rows:
+            return []
+        leader = result.rows[0]
+        chasers = list(result.rows[1:])
+        if (
+            result.scorer_matches_count < MIN_TOP_SCORER_SCORER_MATCHES
+            or result.goal_events_count < MIN_TOP_SCORER_GOAL_EVENTS
+            or leader.goals < MIN_TOP_SCORER_LEADER_GOALS
+        ):
+            return []
+        gap_to_second = leader.goals - chasers[0].goals if chasers else leader.goals
+        leader_tied = bool(chasers and chasers[0].goals == leader.goals)
+        source_payload = {
+            "leader": leader.model_dump(mode="json"),
+            "chasers": [row.model_dump(mode="json") for row in chasers],
+            "rows": [row.model_dump(mode="json") for row in result.rows],
+            "teams": [row.team for row in result.rows],
+            "leader_goals": leader.goals,
+            "goal_gap_to_second": gap_to_second,
+            "leader_tied": leader_tied,
+            "season": result.season,
+            "scorer_matches_count": result.scorer_matches_count,
+            "goal_events_count": result.goal_events_count,
+            "distinct_scorers_count": result.distinct_scorers_count,
+        }
+        season_key = result.season or "seasonless"
+        content_key = f"top_scorer_update:{competition_slug}:{season_key}"
+        priority = max(68, min(82, 68 + min(leader.goals, 10) + (2 if leader_tied else 0)))
+        return [
+            ContentCandidateDraft(
+                competition_slug=competition_slug,
+                content_type=ContentType.TOP_SCORER_UPDATE,
+                priority=priority,
+                text_draft=self._top_scorer_text(
+                    competition_name=self._competition_name(competition_slug),
+                    leader=leader,
+                    chasers=chasers,
+                    leader_tied=leader_tied,
+                    gap_to_second=gap_to_second,
+                ),
+                payload_json={
+                    "content_key": content_key,
+                    "template_name": "top_scorer_update_v1",
+                    "competition_name": self._competition_name(competition_slug),
+                    "reference_date": reference_date.isoformat(),
+                    "source_payload": source_payload,
+                },
+                source_summary_hash=stable_hash(
+                    {
+                        "competition_slug": competition_slug,
+                        "content_key": content_key,
+                        "source_payload": source_payload,
+                    }
+                ),
+            )
+        ]
+
+    def _top_scorer_text(
+        self,
+        *,
+        competition_name: str,
+        leader,
+        chasers: list[Any],
+        leader_tied: bool,
+        gap_to_second: int,
+    ) -> str:
+        if leader_tied and chasers:
+            text = (
+                f"Pichichi al rojo vivo en {competition_name}: "
+                f"{leader.player} ({leader.team}) y {chasers[0].player} ({chasers[0].team}) "
+                f"comparten el liderato con {leader.goals} goles."
+            )
+        else:
+            text = (
+                f"Pichichi provisional en {competition_name}: "
+                f"{leader.player} ({leader.team}) manda con {leader.goals} goles"
+            )
+            if chasers:
+                text += f", {gap_to_second} mas que {chasers[0].player} ({chasers[0].team})."
+            else:
+                text += "."
+        if len(chasers) >= 2:
+            text += f" El tercer registro es {chasers[1].player} ({chasers[1].team}) con {chasers[1].goals}."
+        return text
 
     def _match_impact_text(self, row) -> str:
         parts = [self._match_impact_outcome_text(outcome) for outcome in row.scenarios]

@@ -7,7 +7,7 @@ Windows es el entorno principal actual de operacion de uFutbolBalear. La automat
 - PowerShell es la capa externa de orquestacion
 - toda la logica sigue en `app.pipelines.*`
 - no hay scheduler interno
-- no hay autopublicacion en X
+- ya existe autopublicacion controlada en X
 - `editorial_release` deja por defecto el handoff final en `exports/export_base.json`
 - `export_base` puede regenerar manualmente ese mismo snapshot
 - la produccion v1 mantiene automatizacion controlada por tipo de pieza, dia de semana y quality checks
@@ -42,20 +42,21 @@ Ruta: `scripts/windows/`
   - si `PREVIEW_ONLY=true` o `-PreviewOnly`, termina sin `run-daily`
   - si no, ejecuta `run-daily`
   - los lunes el planner ya cubre `results_roundup + standings_roundup` para las siete competiciones integradas
+  - en cinco competiciones principales tambien genera `race_narrative + milestone_story + top_scorer_update`
   - los miercoles la narrativa automatica queda en `metric_narrative + viral_story` para `tercera_rfef_g11`, `segunda_rfef_g3_baleares` y `tercera_federacion_femenina_g11`
   - los jueves no tienen slots activos por defecto en el planner semanal
   - la consulta editorial de previas puede seguir extendiendo el horizonte hasta el siguiente domingo cuando se usa en jueves o viernes
-  - los viernes el planner se centra en `featured_match_preview` para `tercera_rfef_g11`, `segunda_rfef_g3_baleares`, `division_honor_mallorca`, `tercera_federacion_femenina_g11` y `primera_rfef_baleares`
+  - los viernes el planner se centra en `featured_match_preview + match_impact_scenario` para `tercera_rfef_g11`, `segunda_rfef_g3_baleares`, `division_honor_mallorca`, `tercera_federacion_femenina_g11` y `primera_rfef_baleares`
 - `editorial_release.ps1`
   - ejecuta `editorial_release dry-run` o `run`
+  - pasa `--publish-x` por defecto salvo `-SkipPublishX`
   - el pipeline interno hace `quality_checks -> autoapprove -> dispatch -> export_base`
   - `dispatch` publica `preview` antes del kickoff y usa `scheduled_at` como gating para el resto
-  - en produccion v1 genera por defecto `exports/export_base.json` para:
-    - `results_roundup`
-    - `standings_roundup`
-    - `preview`
-    - `ranking`
+  - en produccion v1 genera por defecto `exports/export_base.json` para las piezas que realmente lleguen a `published`
   - `export_base` solo recoge piezas ya `published`
+- `auto_publish.ps1`
+  - ejecuta `x_publish publish-pending`
+  - sirve como batch separado cuando quieres desacoplar el publish en X del release principal
 - `run_slot.ps1`
   - wrapper opcional para `refresh`, `readiness`, `editorial-day` y `editorial-release`
 
@@ -103,31 +104,48 @@ Frontera automatica base:
 - `preview`
 - `ranking`
 
+Autoaprobacion segura de lunes:
+
+- `top_scorer_update`
+
 Autoaprobacion condicional (martes/miercoles + quality checks):
 
 - `stat_narrative`
 - `metric_narrative`
 - `viral_story`
 
+Autoaprobacion segura de viernes:
+
+- `featured_match_preview`
+- `match_impact_scenario`
+
 Todo lo demas queda manual en esta fase:
 
 - `match_result`
 - `standings`
-- `featured_match_preview`
 - `featured_match_event`
+- `race_narrative`
+- `milestone_story`
 - `standings_event`
 - `form_event`
 - `form_ranking`
 
 La frontera automatica real vive en codigo:
 
-- `EditorialApprovalPolicyService` autoaprueba por defecto `results_roundup`, `standings_roundup`, `preview` y `ranking`, y en martes/miercoles puede incluir `stat_narrative`, `metric_narrative` y `viral_story` si pasan quality checks
+- `EditorialApprovalPolicyService` autoaprueba por defecto `results_roundup`, `standings_roundup`, `preview` y `ranking`, suma `top_scorer_update` los lunes y `featured_match_preview + match_impact_scenario` los viernes, y en martes/miercoles puede incluir `stat_narrative`, `metric_narrative` y `viral_story` si pasan quality checks
 - `EditorialCandidateWindowService` limita la ventana temporal del release
+- `XPublicationService` usa esa misma ventana editorial para bloquear retries caducados en X
 - `PublicationDispatcherService` filtra por readiness real antes de publicar
 - `ContentCandidateRepository` puede reconciliar previews legacy usando un ancla estructural de jornada, fecha y equipos
 - `EditorialReleasePipelineService` puede recuperar candidatas ya `approved` de ejecuciones anteriores si ahora ya estan listas
 - `ExportBaseService` escribe `exports/export_base.json` como snapshot estructurado por defecto
 - `legacy_export_json_enabled` reactiva `ExportJsonService` hacia `export/legacy_export.json` solo si hace falta compatibilidad
+
+Regla especifica para `top_scorer_update`:
+
+- solo se genera si la temporada activa tiene al menos `2` partidos con goleadores, `4` eventos `goal` y un lider con `3+` goles
+- `system_check editorial-readiness` lo bloquea como `match_events` o `scorer_coverage` si la capa de goleadores no esta lista
+- `editorial_ops preview-day` puede marcarlo como `signal_threshold` cuando hay datos pero aun no hay historia suficiente
 
 ## Ejecucion manual exacta
 
@@ -168,6 +186,7 @@ Configuracion recomendada:
 - `uFutbolBalear Readiness`
 - `uFutbolBalear Editorial Day`
 - `uFutbolBalear Editorial Release`
+- `uFutbolBalear Auto Publish X`
 
 Accion base:
 
@@ -246,6 +265,14 @@ Add arguments: -NoProfile -ExecutionPolicy Bypass -File "C:\Users\bnove\Document
 Start in: C:\Users\bnove\Documents\futbolbalear
 ```
 
+Auto Publish X:
+
+```text
+Program/script: powershell.exe
+Add arguments: -NoProfile -ExecutionPolicy Bypass -File "C:\Users\bnove\Documents\futbolbalear\scripts\windows\auto_publish.ps1"
+Start in: C:\Users\bnove\Documents\futbolbalear
+```
+
 ## Flujo recomendado de activacion
 
 1. ejecutar manualmente `refresh_data.ps1`
@@ -279,6 +306,15 @@ El flujo recomendado es:
 - `export_base_service`
 
 Con eso, `exports/export_base.json` pasa a ser el handoff estable para las piezas seguras de produccion v1.
+
+La publicacion automatica en X queda desacoplada pero lista:
+
+- `editorial_release.ps1` publica en X por defecto salvo `-SkipPublishX`
+- `auto_publish.ps1` permite reintentos batch separados
+- el horario real de X vive en `app/config/publication_schedule.json`
+- lunes `09:00`: `results_roundup`, `standings_roundup`, `top_scorer_update`
+- miercoles `18:00`: `viral_story`, `metric_narrative`
+- viernes `10:00`: `featured_match_preview`, `match_impact_scenario`
 
 ## Export base del release
 

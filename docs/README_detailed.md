@@ -653,6 +653,27 @@ Su papel es operativo, no editorial:
 - no aprueba ni publica nada
 - ordena la operativa semanal para que el flujo humano sea repetible
 
+### Estado vigente del planner
+
+La configuracion real ya no se limita al bloque basico de roundups:
+
+- lunes:
+  - `results_roundup + standings_roundup` en las siete competiciones integradas
+  - `race_narrative + milestone_story + top_scorer_update` en `tercera_rfef_g11`, `segunda_rfef_g3_baleares`, `division_honor_mallorca`, `tercera_federacion_femenina_g11` y `primera_rfef_baleares`
+- miercoles:
+  - `viral_story + metric_narrative` en `tercera_rfef_g11`, `segunda_rfef_g3_baleares` y `tercera_federacion_femenina_g11`
+- viernes:
+  - `featured_match_preview + match_impact_scenario` en `tercera_rfef_g11`, `segunda_rfef_g3_baleares`, `division_honor_mallorca`, `tercera_federacion_femenina_g11` y `primera_rfef_baleares`
+- domingo:
+  - `results_roundup + standings_roundup` en `tercera_rfef_g11` y `segunda_rfef_g3_baleares`
+
+La operativa real se reparte asi:
+
+- lunes automatico seguro: `results_roundup`, `standings_roundup`, `top_scorer_update`
+- lunes manual: `race_narrative`, `milestone_story`
+- miercoles automatico condicional: `viral_story`, `metric_narrative`
+- viernes automatico seguro: `featured_match_preview`, `match_impact_scenario`
+
 ### Estructura del planning semanal
 
 El fichero `app/config/editorial_schedule.json` usa una estructura de semana con reglas por dia:
@@ -1492,6 +1513,9 @@ Una pieza es publicable en X si:
 - `status = published`
 - `external_publication_ref IS NULL`
 - `text_draft` no esta vacio
+- entra en la ventana editorial vigente para su tipo
+- pasa el horario configurado en `app/config/publication_schedule.json`
+- no ha agotado el presupuesto de reintentos
 
 No son publicables:
 
@@ -1499,6 +1523,25 @@ No son publicables:
 - `approved`
 - `rejected`
 - `published` que ya tenga `external_publication_ref`
+- piezas caducadas de otra ventana semanal aunque sigan sin `external_publication_ref`
+
+### Scheduling real de X
+
+La publicacion automatica en X ya no es solo manual. Hoy existe doble via:
+
+- `scripts/windows/editorial_release.ps1` pasa `--publish-x` por defecto salvo que se use `-SkipPublishX`
+- `scripts/windows/auto_publish.ps1` ejecuta `x_publish publish-pending` como batch independiente
+
+Horario vigente en `app/config/publication_schedule.json`:
+
+- lunes `09:00`: `results_roundup`, `standings_roundup`, `top_scorer_update`
+- miercoles `18:00`: `viral_story`, `metric_narrative`
+- viernes `10:00`: `featured_match_preview`, `match_impact_scenario`
+
+`XPublicationService` filtra por dos capas antes de intentar publicar:
+
+- `XPublicationScheduler`: dia, hora, tipo y limite de reintentos
+- `EditorialCandidateWindowService`: frescura editorial real para evitar retries de piezas caducadas
 
 ### Trazabilidad persistida
 
@@ -1578,23 +1621,39 @@ No sustituye la revision humana. Abre un carril seguro para que las piezas mas m
 
 ### Politica exacta de autoaprobacion
 
-Autoaprobables:
+Autoaprobables base:
 
 - `results_roundup`
 - `standings_roundup`
 - `preview`
 - `ranking`
 
+Autoaprobables solo lunes si pasan `quality_checks`:
+
+- `top_scorer_update`
+
 Autoaprobables solo martes/miercoles si pasan `quality_checks`:
 
+- `stat_narrative`
 - `metric_narrative`
 - `viral_story`
 
-Revision manual obligatoria:
+Autoaprobables solo viernes si pasan `quality_checks`:
 
 - `featured_match_preview`
+- `match_impact_scenario`
+
+Revision manual obligatoria:
+
 - `featured_match_event`
 - `stat_narrative`
+- `race_narrative`
+- `milestone_story`
+- `match_result`
+- `standings`
+- `form_ranking`
+- `form_event`
+- `standings_event`
 
 Bloqueos adicionales de autoaprobacion:
 
@@ -1602,6 +1661,30 @@ Bloqueos adicionales de autoaprobacion:
 - estado distinto de `draft`
 - draft ya revisado
 - errores de calidad detectados por `editorial_quality_checks`
+- fuera de ventana editorial real
+
+### Readiness y contenido data-oriented
+
+La readiness editorial ya distingue entre "hay resultados" y "hay datos suficientes para sacar contenido rico".
+
+Dependencias relevantes:
+
+- `results_roundup`, `metric_narrative`, `milestone_story`, `viral_story`: necesitan `finished_matches`
+- `standings_roundup`, `race_narrative`, `match_impact_scenario`: necesitan `standings`
+- `featured_match_preview`, `match_impact_scenario`: necesitan `scheduled_matches`
+- `top_scorer_update`: necesita `finished_matches`, cobertura de `match_events` y umbral minimo de senal
+
+Umbral actual de `top_scorer_update`:
+
+- minimo `2` partidos con goleadores persistidos en la temporada activa
+- minimo `4` eventos `goal`
+- lider con al menos `3` goles
+
+Si falla la cobertura, `system_check editorial-readiness` y `editorial_ops preview-day` lo muestran como:
+
+- `match_events` cuando no hay capa de goleadores
+- `scorer_coverage` cuando existe algo pero no llega a cobertura minima
+- `signal_threshold` cuando hay datos pero el ranking aun no merece pieza editorial
 
 ### Flujo automatizado
 
@@ -1652,7 +1735,8 @@ export_base_total_items=15
 - `Editorial Release` autoaprueba solo piezas seguras
 - las narrativas sensibles siguen en `editorial_queue`
 - `export_base.json` pasa a ser el handoff estructurado para consumo externo
-- `x_publish` sigue siendo un canal manual y desacoplado
+- `editorial_release.ps1` puede encadenar publicacion en X por defecto
+- `x_publish publish-pending` queda disponible como batch separado cuando se quiere desacoplar el publish del release
 
 ### Verificar configuracion
 

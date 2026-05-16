@@ -19,7 +19,8 @@ Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolida
 - `editorial_release` + `export_base_service` para generar `exports/export_base.json` como salida estructurada por defecto
 - `legacy_export_json_enabled` para reactivar `export/legacy_export.json` via `export_json_service` solo por compatibilidad
 - catalogo integrado ampliado con `primera_rfef_baleares`, `tercera_federacion_femenina_g11`, `division_honor_ibiza_form` y `division_honor_menorca`
-- planner semanal afinado: lunes cubre `results_roundup + standings_roundup` en las siete integradas, miercoles reduce la narrativa automatica al duo (`metric_narrative`, `viral_story`) para `tercera_rfef_g11`, `segunda_rfef_g3_baleares` y `tercera_federacion_femenina_g11`, jueves queda sin slots activos por defecto, y viernes se centra en `featured_match_preview` para `tercera_rfef_g11`, `segunda_rfef_g3_baleares`, `division_honor_mallorca`, `tercera_federacion_femenina_g11` y `primera_rfef_baleares`
+- planner semanal afinado: lunes cubre `results_roundup + standings_roundup` en las siete integradas y suma `race_narrative + milestone_story + top_scorer_update` en las cinco principales; miercoles reduce la narrativa automatica al duo (`metric_narrative`, `viral_story`) para `tercera_rfef_g11`, `segunda_rfef_g3_baleares` y `tercera_federacion_femenina_g11`; jueves queda sin slots activos por defecto; y viernes se centra en `featured_match_preview + match_impact_scenario` para `tercera_rfef_g11`, `segunda_rfef_g3_baleares`, `division_honor_mallorca`, `tercera_federacion_femenina_g11` y `primera_rfef_baleares`
+- `top_scorer_update` ya no sale por simple existencia de goles: exige temporada activa, cobertura de goleadores y umbral minimo de senal editorial
 - `results_roundup` ahora adjunta `results_insights` con contexto de liderato, zona alta, goleada, partido mas abierto y eventos recientes de tabla cuando hay historial suficiente
 - `standings_roundup` expone `table_insights` con brechas de liderato, corte de playoff y salvacion cuando la competicion tiene tabla completa y zonas configuradas
 - `editorial_summary` usa una ventana editorial corta para previas: se queda con la ronda inmediata y descarta jornadas demasiado lejanas
@@ -34,6 +35,9 @@ Esta version deja cerrada una produccion v1 con estos bloques nuevos o consolida
 - `export_base_service` deduplica variantes de `standings_roundup` por ronda real y fija el path PNG con la fecha del snapshot, no con fechas heredadas del payload
 - `editorial_approval_policy` pasa a ser sensible al dia: martes/miercoles puede autoaprobar `stat_narrative`, `metric_narrative` y `viral_story` solo si pasan `quality_checks`
 - `editorial_approval_policy` deja de depender de que el draft se haya creado el mismo dia y toma por ventana real las piezas antiguas que siguen siendo elegibles
+- los lunes autoaprueba `top_scorer_update` si pasa calidad; los viernes autoaprueba `featured_match_preview + match_impact_scenario`
+- `system_check editorial-readiness` ya expone cobertura real de goleadores y puede bloquear `top_scorer_update` con `match_events`, `scorer_coverage` o `signal_threshold`
+- la publicacion en X ya filtra por frescura editorial real para evitar retries caducados de semanas anteriores
 - `publication_dispatch` trata `preview` como pieza lista antes del kickoff y el repositorio puede actualizar drafts legacy de previa aunque cambie el `source_summary_hash`
 - `editorial_quality_checks` acepta tambien titulos compactos de roundup cuando el formatter recorta cabecera para ajustar longitud
 - export visual PNG de `standings_roundup` durante `export_base`, con `image_path` por item y tolerancia a fallos de render
@@ -673,16 +677,24 @@ Automatico v1 (base):
 - `preview`
 - `ranking`
 
+Automatico v1 (lunes + quality checks):
+- `top_scorer_update`
+
 Automatico v1 (condicional martes/miercoles + quality checks):
 - `stat_narrative`
 - `metric_narrative`
 - `viral_story`
 
+Automatico v1 (viernes + quality checks):
+- `featured_match_preview`
+- `match_impact_scenario`
+
 Manual v1:
 - `match_result`
 - `standings`
-- `featured_match_preview`
 - `featured_match_event`
+- `race_narrative`
+- `milestone_story`
 - `standings_event`
 - `form_event`
 - `form_ranking`
@@ -718,10 +730,12 @@ Notas operativas:
 - `match_result` y `standings` se mantienen como fallback/legacy manual
 - `preview` y `ranking` siguen siendo piezas seguras, aunque el planner semanal por defecto ya no reserve slots especificos de previa
 - la narrativa automatica semanal queda en `metric_narrative` y `viral_story`; `stat_narrative` sale del planner por defecto
+- lunes deja `race_narrative` y `milestone_story` en revision manual aunque ya formen parte del planner
 - martes y miercoles siguen siendo la ventana de autoaprobacion potencial para narrativas cuando pasan `quality_checks`
 - `editorial_release` no se limita a lo generado en el mismo dia: tambien puede publicar candidatas ya aprobadas si su ventana real ya ha llegado
 - `editorial_release` genera `exports/export_base.json` como snapshot estructurado por defecto
 - `export_base generate` regenera ese mismo snapshot de forma manual si lo necesitas fuera del release
+- `editorial_release.ps1` publica en X por defecto salvo `-SkipPublishX`, y `auto_publish.ps1` deja un batch separado para retries o ventanas horarias propias
 - `LEGACY_EXPORT_JSON_ENABLED=true` reactiva `export/legacy_export.json` solo para compatibilidad
 - no se anaden nuevas features en esta fase; las mejoras futuras quedan para una iteracion posterior
 

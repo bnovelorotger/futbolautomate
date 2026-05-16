@@ -113,6 +113,7 @@ class ContentType(StrEnum):
     METRIC_NARRATIVE = "metric_narrative"
     RACE_NARRATIVE = "race_narrative"
     MILESTONE_STORY = "milestone_story"
+    TOP_SCORER_UPDATE = "top_scorer_update"
     VIRAL_STORY = "viral_story"
 
 
@@ -129,6 +130,7 @@ class EditorialPlanningContent(StrEnum):
     METRIC_NARRATIVE = "metric_narrative"
     RACE_NARRATIVE = "race_narrative"
     MILESTONE_STORY = "milestone_story"
+    TOP_SCORER_UPDATE = "top_scorer_update"
     VIRAL_STORY = "viral_story"
 
 

@@ -49,6 +49,7 @@ NARRATIVE_TYPES = {
     ContentType.METRIC_NARRATIVE,
     ContentType.RACE_NARRATIVE,
     ContentType.MILESTONE_STORY,
+    ContentType.TOP_SCORER_UPDATE,
     ContentType.VIRAL_STORY,
     ContentType.FORM_EVENT,
     ContentType.STANDINGS_EVENT,

@@ -311,6 +311,7 @@ class ExportJsonService:
             ContentType.FORM_EVENT,
             ContentType.STAT_NARRATIVE,
             ContentType.METRIC_NARRATIVE,
+            ContentType.TOP_SCORER_UPDATE,
             ContentType.VIRAL_STORY,
         }:
             return 1

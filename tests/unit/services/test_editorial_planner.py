@@ -7,9 +7,9 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Settings
-from app.core.enums import ContentType, EditorialPlanningContent
+from app.core.enums import ContentType, EditorialPlanningContent, MatchEventType
 from app.db.base import Base
-from app.db.models import Competition, ContentCandidate
+from app.db.models import Competition, ContentCandidate, Match, MatchEvent
 from app.schemas.editorial_planner import EditorialScheduleRule, EditorialWeeklySchedule
 from app.schemas.editorial_summary import (
     CompetitionEditorialSummary,
@@ -70,6 +70,44 @@ def seed_competitions(session: Session) -> None:
             ),
         ]
     )
+    session.commit()
+
+
+def seed_top_scorer_events(session: Session, competition_code: str) -> None:
+    matches = session.execute(
+        select(Match)
+        .where(Match.competition.has(code=competition_code))
+        .order_by(Match.match_date.desc().nullslast(), Match.id.desc())
+    ).scalars().all()
+    if not matches:
+        return
+
+    payloads = [
+        (matches[0], "home", "Joan Serra", 1),
+        (matches[0], "home", "Joan Serra", 2),
+        (matches[1], "away", "Joan Serra", 1),
+        (matches[2], "home", "Joan Serra", 1),
+        (matches[2], "home", "Pep Vidal", 2),
+        (matches[3], "away", "Pep Vidal", 1),
+    ]
+    for index, (match, team_side, player, minute) in enumerate(payloads, start=1):
+        team_id = match.home_team_id if team_side == "home" else match.away_team_id
+        session.add(
+            MatchEvent(
+                match_id=match.id,
+                team_id=team_id,
+                team_side=team_side,
+                event_type=str(MatchEventType.GOAL),
+                minute_raw=str(minute),
+                minute=minute,
+                player_raw=player,
+                sort_order=index,
+                source_event_key=f"{match.external_id}:{player}:{index}",
+                raw_payload={"player": player},
+            )
+        )
+        match.has_scorers = True
+        session.add(match)
     session.commit()
 
 
@@ -492,6 +530,110 @@ def test_editorial_planner_generates_standings_roundup_candidates_when_planned()
         assert rows[0].content_type == "standings_roundup"
         assert rows[0].status == "draft"
         assert "CLASIFICACION | 3a RFEF Baleares | Jornada 26" in rows[0].text_draft
+    finally:
+        session.close()
+
+
+def test_editorial_planner_generates_top_scorer_update_when_planned() -> None:
+    session = build_session()
+    try:
+        from tests.unit.services.test_editorial_narratives import seed_narratives_data
+
+        seed_narratives_data(session)
+        seed_top_scorer_events(session, "tercera_rfef_g11")
+        schedule = EditorialWeeklySchedule(
+            timezone="Europe/Madrid",
+            weekly_plan={
+                "lunes": [
+                    EditorialScheduleRule(
+                        competition_slug="tercera_rfef_g11",
+                        content_type=EditorialPlanningContent.TOP_SCORER_UPDATE,
+                        priority=70,
+                    )
+                ]
+            },
+        )
+        service = EditorialPlannerService(
+            session,
+            schedule=schedule,
+            settings=build_settings(),
+        )
+
+        result = service.generate_for_date(date(2026, 3, 16))
+        session.commit()
+
+        rows = session.execute(select(ContentCandidate).order_by(ContentCandidate.id.asc())).scalars().all()
+
+        assert result.total_tasks == 1
+        assert result.total_generated == 1
+        assert len(rows) == 1
+        assert rows[0].content_type == "top_scorer_update"
+        assert "Pichichi provisional" in rows[0].text_draft
+        assert "Joan Serra" in rows[0].text_draft
+        assert rows[0].payload_json["source_payload"]["scorer_matches_count"] >= 2
+        assert rows[0].payload_json["source_payload"]["goal_events_count"] >= 4
+    finally:
+        session.close()
+
+
+def test_editorial_planner_skips_top_scorer_update_below_signal_threshold() -> None:
+    session = build_session()
+    try:
+        from tests.unit.services.test_editorial_narratives import seed_narratives_data
+
+        seed_narratives_data(session)
+        first_match = session.execute(
+            select(Match)
+            .where(Match.competition.has(code="tercera_rfef_g11"))
+            .order_by(Match.match_date.desc(), Match.id.desc())
+        ).scalars().first()
+        assert first_match is not None
+        first_match.has_scorers = True
+        session.add(first_match)
+        session.flush()
+        for index in range(1, 3):
+            session.add(
+                MatchEvent(
+                    match_id=first_match.id,
+                    team_id=first_match.home_team_id,
+                    team_side="home",
+                    event_type=str(MatchEventType.GOAL),
+                    minute_raw=str(index * 10),
+                    minute=index * 10,
+                    player_raw="Joan Serra",
+                    sort_order=index,
+                    source_event_key=f"{first_match.external_id}:joan:{index}",
+                    raw_payload={"player": "Joan Serra"},
+                )
+            )
+        session.commit()
+
+        schedule = EditorialWeeklySchedule(
+            timezone="Europe/Madrid",
+            weekly_plan={
+                "lunes": [
+                    EditorialScheduleRule(
+                        competition_slug="tercera_rfef_g11",
+                        content_type=EditorialPlanningContent.TOP_SCORER_UPDATE,
+                        priority=70,
+                    )
+                ]
+            },
+        )
+        service = EditorialPlannerService(
+            session,
+            schedule=schedule,
+            settings=build_settings(),
+        )
+
+        result = service.generate_for_date(date(2026, 3, 16))
+        session.commit()
+
+        rows = session.execute(select(ContentCandidate).order_by(ContentCandidate.id.asc())).scalars().all()
+
+        assert result.total_tasks == 1
+        assert result.total_generated == 0
+        assert rows == []
     finally:
         session.close()
 

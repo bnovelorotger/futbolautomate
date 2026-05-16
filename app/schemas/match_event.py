@@ -70,5 +70,10 @@ class TopScorerRowView(BaseModel):
 
 class TopScorerResult(BaseModel):
     competition_slug: str
+    season: str | None = None
+    reference_date: date | None = None
+    scorer_matches_count: int = 0
+    goal_events_count: int = 0
+    distinct_scorers_count: int = 0
     generated_at: datetime
     rows: list[TopScorerRowView] = Field(default_factory=list)

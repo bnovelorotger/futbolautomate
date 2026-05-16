@@ -244,6 +244,8 @@ def build_narrative_label(content_type: ContentType, source_payload: dict[str, A
         if story_type in {str(ViralStoryType.HOT_FORM), str(ViralStoryType.COLD_FORM), str(ViralStoryType.GOALS_TREND)}:
             return "Tendencia"
         return "Dato"
+    if content_type == ContentType.TOP_SCORER_UPDATE:
+        return "Goleadores"
     if content_type == ContentType.FEATURED_MATCH_EVENT:
         tags = source_payload.get("tags")
         if isinstance(tags, list):

@@ -39,11 +39,12 @@ def test_scheduler_filters_by_day_hour_and_type() -> None:
         now_provider=lambda: datetime(2026, 3, 16, 10, 0),
     )
     monday_roundup = build_candidate(candidate_id=1, content_type="results_roundup")
-    monday_preview = build_candidate(candidate_id=2, content_type="featured_match_preview")
+    monday_top_scorer = build_candidate(candidate_id=2, content_type="top_scorer_update")
+    monday_preview = build_candidate(candidate_id=3, content_type="featured_match_preview")
 
-    publishable = scheduler.filter_candidates([monday_roundup, monday_preview])
+    publishable = scheduler.filter_candidates([monday_roundup, monday_top_scorer, monday_preview])
 
-    assert [candidate.id for candidate in publishable] == [1]
+    assert [candidate.id for candidate in publishable] == [1, 2]
 
 
 def test_scheduler_enforces_retry_budget() -> None:

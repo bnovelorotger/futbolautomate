@@ -26,11 +26,18 @@ AUTOAPPROVABLE_CONTENT_TYPES = (
     ContentType.PREVIEW,
     ContentType.RANKING,
 )
+MONDAY_AUTOAPPROVABLE_CONTENT_TYPES = (
+    ContentType.TOP_SCORER_UPDATE,
+)
 TUE_WED_AUTOAPPROVABLE_CONTENT_TYPES = (
     ContentType.VIRAL_STORY,
     ContentType.METRIC_NARRATIVE,
     ContentType.STAT_NARRATIVE,
     ContentType.RANKING,
+)
+FRIDAY_AUTOAPPROVABLE_CONTENT_TYPES = (
+    ContentType.FEATURED_MATCH_PREVIEW,
+    ContentType.MATCH_IMPACT_SCENARIO,
 )
 CONDITIONAL_AUTOAPPROVABLE_CONTENT_TYPES: tuple[ContentType, ...] = ()
 MANUAL_REVIEW_CONTENT_TYPES = (
@@ -44,6 +51,10 @@ MANUAL_REVIEW_CONTENT_TYPES = (
     ContentType.VIRAL_STORY,
     ContentType.STAT_NARRATIVE,
     ContentType.METRIC_NARRATIVE,
+    ContentType.MATCH_IMPACT_SCENARIO,
+    ContentType.RACE_NARRATIVE,
+    ContentType.MILESTONE_STORY,
+    ContentType.TOP_SCORER_UPDATE,
 )
 
 
@@ -280,8 +291,12 @@ class EditorialApprovalPolicyService:
         return tuple(ordered_unique.keys())
 
     def _weekday_autoapprovable_types(self, target_date: date) -> tuple[ContentType, ...]:
+        if target_date.weekday() == 0:  # Monday
+            return MONDAY_AUTOAPPROVABLE_CONTENT_TYPES
         if target_date.weekday() in {1, 2}:  # Tuesday, Wednesday
             return TUE_WED_AUTOAPPROVABLE_CONTENT_TYPES
+        if target_date.weekday() == 4:  # Friday
+            return FRIDAY_AUTOAPPROVABLE_CONTENT_TYPES
         return ()
 
     def _quality_state(

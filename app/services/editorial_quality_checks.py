@@ -24,6 +24,11 @@ from app.services.editorial_narratives import METRIC_NARRATIVE_THRESHOLDS
 from app.services.editorial_formatter import normalize_team_identity_value
 from app.services.editorial_text_selector import EditorialTextSelectorService
 from app.services.editorial_viral_stories import VIRAL_STORY_THRESHOLDS
+from app.services.top_scorer_tracker import (
+    MIN_TOP_SCORER_GOAL_EVENTS,
+    MIN_TOP_SCORER_LEADER_GOALS,
+    MIN_TOP_SCORER_SCORER_MATCHES,
+)
 from app.normalizers.text import normalize_token
 from app.utils.time import utcnow
 
@@ -363,6 +368,15 @@ class EditorialQualityChecksService:
             errors.append("metric_narrative_type_missing")
         if content_type == ContentType.VIRAL_STORY and "story_type" not in source_payload:
             errors.append("viral_story_type_missing")
+        if content_type == ContentType.TOP_SCORER_UPDATE:
+            rows = source_payload.get("rows")
+            leader = source_payload.get("leader")
+            if not isinstance(rows, list) or not rows:
+                errors.append("top_scorer_rows_missing")
+            if not isinstance(leader, dict):
+                errors.append("top_scorer_leader_missing")
+            if not isinstance(source_payload.get("leader_goals"), int):
+                errors.append("top_scorer_leader_goals_invalid")
         return errors
 
     def _structure_errors(
@@ -526,8 +540,23 @@ class EditorialQualityChecksService:
         if content_type == ContentType.VIRAL_STORY:
             story_type = source_payload.get("story_type")
             return self._viral_story_threshold_errors(story_type, source_payload)
+        if content_type == ContentType.TOP_SCORER_UPDATE:
+            return self._top_scorer_threshold_errors(source_payload)
 
         return []
+
+    def _top_scorer_threshold_errors(self, source_payload: dict[str, Any]) -> list[str]:
+        errors: list[str] = []
+        leader_goals = source_payload.get("leader_goals")
+        scorer_matches = source_payload.get("scorer_matches_count")
+        goal_events = source_payload.get("goal_events_count")
+        if not isinstance(leader_goals, int) or leader_goals < MIN_TOP_SCORER_LEADER_GOALS:
+            errors.append(f"top_scorer_leader_goals<{MIN_TOP_SCORER_LEADER_GOALS}")
+        if not isinstance(scorer_matches, int) or scorer_matches < MIN_TOP_SCORER_SCORER_MATCHES:
+            errors.append(f"top_scorer_scorer_matches<{MIN_TOP_SCORER_SCORER_MATCHES}")
+        if not isinstance(goal_events, int) or goal_events < MIN_TOP_SCORER_GOAL_EVENTS:
+            errors.append(f"top_scorer_goal_events<{MIN_TOP_SCORER_GOAL_EVENTS}")
+        return errors
 
     def _metric_narrative_threshold_errors(
         self,

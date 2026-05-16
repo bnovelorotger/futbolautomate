@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timezone
 from unittest.mock import Mock
 from zoneinfo import ZoneInfo
 
@@ -13,7 +13,7 @@ from app.channels.x.client import XApiError
 from app.channels.x.schemas import XPublishResponse
 from app.core.exceptions import InvalidStateTransitionError
 from app.db.base import Base
-from app.db.models import Competition, ContentCandidate
+from app.db.models import Competition, ContentCandidate, Match
 from app.services.x_publication_scheduler import XPublicationScheduler
 from app.services.x_publication_service import (
     XPublicationService,
@@ -36,6 +36,44 @@ def build_scheduler(*, current_time: datetime) -> XPublicationScheduler:
     )
 
 
+def build_results_payload(*, reference_date: str, match_date: str, round_name: str = "Jornada 26") -> dict:
+    return {
+        "reference_date": reference_date,
+        "source_payload": {
+            "reference_date": reference_date,
+            "selected_matches_count": 1,
+            "omitted_matches_count": 0,
+            "group_label": round_name,
+            "matches": [
+                {
+                    "round_name": round_name,
+                    "match_date": match_date,
+                    "home_team": "Torrent CF",
+                    "away_team": "UE Porreres",
+                    "home_score": 1,
+                    "away_score": 0,
+                }
+            ],
+        },
+    }
+
+
+def build_preview_payload(*, reference_date: str, match_date: str, round_name: str = "Jornada 27") -> dict:
+    return {
+        "reference_date": reference_date,
+        "source_payload": {
+            "reference_date": reference_date,
+            "featured_match": {
+                "round_name": round_name,
+                "match_date": match_date,
+                "home_team": "Torrent CF",
+                "away_team": "UE Porreres",
+            },
+            "teams": ["Torrent CF", "UE Porreres"],
+        },
+    }
+
+
 def seed_candidates(session: Session) -> None:
     now = datetime(2026, 3, 15, 10, 0, tzinfo=timezone.utc)
     competition = Competition(
@@ -54,6 +92,60 @@ def seed_candidates(session: Session) -> None:
     session.flush()
     session.add_all(
         [
+            Match(
+                external_id="m-current",
+                source_name="futbolme",
+                source_url="https://example.com/m-current",
+                competition_id=competition.id,
+                season="2025-26",
+                group_name="Grupo 3",
+                round_name="Jornada 26",
+                raw_match_date="2026-03-15",
+                raw_match_time="12:00",
+                match_date=date(2026, 3, 15),
+                match_time=time(12, 0),
+                kickoff_datetime=datetime(2026, 3, 15, 12, 0, tzinfo=timezone.utc),
+                home_team_raw="Torrent CF",
+                away_team_raw="UE Porreres",
+                home_score=1,
+                away_score=0,
+                status="finished",
+                venue=None,
+                has_lineups=False,
+                has_scorers=False,
+                scraped_at=now,
+                content_hash="m-current",
+                extra_data={},
+            ),
+            Match(
+                external_id="m-upcoming",
+                source_name="futbolme",
+                source_url="https://example.com/m-upcoming",
+                competition_id=competition.id,
+                season="2025-26",
+                group_name="Grupo 3",
+                round_name="Jornada 27",
+                raw_match_date="2026-03-20",
+                raw_match_time="18:00",
+                match_date=date(2026, 3, 20),
+                match_time=time(18, 0),
+                kickoff_datetime=datetime(2026, 3, 20, 18, 0, tzinfo=timezone.utc),
+                home_team_raw="Torrent CF",
+                away_team_raw="UE Porreres",
+                home_score=None,
+                away_score=None,
+                status="scheduled",
+                venue=None,
+                has_lineups=False,
+                has_scorers=False,
+                scraped_at=now,
+                content_hash="m-upcoming",
+                extra_data={},
+            ),
+        ]
+    )
+    session.add_all(
+        [
             ContentCandidate(
                 id=1,
                 competition_slug="segunda_rfef_g3_baleares",
@@ -62,7 +154,10 @@ def seed_candidates(session: Session) -> None:
                 text_draft="RESULTADO FINAL\n\nTorrent CF 1-0 UE Porreres",
                 formatted_text="Resultado | Torrent CF 1-0 UE Porreres #2aRFEF",
                 rewritten_text="Torrent CF 1-0 UE Porreres. Final en Segunda RFEF balear.",
-                payload_json={},
+                payload_json=build_results_payload(
+                    reference_date="2026-03-16",
+                    match_date="2026-03-15",
+                ),
                 source_summary_hash="hash-1",
                 scheduled_at=now,
                 status="published",
@@ -85,7 +180,14 @@ def seed_candidates(session: Session) -> None:
                 content_type="standings_roundup",
                 priority=80,
                 text_draft="CLASIFICACION\n\n1. UE Sant Andreu - 54 pts",
-                payload_json={},
+                payload_json={
+                    "reference_date": "2026-03-16",
+                    "source_payload": {
+                        "reference_date": "2026-03-16",
+                        "rows": [{"team": "Torrent CF", "points": 54, "position": 1}],
+                        "selected_rows_count": 1,
+                    },
+                },
                 source_summary_hash="hash-2",
                 scheduled_at=now,
                 status="published",
@@ -108,7 +210,10 @@ def seed_candidates(session: Session) -> None:
                 content_type="featured_match_preview",
                 priority=90,
                 text_draft="PREVIA",
-                payload_json={},
+                payload_json=build_preview_payload(
+                    reference_date="2026-03-20",
+                    match_date="2026-03-20",
+                ),
                 source_summary_hash="hash-3",
                 scheduled_at=now,
                 status="approved",
@@ -131,7 +236,7 @@ def seed_candidates(session: Session) -> None:
                 content_type="ranking",
                 priority=70,
                 text_draft="   ",
-                payload_json={},
+                payload_json={"reference_date": "2026-03-16", "source_payload": {}},
                 source_summary_hash="hash-4",
                 scheduled_at=now,
                 status="published",
@@ -357,7 +462,10 @@ def test_x_publication_service_publish_pending_respects_schedule_and_retry_budge
                     content_type="results_roundup",
                     priority=95,
                     text_draft="SEGUNDO INTENTO",
-                    payload_json={},
+                    payload_json=build_results_payload(
+                        reference_date="2026-03-16",
+                        match_date="2026-03-15",
+                    ),
                     source_summary_hash="hash-5",
                     scheduled_at=now,
                     status="published",
@@ -375,7 +483,10 @@ def test_x_publication_service_publish_pending_respects_schedule_and_retry_budge
                     content_type="results_roundup",
                     priority=94,
                     text_draft="NO MAS RETRIES",
-                    payload_json={},
+                    payload_json=build_results_payload(
+                        reference_date="2026-03-16",
+                        match_date="2026-03-15",
+                    ),
                     source_summary_hash="hash-6",
                     scheduled_at=now,
                     status="published",
@@ -393,7 +504,10 @@ def test_x_publication_service_publish_pending_respects_schedule_and_retry_budge
                     content_type="featured_match_preview",
                     priority=93,
                     text_draft="VIERNES SOLO",
-                    payload_json={},
+                    payload_json=build_preview_payload(
+                        reference_date="2026-03-20",
+                        match_date="2026-03-20",
+                    ),
                     source_summary_hash="hash-7",
                     scheduled_at=now,
                     status="published",
@@ -459,7 +573,10 @@ def test_x_publication_service_publish_candidates_respects_schedule_for_release_
                 content_type="featured_match_preview",
                 priority=93,
                 text_draft="PREVIA DE VIERNES",
-                payload_json={},
+                payload_json=build_preview_payload(
+                    reference_date="2026-03-20",
+                    match_date="2026-03-20",
+                ),
                 source_summary_hash="hash-7",
                 scheduled_at=friday_candidate_time,
                 status="published",
@@ -495,5 +612,90 @@ def test_x_publication_service_publish_candidates_respects_schedule_for_release_
         assert [row.id for row in result.rows] == [1]
         assert session.get(ContentCandidate, 1).external_publication_ref == "tweet-1"
         assert session.get(ContentCandidate, 7).external_publication_ref is None
+    finally:
+        session.close()
+
+
+def test_x_publication_service_ignores_stale_candidates_from_previous_window() -> None:
+    session = build_session()
+    try:
+        seed_candidates(session)
+        now = datetime(2026, 3, 16, 10, 0, tzinfo=ZoneInfo("Europe/Madrid"))
+        competition = session.query(Competition).filter_by(code="segunda_rfef_g3_baleares").one()
+        session.add(
+            Match(
+                external_id="m-old",
+                source_name="futbolme",
+                source_url="https://example.com/m-old",
+                competition_id=competition.id,
+                season="2025-26",
+                group_name="Grupo 3",
+                round_name="Jornada 25",
+                raw_match_date="2026-03-08",
+                raw_match_time="12:00",
+                match_date=date(2026, 3, 8),
+                match_time=time(12, 0),
+                kickoff_datetime=datetime(2026, 3, 8, 12, 0, tzinfo=timezone.utc),
+                home_team_raw="Torrent CF",
+                away_team_raw="UE Porreres",
+                home_score=2,
+                away_score=1,
+                status="finished",
+                venue=None,
+                has_lineups=False,
+                has_scorers=False,
+                scraped_at=datetime(2026, 3, 8, 14, 0, tzinfo=timezone.utc),
+                content_hash="m-old",
+                extra_data={},
+            )
+        )
+        session.add(
+            ContentCandidate(
+                id=8,
+                competition_slug="segunda_rfef_g3_baleares",
+                content_type="results_roundup",
+                priority=96,
+                text_draft="RESULTADO VIEJO",
+                payload_json=build_results_payload(
+                    reference_date="2026-03-09",
+                    match_date="2026-03-08",
+                    round_name="Jornada 25",
+                ),
+                source_summary_hash="hash-8",
+                scheduled_at=datetime(2026, 3, 8, 14, 0, tzinfo=timezone.utc),
+                status="published",
+                reviewed_at=datetime(2026, 3, 8, 14, 0, tzinfo=timezone.utc),
+                approved_at=datetime(2026, 3, 8, 14, 0, tzinfo=timezone.utc),
+                published_at=datetime(2026, 3, 8, 14, 0, tzinfo=timezone.utc),
+                created_at=datetime(2026, 3, 8, 14, 0, tzinfo=timezone.utc),
+                updated_at=datetime(2026, 3, 8, 14, 0, tzinfo=timezone.utc),
+            )
+        )
+        session.commit()
+
+        publisher = Mock()
+        publisher.publish_text.return_value = XPublishResponse(
+            post_id="tweet-1",
+            text="RESULTADO FINAL",
+            published_at=datetime(2026, 3, 16, 9, 5, tzinfo=timezone.utc),
+            raw_response={"data": {"id": "tweet-1"}},
+            dry_run=False,
+        )
+        auth_service = Mock()
+        auth_service.get_valid_user_access_token.return_value = "user-access-token"
+        service = XPublicationService(
+            session,
+            publisher=publisher,
+            auth_service=auth_service,
+            scheduler=build_scheduler(current_time=now),
+        )
+
+        pending = service.list_pending(limit=10)
+        result = service.publish_pending(limit=10, dry_run=False)
+        session.commit()
+
+        assert [row.id for row in pending] == [1]
+        assert [row.id for row in result.rows] == [1]
+        assert session.get(ContentCandidate, 8).external_publication_ref is None
     finally:
         session.close()

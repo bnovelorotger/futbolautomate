@@ -8,7 +8,7 @@ La automatizacion de uFutbolBalear es deliberadamente externa. `cron` no contien
 - los scripts shell solo invocan comandos de `app.pipelines.*`
 - la logica editorial sigue en el backend
 - no hay scheduler interno
-- no hay autopublicacion
+- la autopublicacion puede desacoplarse fuera de cron principal
 - la salida estructurada del release sigue siendo un paso explicito
 - el JSON plano legacy queda desactivado salvo que lo reactives
 
@@ -34,9 +34,10 @@ Ruta: `scripts/cron/`
   - ejecuta `editorial_ops preview-day --date <fecha>`
   - ejecuta `editorial_ops run-daily --date <fecha>`
   - los lunes el planner ya cubre `results_roundup + standings_roundup` para las siete competiciones integradas
+  - en cinco competiciones principales tambien genera `race_narrative + milestone_story + top_scorer_update`
   - los miercoles la narrativa automatica queda en `metric_narrative + viral_story` para las tres competiciones principales
   - los jueves no tienen slots activos por defecto en el planner semanal
-  - los viernes el bloque semanal se centra en `featured_match_preview` para `tercera_rfef_g11`, `segunda_rfef_g3_baleares`, `division_honor_mallorca`, `tercera_federacion_femenina_g11` y `primera_rfef_baleares`
+  - los viernes el bloque semanal se centra en `featured_match_preview + match_impact_scenario` para `tercera_rfef_g11`, `segunda_rfef_g3_baleares`, `division_honor_mallorca`, `tercera_federacion_femenina_g11` y `primera_rfef_baleares`
 - `run_slot.sh`
   - envoltorio opcional
   - soporta `refresh`, `readiness` y `editorial-day`
@@ -120,6 +121,7 @@ Esta propuesta esta adaptada al estado real actual del sistema:
 - competiciones operativas: `tercera_rfef_g11`, `segunda_rfef_g3_baleares`, `primera_rfef_baleares`, `tercera_federacion_femenina_g11`, `division_honor_mallorca`, `division_honor_ibiza_form`, `division_honor_menorca`
 - planner semanal operativo: lunes, miercoles, viernes y domingo
 - `featured_match_preview` sigue limitado a las competiciones ya configuradas con `match_importance`
+- `top_scorer_update` solo sale donde la capa de goleadores supera cobertura y umbral
 - sin `editorial_release` automatizado en cron por ahora
 
 ```cron
@@ -174,6 +176,7 @@ Esta frecuencia es razonable hoy porque:
 - `publication_dispatch` debe sacar `preview` antes del kickoff y el resto solo cuando ya haya entrado en ventana real
 - `editorial_release` tambien puede publicar piezas ya `approved` de runs anteriores si en esta ejecucion ya han entrado en ventana
 - ejecutar `python -m app.pipelines.editorial_release run --date <fecha>` para generar `exports/export_base.json`
+- `x_publish publish-pending` o un wrapper tipo `auto_publish.sh` si quieres automatizar X en un segundo carril
 - revisar el snapshot exportado y entregarlo al canal final
 - ejecutar `python -m app.pipelines.export_base generate --date <fecha>` si necesitas regenerar `exports/export_base.json`
 - revisar `export/legacy_export.json` solo si has activado `LEGACY_EXPORT_JSON_ENABLED=true`
@@ -220,9 +223,10 @@ Cada lunes o tras cambios de competiciones:
 
 1. revisar `competition_catalog status --integrated-only`
 2. revisar si el planner semanal sigue alineado con las competiciones activas
-3. revisar si hay slots sin uso real en cron
-4. revisar si `division_honor_mallorca` sigue siendo apoyo regional o merece mas peso
-5. revisar si juvenil/femenino ya puede integrarse end-to-end
+3. revisar `system_check editorial-readiness` para detectar `match_events`, `scorer_coverage` o `signal_threshold` en `top_scorer_update`
+4. revisar si hay slots sin uso real en cron
+5. revisar si `division_honor_mallorca` sigue siendo apoyo regional o merece mas peso
+6. revisar si juvenil/femenino ya puede integrarse end-to-end
 
 ## Despliegue minimo en Linux/VPS
 
