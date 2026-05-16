@@ -163,7 +163,7 @@ class EditorialReleasePipelineService:
             typefully_result = self.typefully_publication_service.publish_pending(
                 dry_run=export_dry_run,
             )
-        if publish_via_browser and self.x_browser_publication_service is not None and dispatch_result.rows:
+        if publish_via_browser and self.x_browser_publication_service is not None:
             if not export_dry_run:
                 self.x_browser_publication_service.mark_pre_browser_published()
             self.x_browser_publication_service.publish_pending(dry_run=export_dry_run)
