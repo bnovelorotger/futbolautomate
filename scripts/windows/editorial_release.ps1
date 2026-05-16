@@ -7,7 +7,8 @@ param(
     [switch]$PublishX,
     [switch]$SkipPublishX,
     [switch]$PublishTypefully,
-    [switch]$PublishBrowser
+    [switch]$PublishBrowser,
+    [switch]$SkipPublishBrowser
 )
 
 Set-StrictMode -Version Latest
@@ -21,9 +22,16 @@ try {
     if ($PublishX.IsPresent -and $SkipPublishX.IsPresent) {
         throw "PublishX y SkipPublishX no se pueden usar a la vez."
     }
+    if ($PublishBrowser.IsPresent -and $SkipPublishBrowser.IsPresent) {
+        throw "PublishBrowser y SkipPublishBrowser no se pueden usar a la vez."
+    }
 
-    $shouldPublishX = $PublishX.IsPresent -or (-not $SkipPublishX.IsPresent)
-    Write-Log -Level "INFO" -Message "=== editorial_release.ps1 date=$TargetDate dry_run=$($DryRun.IsPresent) publish_x=$shouldPublishX publish_typefully=$($PublishTypefully.IsPresent) publish_browser=$($PublishBrowser.IsPresent) ==="
+    # X API desactivado por defecto (sin acceso a API de X)
+    $shouldPublishX = $PublishX.IsPresent
+    # Browser publishing activo por defecto
+    $shouldPublishBrowser = $PublishBrowser.IsPresent -or (-not $SkipPublishBrowser.IsPresent)
+
+    Write-Log -Level "INFO" -Message "=== editorial_release.ps1 date=$TargetDate dry_run=$($DryRun.IsPresent) publish_x=$shouldPublishX publish_browser=$shouldPublishBrowser publish_typefully=$($PublishTypefully.IsPresent) ==="
 
     $arguments = @()
     if ($DryRun.IsPresent) {
@@ -45,14 +53,14 @@ try {
     if ($shouldPublishX) {
         $arguments += "--publish-x"
     }
-    else {
-        Write-Log -Level "INFO" -Message "Publicacion en X omitida por parametro."
-    }
     if ($PublishTypefully.IsPresent) {
         $arguments += "--publish-typefully"
     }
-    if ($PublishBrowser.IsPresent) {
+    if ($shouldPublishBrowser) {
         $arguments += "--publish-browser"
+    }
+    else {
+        Write-Log -Level "INFO" -Message "Publicacion via browser omitida por parametro."
     }
 
     Invoke-PythonModule -Label "editorial_release" -Module "app.pipelines.editorial_release" -Arguments $arguments
