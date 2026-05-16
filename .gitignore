@@ -59,6 +59,9 @@ backups/*.gz
 *.sqlite
 *.sqlite3
 
+# X browser session state (contains cookies — never commit)
+.x_browser_state.json
+
 # Editors and OS files
 .idea/
 .vscode/

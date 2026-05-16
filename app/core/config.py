@@ -46,6 +46,10 @@ class Settings(BaseSettings):
     enable_team_mentions: bool = True
     max_mentions_per_post: int = 3
     legacy_export_json_enabled: bool = False
+    x_browser_state_file: str = ".x_browser_state.json"
+    x_browser_headless: bool = True
+    x_browser_typing_delay_ms: int = 30
+    x_browser_stagger_seconds: int = 60
     app_root: Path = Field(default_factory=lambda: Path(__file__).resolve().parents[2])
 
     @property

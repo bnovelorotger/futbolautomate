@@ -34,6 +34,7 @@ def dry_run(
     use_rewrite: bool = typer.Option(False, "--use-rewrite", help="Prioriza rewritten_text en la exportacion JSON"),
     publish_x: bool = typer.Option(False, "--publish-x", help="Simula tambien la publicacion en X de las piezas despachadas"),
     publish_typefully: bool = typer.Option(False, "--publish-typefully", help="Simula tambien la publicacion en Typefully de las piezas despachadas"),
+    publish_browser: bool = typer.Option(False, "--publish-browser", help="Simula tambien la publicacion via browser en X de las piezas despachadas"),
     as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
 ) -> None:
     set_run_id()
@@ -50,6 +51,7 @@ def dry_run(
             prefer_rewrite=prefer_rewrite,
             publish_to_x=publish_x,
             publish_via_typefully=publish_typefully,
+            publish_via_browser=publish_browser,
         )
         if as_json:
             _dump_json(result.model_dump(mode="json"))
@@ -65,6 +67,7 @@ def run(
     use_rewrite: bool = typer.Option(False, "--use-rewrite", help="Prioriza rewritten_text en la exportacion JSON"),
     publish_x: bool = typer.Option(False, "--publish-x", help="Publica tambien en X las piezas despachadas en este run"),
     publish_typefully: bool = typer.Option(False, "--publish-typefully", help="Publica tambien en Typefully las piezas despachadas en este run"),
+    publish_browser: bool = typer.Option(False, "--publish-browser", help="Publica tambien via browser en X las piezas despachadas en este run"),
     as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
 ) -> None:
     set_run_id()
@@ -82,6 +85,7 @@ def run(
             prefer_rewrite=prefer_rewrite,
             publish_to_x=publish_x,
             publish_via_typefully=publish_typefully,
+            publish_via_browser=publish_browser,
         )
         if as_json:
             _dump_json(result.model_dump(mode="json"))

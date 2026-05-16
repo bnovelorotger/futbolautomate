@@ -6,7 +6,8 @@ param(
     [switch]$UseRewrite,
     [switch]$PublishX,
     [switch]$SkipPublishX,
-    [switch]$PublishTypefully
+    [switch]$PublishTypefully,
+    [switch]$PublishBrowser
 )
 
 Set-StrictMode -Version Latest
@@ -22,7 +23,7 @@ try {
     }
 
     $shouldPublishX = $PublishX.IsPresent -or (-not $SkipPublishX.IsPresent)
-    Write-Log -Level "INFO" -Message "=== editorial_release.ps1 date=$TargetDate dry_run=$($DryRun.IsPresent) publish_x=$shouldPublishX publish_typefully=$($PublishTypefully.IsPresent) ==="
+    Write-Log -Level "INFO" -Message "=== editorial_release.ps1 date=$TargetDate dry_run=$($DryRun.IsPresent) publish_x=$shouldPublishX publish_typefully=$($PublishTypefully.IsPresent) publish_browser=$($PublishBrowser.IsPresent) ==="
 
     $arguments = @()
     if ($DryRun.IsPresent) {
@@ -49,6 +50,9 @@ try {
     }
     if ($PublishTypefully.IsPresent) {
         $arguments += "--publish-typefully"
+    }
+    if ($PublishBrowser.IsPresent) {
+        $arguments += "--publish-browser"
     }
 
     Invoke-PythonModule -Label "editorial_release" -Module "app.pipelines.editorial_release" -Arguments $arguments

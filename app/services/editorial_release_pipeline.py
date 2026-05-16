@@ -14,6 +14,7 @@ from app.services.export_base_service import ExportBaseService
 from app.services.export_json_service import ExportJsonService
 from app.services.publication_dispatcher import PublicationDispatcherService
 from app.services.typefully_publication_service import TypefullyPublicationService
+from app.services.x_browser_publication_service import XBrowserPublicationService
 from app.services.x_publication_service import XPublicationService
 
 
@@ -30,6 +31,7 @@ class EditorialReleasePipelineService:
         legacy_export_service: ExportJsonService | None = None,
         x_publication_service: XPublicationService | None = None,
         typefully_publication_service: TypefullyPublicationService | None = None,
+        x_browser_publication_service: XBrowserPublicationService | None = None,
     ) -> None:
         self.session = session
         self.settings = settings or get_settings()
@@ -46,6 +48,9 @@ class EditorialReleasePipelineService:
             self.typefully_publication_service = TypefullyPublicationService(session)
         else:
             self.typefully_publication_service = None
+        self.x_browser_publication_service: XBrowserPublicationService | None = (
+            x_browser_publication_service or XBrowserPublicationService(session, settings=self.settings)
+        )
         if self.legacy_export_service is None and self.settings.legacy_export_json_enabled:
             self.legacy_export_service = ExportJsonService(session, settings=self.settings)
 
@@ -58,6 +63,7 @@ class EditorialReleasePipelineService:
         prefer_rewrite: bool | None = None,
         publish_to_x: bool = False,
         publish_via_typefully: bool = False,
+        publish_via_browser: bool = False,
     ) -> EditorialReleaseResult:
         if dry_run:
             with self.session.begin_nested() as nested:
@@ -68,6 +74,7 @@ class EditorialReleasePipelineService:
                     export_dry_run=True,
                     publish_to_x=publish_to_x,
                     publish_via_typefully=publish_via_typefully,
+                    publish_via_browser=publish_via_browser,
                 )
                 nested.rollback()
             self.session.expire_all()
@@ -79,6 +86,7 @@ class EditorialReleasePipelineService:
             export_dry_run=False,
             publish_to_x=publish_to_x,
             publish_via_typefully=publish_via_typefully,
+            publish_via_browser=publish_via_browser,
         )
 
     def _run_internal(
@@ -90,6 +98,7 @@ class EditorialReleasePipelineService:
         export_dry_run: bool,
         publish_to_x: bool,
         publish_via_typefully: bool = False,
+        publish_via_browser: bool = False,
     ) -> EditorialReleaseResult:
         quality_candidate_ids = self.approval_service.candidate_ids_for_quality_precheck(
             reference_date=reference_date,
@@ -154,6 +163,8 @@ class EditorialReleasePipelineService:
             typefully_result = self.typefully_publication_service.publish_pending(
                 dry_run=export_dry_run,
             )
+        if publish_via_browser and self.x_browser_publication_service is not None and dispatch_result.rows:
+            self.x_browser_publication_service.publish_pending(dry_run=export_dry_run)
         return EditorialReleaseResult(
             dry_run=export_dry_run,
             reference_date=reference_date,
