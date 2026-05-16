@@ -121,6 +121,41 @@ function Release-Lock {
 }
 
 
+function Invoke-LogRotation {
+    param(
+        [string]$LogFile,
+        [int]$MaxSizeBytes = 5242880,
+        [int]$KeepRotated = 3
+    )
+
+    try {
+        if (-not (Test-Path -LiteralPath $LogFile)) {
+            return
+        }
+
+        $fileInfo = Get-Item -LiteralPath $LogFile
+        if ($fileInfo.Length -le $MaxSizeBytes) {
+            return
+        }
+
+        $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+        $bakFile = "${LogFile}.${timestamp}.bak"
+        Rename-Item -LiteralPath $LogFile -NewName $bakFile
+
+        $dir = Split-Path -LiteralPath $LogFile -Parent
+        $base = Split-Path -LiteralPath $LogFile -Leaf
+        $existing = Get-ChildItem -LiteralPath $dir -Filter "${base}.*.bak" |
+            Sort-Object LastWriteTime -Descending
+        if ($existing.Count -gt $KeepRotated) {
+            $existing | Select-Object -Skip $KeepRotated | Remove-Item -Force
+        }
+    }
+    catch {
+        # Rotation failure must never block the calling script
+    }
+}
+
+
 function Initialize-Runtime {
     param(
         [Parameter(Mandatory = $true)]
@@ -147,6 +182,7 @@ function Initialize-Runtime {
 
     $script:PythonBin = Resolve-PythonBinary
     $script:CurrentLogFile = Join-Path $script:LogDir $LogName
+    Invoke-LogRotation -LogFile $script:CurrentLogFile
     Acquire-Lock -SlotName $SlotName
 }
 

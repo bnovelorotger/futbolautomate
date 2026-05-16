@@ -82,6 +82,9 @@ Register-FutbolTask "futbol_session_check"      "scripts\windows\check_browser_s
 # --- Backup de base de datos ---
 Register-FutbolTask "futbol_backup"             "scripts\windows\backup_db.ps1"         "03:00" @("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday")
 
+# --- Limpieza semanal de logs ---
+Register-FutbolTask "futbol_log_cleanup" "scripts\windows\cleanup_logs.ps1" "04:00" @("Sunday")
+
 Write-Host ""
 Write-Host "=== Tareas registradas ==="
 Get-ScheduledTask | Where-Object { $_.TaskName -like "futbol_*" } | `

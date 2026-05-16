@@ -197,6 +197,7 @@ class XBrowserPublicationService:
                 ContentCandidate.published_at < cutoff,
             )
             .values(external_publication_ref="pre_browser:skipped")
+            .execution_options(synchronize_session=False)
         )
 
     def _pending_candidates(self, *, limit: int | None = None) -> list[ContentCandidate]:
@@ -231,6 +232,24 @@ class XBrowserPublicationService:
     def list_pending(self, *, limit: int = 50) -> list[XPublicationCandidateView]:
         rows = self.scheduler.filter_candidates(self._fresh_candidates(self._pending_candidates()))
         return [self._row_to_view(row) for row in rows[:limit]]
+
+    def build_views_from_batch_result(
+        self,
+        batch_result: XBrowserBatchResult,
+    ) -> list[XPublicationCandidateView]:
+        views: list[XPublicationCandidateView] = []
+        for row in batch_result.rows:
+            candidate = self.session.get(ContentCandidate, row.candidate_id)
+            if candidate is None:
+                continue
+            views.append(
+                self._row_to_view(
+                    candidate,
+                    selected_text_source=row.selected_text_source,
+                    excerpt=row.excerpt,
+                )
+            )
+        return views
 
     def publish_candidate(self, candidate_id: int, *, dry_run: bool = False) -> XPublicationResult:
         candidate = self._candidate(candidate_id)
@@ -304,6 +323,102 @@ class XBrowserPublicationService:
             dry_run=dry_run,
             published_count=published_count,
             rows=result_rows,
+        )
+
+    def publish_standings_thread(
+        self,
+        *,
+        dry_run: bool = False,
+    ) -> XBrowserBatchResult:
+        all_pending = self._pending_candidates()
+        standings_candidates = [
+            c for c in all_pending if c.content_type == str(ContentType.STANDINGS_ROUNDUP)
+        ]
+        standings_candidates = self.scheduler.filter_candidates(self._fresh_candidates(standings_candidates))
+
+        if len(standings_candidates) < 2:
+            return self.publish_pending(dry_run=dry_run)
+
+        tweets: list[tuple[str, Path | None]] = []
+        valid_candidates: list[ContentCandidate] = []
+        for candidate in standings_candidates:
+            try:
+                selected_text, _ = self._validate_candidate(candidate)
+            except InvalidStateTransitionError as exc:
+                logger.warning("Candidato %s sin texto utilizable para thread: %s", candidate.id, exc)
+                continue
+            image_path = self._find_image_for_candidate(candidate)
+            tweets.append((selected_text, image_path))
+            valid_candidates.append(candidate)
+
+        if len(valid_candidates) < 2:
+            return self.publish_pending(dry_run=dry_run)
+
+        rows: list[XBrowserPublicationResult] = []
+        attempted_at = utcnow()
+
+        try:
+            response = self.publisher.publish_thread(tweets, dry_run=dry_run)
+        except XBrowserSessionError as exc:
+            logger.error("Sesion de browser X invalida al publicar thread de standings: %s", exc)
+            if not dry_run:
+                for candidate in valid_candidates:
+                    self._record_failure(candidate, attempted_at=attempted_at, error=str(exc))
+                    rows.append(
+                        XBrowserPublicationResult(
+                            candidate_id=candidate.id,
+                            competition_slug=candidate.competition_slug or "",
+                            content_type=candidate.content_type or "",
+                            dry_run=dry_run,
+                            success=False,
+                            error=str(exc),
+                        )
+                    )
+            return XBrowserBatchResult(
+                dry_run=dry_run,
+                published_count=0,
+                error_count=len(valid_candidates),
+                skipped_count=0,
+                rows=rows,
+            )
+        except XBrowserPublishError as exc:
+            logger.warning(
+                "Thread publish failed (%s), falling back to individual publishing for standings candidates",
+                exc,
+            )
+            return self.publish_pending(dry_run=dry_run)
+
+        published_at = response.published_at or utcnow()
+        for candidate in valid_candidates:
+            if not dry_run:
+                ref = self._apply_success(candidate, attempted_at=attempted_at, published_at=published_at)
+                rows.append(
+                    XBrowserPublicationResult(
+                        candidate_id=candidate.id,
+                        competition_slug=candidate.competition_slug or "",
+                        content_type=candidate.content_type or "",
+                        dry_run=False,
+                        success=True,
+                        external_publication_ref=ref,
+                    )
+                )
+            else:
+                rows.append(
+                    XBrowserPublicationResult(
+                        candidate_id=candidate.id,
+                        competition_slug=candidate.competition_slug or "",
+                        content_type=candidate.content_type or "",
+                        dry_run=True,
+                        success=True,
+                    )
+                )
+
+        return XBrowserBatchResult(
+            dry_run=dry_run,
+            published_count=len(valid_candidates),
+            error_count=0,
+            skipped_count=0,
+            rows=rows,
         )
 
     def publish_pending(

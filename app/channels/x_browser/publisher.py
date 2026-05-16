@@ -137,3 +137,139 @@ class XBrowserPublisher:
             dry_run=False,
             image_path=str(resolved_image) if resolved_image is not None else None,
         )
+
+    def publish_thread(
+        self,
+        tweets: list[tuple[str, Path | None]],
+        *,
+        dry_run: bool = False,
+    ) -> XBrowserPublishResponse:
+        if len(tweets) < 2:
+            raise XBrowserPublishError("publish_thread requires at least 2 tweets; use publish_text for single tweets")
+        for idx, (text, _) in enumerate(tweets):
+            if not text or not text.strip():
+                raise XBrowserPublishError(f"Tweet slot {idx} text cannot be empty")
+            if len(text) > MAX_POST_LENGTH:
+                raise XBrowserPublishError(
+                    f"Tweet slot {idx} text exceeds {MAX_POST_LENGTH} chars ({len(text)})"
+                )
+
+        if dry_run:
+            for idx, (text, image_path) in enumerate(tweets):
+                logger.info("[dry-run] Thread slot %d: %s…", idx, text[:60])
+                if image_path is not None and image_path.exists():
+                    logger.info("[dry-run] Thread slot %d would attach image: %s", idx, image_path.name)
+            combined = "\n---\n".join(text for text, _ in tweets)
+            return XBrowserPublishResponse(text=combined, dry_run=True)
+
+        if not self.state_file.exists():
+            raise XBrowserSessionError(f"No session file at {self.state_file}. Run: browser-auth-capture")
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(
+                headless=self.headless,
+                slow_mo=_SLOW_MO_MS,
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-first-run",
+                    "--no-default-browser-check",
+                    "--disable-infobars",
+                ],
+            )
+            context = browser.new_context(
+                storage_state=str(self.state_file),
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/124.0.0.0 Safari/537.36"
+                ),
+                viewport={"width": 1280, "height": 900},
+            )
+            page = context.new_page()
+            page.add_init_script(
+                "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+            )
+            try:
+                page.goto(self.COMPOSE_URL, wait_until="domcontentloaded", timeout=30_000)
+                if "/login" in page.url or "/i/flow/login" in page.url:
+                    raise XBrowserSessionError("Session expired. Run: browser-auth-capture")
+                page.wait_for_selector(self.TEXTAREA_SELECTOR, timeout=15_000)
+
+                # Slot 0
+                slot_text, slot_image = tweets[0]
+                if slot_image is not None and slot_image.exists():
+                    try:
+                        page.set_input_files('[data-testid="fileInput"]', str(slot_image))
+                        page.wait_for_selector('[data-testid="attachments"]', timeout=20_000)
+                        logger.info("Thread slot 0 image attached: %s", slot_image.name)
+                    except Exception as exc:
+                        logger.warning("Thread slot 0 image attachment failed, continuing: %s", exc)
+                textarea = page.locator('[data-testid^="tweetTextarea"]').nth(0)
+                textarea.scroll_into_view_if_needed(timeout=5_000)
+                textarea.click(force=True, timeout=15_000)
+                page.keyboard.type(slot_text, delay=self.typing_delay_ms)
+
+                # Slots 1..N-1
+                for slot_index in range(1, len(tweets)):
+                    slot_text, slot_image = tweets[slot_index]
+                    add_button = page.locator('[data-testid="addButton"]')
+                    add_button.wait_for(state="visible", timeout=10_000)
+                    add_button.click(timeout=10_000)
+                    # Wait for a new textarea slot to appear
+                    page.wait_for_function(
+                        f"() => document.querySelectorAll('[data-testid^=\"tweetTextarea\"]').length > {slot_index}",
+                        timeout=10_000,
+                    )
+                    if slot_image is not None and slot_image.exists():
+                        try:
+                            page.locator('[data-testid="fileInput"]').nth(slot_index).set_input_files(
+                                str(slot_image), timeout=10_000
+                            )
+                            logger.info("Thread slot %d image attached: %s", slot_index, slot_image.name)
+                        except Exception as exc:
+                            logger.warning(
+                                "Thread slot %d image attachment failed, continuing: %s", slot_index, exc
+                            )
+                    new_textarea = page.locator('[data-testid^="tweetTextarea"]').nth(slot_index)
+                    new_textarea.scroll_into_view_if_needed(timeout=5_000)
+                    new_textarea.click(force=True, timeout=10_000)
+                    page.keyboard.type(slot_text, delay=self.typing_delay_ms)
+
+                page.wait_for_function(
+                    "() => {"
+                    "  const btn = document.querySelector('[data-testid=\"tweetButton\"]');"
+                    "  return btn && btn.getAttribute('aria-disabled') !== 'true';"
+                    "}",
+                    timeout=10_000,
+                )
+                time.sleep(2)
+                page.keyboard.press("Control+Enter")
+                try:
+                    page.wait_for_url(
+                        lambda url: "/compose/post" not in url,
+                        timeout=15_000,
+                    )
+                except PlaywrightTimeout:
+                    error_els = page.locator('[data-testid="toast"], [role="alert"]').all()
+                    errors = [el.inner_text()[:200] for el in error_els if el.is_visible()]
+                    detail = (
+                        "; ".join(errors) if errors else "page did not navigate away from compose after 15s"
+                    )
+                    raise XBrowserPublishError(f"Thread submission may have failed: {detail}")
+                context.storage_state(path=str(self.state_file))
+            except (XBrowserSessionError, XBrowserPublishError):
+                raise
+            except PlaywrightTimeout as exc:
+                raise XBrowserPublishError(f"Timeout during browser thread publish: {exc}") from exc
+            except Exception as exc:
+                raise XBrowserPublishError(f"Browser thread publish failed: {exc}") from exc
+            finally:
+                browser.close()
+
+        combined = "\n---\n".join(text for text, _ in tweets)
+        logger.info("Published thread via browser (%d tweets)", len(tweets))
+        return XBrowserPublishResponse(
+            text=combined,
+            published_at=datetime.now(timezone.utc),
+            dry_run=False,
+        )

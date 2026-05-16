@@ -383,6 +383,57 @@ def test_race_narrative_stays_manual_outside_monday_even_when_quality_passes() -
         session.close()
 
 
+def test_quality_precheck_excludes_race_narrative_outside_monday() -> None:
+    session = build_session()
+    try:
+        seed_competition(
+            session,
+            code="tercera_rfef_g11",
+            name="3a RFEF Baleares",
+            teams=["CD Manacor", "CE Mercadal"],
+            standings_rows=[],
+            match_rows=[],
+        )
+        session.add(
+            ContentCandidate(
+                id=911,
+                competition_slug="tercera_rfef_g11",
+                content_type="race_narrative",
+                priority=87,
+                text_draft="CD Manacor y CE Mercadal siguen en un margen minimo por el liderato.",
+                payload_json={
+                    "reference_date": "2026-03-20",
+                    "content_key": "race_narrative:title_race:tercera_rfef_g11:1:manacor-mercadal:precheck-friday",
+                    "source_payload": {
+                        "narrative_type": "title_race",
+                        "target_label": "liderato",
+                        "target_position": 1,
+                        "team_count": 2,
+                        "points_span": 1,
+                        "rounds_remaining": 4,
+                        "teams": [
+                            {"team": "CD Manacor", "position": 1, "points": 58, "gap_to_target": 0},
+                            {"team": "CE Mercadal", "position": 2, "points": 57, "gap_to_target": 1},
+                        ],
+                    },
+                },
+                source_summary_hash="approval-race-911",
+                status="draft",
+                created_at=datetime(2026, 3, 20, 8, 30, tzinfo=timezone.utc),
+                updated_at=datetime(2026, 3, 20, 8, 30, tzinfo=timezone.utc),
+            )
+        )
+        session.commit()
+
+        service = EditorialApprovalPolicyService(session, settings=build_settings())
+
+        result = service.candidate_ids_for_quality_precheck(reference_date=date(2026, 3, 20))
+
+        assert result == []
+    finally:
+        session.close()
+
+
 def test_friday_autoapproves_preview_and_match_impact_and_keeps_race_manual() -> None:
     session = build_session()
     try:

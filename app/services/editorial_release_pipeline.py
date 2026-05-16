@@ -14,7 +14,7 @@ from app.services.export_base_service import ExportBaseService
 from app.services.export_json_service import ExportJsonService
 from app.services.publication_dispatcher import PublicationDispatcherService
 from app.services.typefully_publication_service import TypefullyPublicationService
-from app.services.x_browser_publication_service import XBrowserPublicationService
+from app.services.x_browser_publication_service import XBrowserBatchResult, XBrowserPublicationService
 from app.services.x_publication_service import XPublicationService
 
 
@@ -41,7 +41,9 @@ class EditorialReleasePipelineService:
         self.dispatch_service = dispatch_service or PublicationDispatcherService(session)
         self.export_base_service = export_base_service or ExportBaseService(session, settings=self.settings)
         self.legacy_export_service = legacy_export_service
-        self.x_publication_service = x_publication_service or XPublicationService(session)
+        # The API publisher remains injectable for manual compatibility flows,
+        # but release no longer uses it as an operational path.
+        self.x_publication_service = x_publication_service
         if typefully_publication_service is not None:
             self.typefully_publication_service: TypefullyPublicationService | None = typefully_publication_service
         elif self.settings.typefully_api_key:
@@ -152,21 +154,36 @@ class EditorialReleasePipelineService:
             legacy_export_blocked_series_count = legacy_export_result.blocked_series_count
             legacy_export_blocked_series = legacy_export_result.blocked_series
             legacy_export_rows = legacy_export_result.rows
-        x_publish_result = None
-        if publish_to_x and self.x_publication_service is not None and dispatch_result.rows:
-            x_publish_result = self.x_publication_service.publish_candidates(
-                [row.id for row in dispatch_result.rows],
+        browser_publish_enabled = publish_to_x or publish_via_browser
+        browser_publish_result = None
+        browser_publication_rows = []
+        if browser_publish_enabled and self.x_browser_publication_service is not None:
+            if not export_dry_run:
+                self.x_browser_publication_service.mark_pre_browser_published()
+            # Publish standings_roundup candidates as a single thread; remaining individually.
+            # publish_pending skips candidates that already have external_publication_ref set.
+            standings_result = self.x_browser_publication_service.publish_standings_thread(
                 dry_run=export_dry_run,
+            )
+            remaining_result = self.x_browser_publication_service.publish_pending(
+                dry_run=export_dry_run,
+            )
+            combined_rows = standings_result.rows + remaining_result.rows
+            browser_publish_result = XBrowserBatchResult(
+                dry_run=export_dry_run,
+                published_count=standings_result.published_count + remaining_result.published_count,
+                error_count=standings_result.error_count + remaining_result.error_count,
+                skipped_count=standings_result.skipped_count + remaining_result.skipped_count,
+                rows=combined_rows,
+            )
+            browser_publication_rows = self.x_browser_publication_service.build_views_from_batch_result(
+                browser_publish_result
             )
         typefully_result = None
         if publish_via_typefully and self.typefully_publication_service is not None and dispatch_result.rows:
             typefully_result = self.typefully_publication_service.publish_pending(
                 dry_run=export_dry_run,
             )
-        if publish_via_browser and self.x_browser_publication_service is not None:
-            if not export_dry_run:
-                self.x_browser_publication_service.mark_pre_browser_published()
-            self.x_browser_publication_service.publish_pending(dry_run=export_dry_run)
         return EditorialReleaseResult(
             dry_run=export_dry_run,
             reference_date=reference_date,
@@ -177,8 +194,8 @@ class EditorialReleasePipelineService:
             dispatched_count=dispatch_result.dispatched_count,
             export_base_total_items=export_base_result.total_items,
             export_base_path=export_base_result.path,
-            x_publish_enabled=publish_to_x,
-            x_published_count=x_publish_result.published_count if x_publish_result is not None else 0,
+            x_publish_enabled=browser_publish_enabled,
+            x_published_count=browser_publish_result.published_count if browser_publish_result is not None else 0,
             typefully_publish_enabled=publish_via_typefully,
             typefully_published_count=typefully_result.published_count if typefully_result is not None else 0,
             legacy_export_json_count=legacy_export_count,
@@ -187,7 +204,7 @@ class EditorialReleasePipelineService:
             legacy_export_blocked_series=legacy_export_blocked_series,
             approval_rows=approval_result.rows,
             dispatched_rows=dispatch_result.rows,
-            x_publication_rows=x_publish_result.rows if x_publish_result is not None else [],
+            x_publication_rows=browser_publication_rows,
             legacy_export_json_rows=legacy_export_rows,
         )
 

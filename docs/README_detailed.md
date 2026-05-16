@@ -1306,9 +1306,9 @@ Torrent CF se impuso por 1-0 a la UE Porreres en la jornada 26 de la 2a RFEF Gru
 
 ### Relacion con la salida externa
 
-- `x_publish` sigue usando `text_draft`
-- `rewritten_text` no se usa automaticamente en la publicacion directa
-- la arquitectura queda preparada para que un canal futuro pueda elegir explicitamente entre `text_draft` y `rewritten_text`
+- `x_publish` y `editorial_release` resuelven el texto con `editorial_text_selector`
+- si existe `rewritten_text` util, el backend browser puede publicarlo por delante de `viral_formatted_text`, `formatted_text` o `text_draft`
+- la salida externa ya no esta atada a `text_draft` puro
 
 ### Limitaciones actuales de la reescritura
 
@@ -1439,27 +1439,27 @@ La integracion de X vive desacoplada en:
 - `app/pipelines/x_auth.py`
 - `app/pipelines/x_publish.py`
 
-La logica editorial no conoce el detalle del canal. En la capa X hoy conviven dos rutas con roles distintos:
+La logica editorial no conoce el detalle del canal. En la capa X siguen existiendo dos implementaciones con roles distintos:
 
-- browser automation (`XBrowserPublicationService`): camino operativo real para Windows/scheduler
-- API directa (`XPublicationService`): compatibilidad/manual con OAuth PKCE, fuera del carril programado por defecto
+- browser automation (`XBrowserPublicationService`): backend operativo real para Windows, `editorial_release` y retry batch
+- API directa (`XPublicationService`): compatibilidad/manual con OAuth PKCE, fuera del carril programado por defecto y fuera del release
 
-El flujo comun es:
+El flujo operativo actual es:
 
 1. la pieza pasa a `published` por el dispatcher interno
-2. el adaptador del canal busca piezas `published` sin `external_publication_ref`
-3. si se usa la ruta API, `x_auth` autoriza una cuenta de usuario de X mediante OAuth 2.0 Authorization Code with PKCE
-4. si la publicacion externa sale bien, guarda el id del tweet y la trazabilidad del intento
+2. `XBrowserPublicationService` busca piezas `published` sin `external_publication_ref`
+3. selecciona el mejor texto disponible con `editorial_text_selector`
+4. si la publicacion externa sale bien, guarda la trazabilidad del intento con `external_channel="x"` y `external_publication_ref="x-browser:..."`
 
 El cliente publica contra `POST https://api.x.com/2/tweets`.
 
 ### Por que PKCE
 
-X exige contexto de usuario para `POST /2/tweets`. Si solo tienes `API Key`, `API Secret` y `Bearer Token`, eso no basta para publicar en nombre de un usuario. Por eso la ruta principal del proyecto migra a OAuth 2.0 Authorization Code with PKCE, que deja el token de usuario desacoplado del nucleo editorial.
+X exige contexto de usuario para `POST /2/tweets`. Si solo tienes `API Key`, `API Secret` y `Bearer Token`, eso no basta para publicar en nombre de un usuario. Por eso la ruta API de compatibilidad usa OAuth 2.0 Authorization Code with PKCE, con el token desacoplado del nucleo editorial.
 
 ### Configuracion necesaria
 
-Configura estas variables de entorno:
+Si mantienes la ruta API directa de compatibilidad, configura estas variables de entorno:
 
 ```bash
 X_CLIENT_ID=...
@@ -1532,11 +1532,11 @@ No son publicables:
 
 ### Scheduling real de X
 
-La publicacion automatica en X ya no es solo manual. Hoy existe doble via, pero solo una forma parte del scheduler por defecto:
+La publicacion automatica en X ya no es solo manual. Hoy existe una sola via operativa real en el scheduler por defecto:
 
 - `scripts/windows/editorial_release.ps1` pasa `--publish-browser` por defecto salvo que se use `-SkipPublishBrowser`
 - `scripts/windows/auto_publish_browser.ps1` ejecuta `x_publish browser-pending` como batch independiente de reintento
-- `x_publish publish` y `x_publish publish-pending` quedan como via API/manual de compatibilidad, no como camino programado por defecto
+- `x_publish publish-pending` se mantiene como alias legacy de `browser-pending`; no abre una segunda via operativa real
 
 Horario vigente en `app/config/publication_schedule.json`:
 
@@ -1544,7 +1544,7 @@ Horario vigente en `app/config/publication_schedule.json`:
 - miercoles `18:00`: `viral_story`, `metric_narrative`
 - viernes `10:00`: `featured_match_preview`, `match_impact_scenario`
 
-`XPublicationService` filtra por dos capas antes de intentar publicar:
+`XBrowserPublicationService` filtra por dos capas antes de intentar publicar:
 
 - `XPublicationScheduler`: dia, hora, tipo y limite de reintentos
 - `EditorialCandidateWindowService`: frescura editorial real para evitar retries de piezas caducadas
@@ -1572,9 +1572,14 @@ python -m app.pipelines.x_auth verify-user-token
 ### CLI de publicacion X
 
 ```bash
+python -m app.pipelines.x_publish browser-auth-capture
+python -m app.pipelines.x_publish browser-auth-verify
 python -m app.pipelines.x_publish show-pending
 python -m app.pipelines.x_publish dry-run --id 31
 python -m app.pipelines.x_publish publish --id 31
+python -m app.pipelines.x_publish browser-pending
+python -m app.pipelines.x_publish browser-pending --limit 5
+python -m app.pipelines.x_publish browser-pending --dry-run
 python -m app.pipelines.x_publish publish-pending
 python -m app.pipelines.x_publish publish-pending --limit 5
 python -m app.pipelines.x_publish publish-pending --dry-run
@@ -1582,29 +1587,30 @@ python -m app.pipelines.x_publish publish-pending --dry-run
 
 ### Probar sin credenciales
 
-El sistema queda usable sin token de usuario ya autorizado para:
+El sistema queda usable sin OAuth de X para:
 
+- `browser-auth-capture`
+- `browser-auth-verify`
 - `show-pending`
 - `dry-run --id ...`
 - `publish-pending --dry-run`
 
 Para probar publicacion real hace falta:
 
-- `X_CLIENT_ID` y `X_REDIRECT_URI` validos
-- completar `x_auth start-auth` y `x_auth exchange-code`
-- validar con `x_auth verify-user-token`
-- permisos de escritura sobre `POST /2/tweets`
+- `playwright install chromium`
+- una sesion valida en `.x_browser_state.json`
+- ejecutar `browser-pending` o `publish --id ...`
+
+La ruta API con `x_auth` queda solo como compatibilidad/manual y ya no es la via documentada del release.
 
 ### Checklist local de validacion
 
-1. configurar `.env` con `X_CLIENT_ID`, `X_REDIRECT_URI` y `X_SCOPES`
-2. ejecutar `python -m app.pipelines.x_auth start-auth`
-3. completar consentimiento y copiar el callback
-4. ejecutar `python -m app.pipelines.x_auth exchange-code --callback-url "<FULL_CALLBACK_URL>"`
-5. ejecutar `python -m app.pipelines.x_auth verify-user-token`
-6. ejecutar `python -m app.pipelines.x_publish show-pending`
-7. ejecutar `python -m app.pipelines.x_publish dry-run --id 19`
-8. ejecutar `python -m app.pipelines.x_publish publish --id 19`
+1. ejecutar `playwright install chromium`
+2. ejecutar `python -m app.pipelines.x_publish browser-auth-capture`
+3. ejecutar `python -m app.pipelines.x_publish browser-auth-verify`
+4. ejecutar `python -m app.pipelines.x_publish show-pending`
+5. ejecutar `python -m app.pipelines.x_publish dry-run --id 19`
+6. ejecutar `python -m app.pipelines.x_publish browser-pending --limit 1`
 
 ### Limitaciones actuales de X
 
@@ -1744,14 +1750,14 @@ export_base_total_items=15
 - `export/legacy_export.json` queda solo como compatibilidad opcional y no redefine el snapshot estructurado
 - `editorial_release.ps1` puede encadenar publicacion en X via browser por defecto
 - `x_publish browser-pending` queda disponible como batch separado cuando se quiere desacoplar el publish del release
-- `x_publish publish-pending` sigue existiendo como via API/manual de compatibilidad
+- `x_publish publish-pending` sigue existiendo solo como alias legacy del mismo backend browser
 
 ### Verificar configuracion
 
 Antes de un publish real conviene revisar al menos:
 
 - para browser publish: `X_BROWSER_STATE_FILE` valido y `playwright install chromium`
-- para API directa: `X_CLIENT_ID`, `X_REDIRECT_URI` y token OAuth vigente
+- para API directa, solo si mantienes esa compatibilidad manual fuera del release: `X_CLIENT_ID`, `X_REDIRECT_URI` y token OAuth vigente
 - para Typefully, solo si se usa esa compatibilidad: `TYPEFULLY_API_KEY`
 
 La configuracion minima depende del canal que vayas a activar; no toda la operativa necesita todas las credenciales.
@@ -1771,8 +1777,8 @@ Eso permite probar el flujo local aunque no haya acceso real al canal externo en
 
 Tras una salida externa correcta se guardan:
 
-- `external_publication_ref`: id devuelto por el canal
-- `external_channel`: nombre del canal usado
+- `external_publication_ref`: id devuelto por el canal o marcador local del backend browser (`x-browser:...`)
+- `external_channel`: `x` en la publicacion browser operativa
 - `external_exported_at`: momento local del exito de exportacion
 - `external_publication_attempted_at`: ultimo intento de salida
 - `external_publication_error`: `NULL` en exito
@@ -1785,10 +1791,10 @@ Si falla la exportacion:
 - `external_publication_attempted_at` guarda el intento
 - `external_publication_error` guarda el error del canal
 
-### Diferencia frente a publicar en X
+### Diferencia frente al core editorial
 
-- `x_publish` intenta publicar directamente en X
-- `x_publish` trabaja sobre `text_draft`
+- `x_publish` trabaja sobre piezas que ya estan `published` internamente
+- los comandos legacy (`publish-pending`) y los canonicos (`browser-pending`) usan el mismo backend browser
 - la pieza sigue considerandose resuelta editorialmente en el core antes de llegar al canal externo
 
 ### Validacion real local
@@ -1796,14 +1802,14 @@ Si falla la exportacion:
 En este entorno la integracion queda preparada para:
 
 - `x_publish dry-run` funcional
-- cliente HTTP encapsulado
+- `x_publish browser-auth-verify` funcional
 - tests con mocks sin llamadas reales
 
 Para una validacion real local hace falta:
 
-- en browser publish: sesion valida en `.x_browser_state.json` y ejecutar `python -m app.pipelines.x_publish browser-pending --limit 1`
-- en API directa: credenciales validas de X, un token de usuario vigente y ejecutar `python -m app.pipelines.x_publish publish --id <ID>`
-- la publicacion real ocurre dentro del propio sistema, segun el adaptador de canal activado
+- sesion valida en `.x_browser_state.json` y ejecutar `python -m app.pipelines.x_publish browser-pending --limit 1`
+- opcionalmente, probar una pieza concreta con `python -m app.pipelines.x_publish publish --id <ID>`
+- la ruta API directa queda fuera del carril operativo documentado
 
 ## Testing
 

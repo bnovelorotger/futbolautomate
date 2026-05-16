@@ -63,3 +63,25 @@ def test_publish_text_accepts_image_path_none_in_dry_run() -> None:
 
     assert response.dry_run is True
     assert response.image_path is None
+
+
+def test_publish_thread_dry_run_returns_correct_response() -> None:
+    publisher = XBrowserPublisher(Path("nonexistent.json"), headless=True)
+    tweets = [
+        ("Primera clasificación de la semana.", None),
+        ("Segunda clasificación de la semana.", None),
+    ]
+
+    response = publisher.publish_thread(tweets, dry_run=True)
+
+    assert response.dry_run is True
+    assert "Primera clasificación" in response.text
+    assert "Segunda clasificación" in response.text
+    assert response.published_at is None
+
+
+def test_publish_thread_validates_min_length() -> None:
+    publisher = XBrowserPublisher(Path("nonexistent.json"), headless=True)
+
+    with pytest.raises(XBrowserPublishError, match="at least 2 tweets"):
+        publisher.publish_thread([("Solo un tweet.", None)], dry_run=True)

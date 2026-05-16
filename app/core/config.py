@@ -51,6 +51,8 @@ class Settings(BaseSettings):
     x_browser_typing_delay_ms: int = 30
     x_browser_stagger_seconds: int = 900
     x_engagement_daily_likes: int = 3
+    telegram_bot_token: str | None = None
+    telegram_chat_id: str | None = None
     app_root: Path = Field(default_factory=lambda: Path(__file__).resolve().parents[2])
 
     @property

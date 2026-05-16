@@ -591,28 +591,45 @@ def test_editorial_release_pipeline_can_generate_legacy_export_when_enabled(tmp_
         session.close()
 
 
-def test_editorial_release_pipeline_publish_via_browser_calls_pending(tmp_path: Path) -> None:
+def test_editorial_release_pipeline_publish_flags_use_browser_service_once(tmp_path: Path) -> None:
     session = build_session()
     try:
         seed_release_candidates(session)
+        x_publication_service = Mock()
         x_browser_publication_service = Mock()
+        x_browser_publication_service.publish_standings_thread.return_value = XBrowserBatchResult(
+            dry_run=False,
+            published_count=0,
+            error_count=0,
+            skipped_count=0,
+        )
         x_browser_publication_service.publish_pending.return_value = XBrowserBatchResult(
             dry_run=False,
             published_count=4,
             error_count=0,
             skipped_count=0,
         )
+        x_browser_publication_service.build_views_from_batch_result.return_value = []
         service = EditorialReleasePipelineService(
             session,
             settings=build_settings(app_root=tmp_path),
+            x_publication_service=x_publication_service,
             x_browser_publication_service=x_browser_publication_service,
         )
 
-        result = service.run(reference_date=REFERENCE_DATE, dry_run=False, publish_via_browser=True)
+        result = service.run(
+            reference_date=REFERENCE_DATE,
+            dry_run=False,
+            publish_to_x=True,
+            publish_via_browser=True,
+        )
         session.commit()
 
         assert result.dispatched_count == 4
-        x_browser_publication_service.mark_pre_browser_published.assert_called_once()
+        assert result.x_publish_enabled is True
+        assert result.x_published_count == 4
+        x_publication_service.publish_candidates.assert_not_called()
         x_browser_publication_service.publish_pending.assert_called_once_with(dry_run=False)
+        x_browser_publication_service.build_views_from_batch_result.assert_called_once()
     finally:
         session.close()

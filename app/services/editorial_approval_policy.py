@@ -402,8 +402,21 @@ class EditorialApprovalPolicyService:
         content_type = ContentType(candidate.content_type)
         return (
             content_type in self._autoapprovable_types_for_date(reference_date)
-            or content_type in CONDITIONAL_AUTOAPPROVABLE_CONTENT_TYPES
+            or self._is_conditional_autoapproval_window(candidate, reference_date=reference_date)
         )
+
+    def _is_conditional_autoapproval_window(
+        self,
+        candidate: ContentCandidate,
+        *,
+        reference_date: date,
+    ) -> bool:
+        content_type = ContentType(candidate.content_type)
+        if content_type not in CONDITIONAL_AUTOAPPROVABLE_CONTENT_TYPES:
+            return False
+        if content_type == ContentType.RACE_NARRATIVE:
+            return reference_date.weekday() in _RACE_NARRATIVE_ALLOWED_WEEKDAYS
+        return False
 
     def _quality_snapshot(
         self,

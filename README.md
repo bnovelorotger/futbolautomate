@@ -103,7 +103,8 @@ python -m app.pipelines.results_roundup show --competition tercera_rfef_g11
 python -m app.pipelines.editorial_quality_checks dry-run --date 2026-03-22
 python -m app.pipelines.editorial_release dry-run --date 2026-03-26
 python -m app.pipelines.export_base generate --date 2026-03-26
-python -m app.pipelines.x_auth start-auth
+python -m app.pipelines.x_publish browser-auth-capture
+python -m app.pipelines.x_publish browser-auth-verify
 ```
 
 5. Ejecutar tests:
@@ -741,7 +742,7 @@ Notas operativas:
 - `editorial_release` no se limita a lo generado en el mismo dia: tambien puede publicar candidatas ya aprobadas si su ventana real ya ha llegado
 - `editorial_release` genera `exports/export_base.json` como snapshot estructurado por defecto
 - `export_base generate` regenera ese mismo snapshot de forma manual si lo necesitas fuera del release
-- `editorial_release.ps1` publica en X via browser por defecto salvo `-SkipPublishBrowser`, y `auto_publish_browser.ps1` deja un batch separado para retries o ventanas horarias propias
+- `editorial_release.ps1` publica en X via browser por defecto salvo `-SkipPublishBrowser` o su alias legacy `-SkipPublishX`, y `auto_publish_browser.ps1` deja un batch separado para retries o ventanas horarias propias
 - `LEGACY_EXPORT_JSON_ENABLED=true` reactiva `export/legacy_export.json` solo para compatibilidad
 - no se anaden nuevas features en esta fase; las mejoras futuras quedan para una iteracion posterior
 

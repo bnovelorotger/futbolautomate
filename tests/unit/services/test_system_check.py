@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from datetime import date, time
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Settings
+from app.db.models import Match, MatchEvent
 from app.db.base import Base
 from app.services.competition_catalog_service import CompetitionCatalogService
 from app.services.system_check import SystemCheckService
@@ -81,5 +82,64 @@ def test_system_check_reports_missing_match_events_for_top_scorer_readiness() ->
         assert row.goal_events_count == 0
         assert row.scorer_season == "2025-26 (0/2 covered, backlog=2)"
         assert "match_events" in row.missing_dependencies
+    finally:
+        session.close()
+
+
+def test_system_check_requires_real_scorer_sample_not_only_scoreless_coverage() -> None:
+    session = build_session()
+    try:
+        CompetitionCatalogService(session).seed_competitions(integrated_only=True, missing_only=True)
+        seed_competition(
+            session,
+            code="division_honor_mallorca",
+            name="Division Honor Mallorca",
+            teams=["Portol FC", "Inter Manacor", "CD Serverense", "CE Esporles"],
+            standings_rows=[
+                {"position": 1, "team": "Portol FC", "played": 2, "wins": 2, "draws": 0, "losses": 0, "goals_for": 2, "goals_against": 0, "goal_difference": 2, "points": 6},
+                {"position": 2, "team": "Inter Manacor", "played": 2, "wins": 1, "draws": 1, "losses": 0, "goals_for": 1, "goals_against": 0, "goal_difference": 1, "points": 4},
+            ],
+            match_rows=[
+                {"round_name": "Jornada 2", "match_date": date(2026, 3, 14), "match_time": time(18, 0), "home_team": "Portol FC", "away_team": "CD Serverense", "home_score": 1, "away_score": 0},
+                {"round_name": "Jornada 1", "match_date": date(2026, 3, 7), "match_time": time(17, 0), "home_team": "Inter Manacor", "away_team": "CE Esporles", "home_score": 0, "away_score": 0},
+            ],
+        )
+        matches = session.execute(
+            select(Match)
+            .where(Match.competition.has(code="division_honor_mallorca"))
+            .order_by(Match.match_date.asc(), Match.id.asc())
+        ).scalars().all()
+        assert len(matches) == 2
+        goal_match, scoreless_match = matches
+        goal_match.has_scorers = True
+        scoreless_match.has_scorers = True
+        session.add_all([goal_match, scoreless_match])
+        session.flush()
+        session.add(
+            MatchEvent(
+                match_id=goal_match.id,
+                team_id=goal_match.home_team_id,
+                team_side="home",
+                event_type="goal",
+                period="Primer Tiempo",
+                minute_raw="24",
+                minute=24,
+                minute_extra=None,
+                player_raw="Toni Bestard",
+                player_source_url=None,
+                sort_order=1,
+                source_event_key=f"{goal_match.external_id}:toni-bestard:24",
+                raw_payload={"player": "Toni Bestard"},
+            )
+        )
+        session.commit()
+
+        report = SystemCheckService(session, settings=build_settings()).editorial_readiness()
+        row = {item.code: item for item in report.rows}["division_honor_mallorca"]
+
+        assert row.scorer_season == "2025-26 (2/2 covered, backlog=0)"
+        assert row.scorer_matches_count == 1
+        assert row.goal_events_count == 1
+        assert "scorer_coverage" in row.missing_dependencies
     finally:
         session.close()

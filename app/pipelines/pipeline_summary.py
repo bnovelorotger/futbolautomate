@@ -9,6 +9,7 @@ from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.db.session import init_db, session_scope
 from app.services.pipeline_summary_service import PipelineSummaryReport, PipelineSummaryService
+from app.services.telegram_notification_service import TelegramNotificationService
 
 app = typer.Typer(
     add_completion=False,
@@ -102,6 +103,23 @@ def _render(report: PipelineSummaryReport) -> str:
     return "\n".join(lines)
 
 
+def _build_telegram_alert(report: PipelineSummaryReport) -> str:
+    lines = ["⚠️ <b>futbolbalear — alertas activas</b>", ""]
+    b = report.blocked
+    p = report.publication
+    total_blocked = b.draft_count + b.rejected_count
+    rejection_pct = 0
+    total = total_blocked + p.published_to_x
+    if total > 0:
+        rejection_pct = round(b.rejected_count * 100 / total)
+    lines.append(f"• Candidatos bloqueados: {total_blocked}")
+    lines.append(f"• Tasa de rechazo: {rejection_pct}%")
+    lines.append(f"• Errores de sesión X: {p.publication_errors}")
+    lines.append("")
+    lines.append("Revisar: <code>logs\\cron_summary.log</code>")
+    return "\n".join(lines)
+
+
 @app.callback(invoke_without_command=True)
 def run(
     date_str: str | None = typer.Option(None, "--date", help="Fecha de referencia YYYY-MM-DD (default: hoy)"),
@@ -127,6 +145,9 @@ def run(
     typer.echo(_render(report))
 
     if report.has_alerts:
+        tg = TelegramNotificationService(settings=settings)
+        if tg.is_configured():
+            tg.send_message(_build_telegram_alert(report))
         raise typer.Exit(code=1)
 
 

@@ -16,7 +16,10 @@ from app.presenters.x_publication import render_x_result, render_x_rows
 from app.services.typefully_publication_service import TypefullyBatchResult, TypefullyPublicationService
 from app.services.x_browser_publication_service import XBrowserBatchResult, XBrowserPublicationService
 
-app = typer.Typer(add_completion=False, help="Adaptador de publicacion externa en X.")
+app = typer.Typer(
+    add_completion=False,
+    help="Publicacion externa en X; browser es la via canonica y los aliases legacy delegan en ella.",
+)
 
 
 def _dump_json(payload) -> None:
@@ -26,6 +29,13 @@ def _dump_json(payload) -> None:
 def _exit_error(message: str) -> None:
     typer.echo(message, err=True)
     raise typer.Exit(code=1)
+
+
+def _warn_legacy_alias(alias: str, canonical: str) -> None:
+    typer.echo(
+        f"[legacy-alias] '{alias}' delega en '{canonical}' sobre el backend browser de X.",
+        err=True,
+    )
 
 
 def _render_typefully_batch(result: TypefullyBatchResult) -> str:
@@ -85,6 +95,8 @@ def show_pending(
     limit: int = typer.Option(50, min=1, help="Numero maximo de piezas"),
     as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
 ) -> None:
+    """Lista piezas pendientes para el backend browser de X."""
+
     init_db()
     with session_scope() as session:
         rows = XBrowserPublicationService(session).list_pending(limit=limit)
@@ -99,6 +111,8 @@ def dry_run_candidate(
     candidate_id: int = typer.Option(..., "--id", help="ID del content candidate"),
     as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
 ) -> None:
+    """Valida una publicacion individual en X usando el backend browser."""
+
     init_db()
     with session_scope() as session:
         service = XBrowserPublicationService(session)
@@ -122,6 +136,8 @@ def publish_candidate(
     candidate_id: int = typer.Option(..., "--id", help="ID del content candidate"),
     as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
 ) -> None:
+    """Publica una pieza individual en X usando el backend browser."""
+
     init_db()
     error_message: str | None = None
     result = None
@@ -153,6 +169,9 @@ def publish_pending(
     stagger: int = typer.Option(None, "--stagger", help="Segundos entre tweets (por defecto: x_browser_stagger_seconds de settings)"),
     as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
 ) -> None:
+    """Alias legacy de browser-pending; usa el mismo backend browser."""
+
+    _warn_legacy_alias("publish-pending", "browser-pending")
     _run_browser_pending(limit=limit, dry_run=dry_run, stagger=stagger, as_json=as_json)
 
 

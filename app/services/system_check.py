@@ -219,7 +219,7 @@ class SystemCheckService:
                 Match.season == season,
             )
         ) or 0
-        scorer_matches_count = self.session.scalar(
+        covered_matches_count = self.session.scalar(
             select(func.count())
             .select_from(Match)
             .where(
@@ -227,6 +227,18 @@ class SystemCheckService:
                 Match.status == str(MatchStatus.FINISHED),
                 Match.season == season,
                 Match.has_scorers.is_(True),
+            )
+        ) or 0
+        scorer_matches_count = self.session.scalar(
+            select(func.count(func.distinct(MatchEvent.match_id)))
+            .select_from(MatchEvent)
+            .join(Match, Match.id == MatchEvent.match_id)
+            .where(
+                Match.competition.has(code=competition_code),
+                Match.status == str(MatchStatus.FINISHED),
+                Match.season == season,
+                Match.has_scorers.is_(True),
+                MatchEvent.event_type == str(MatchEventType.GOAL),
             )
         ) or 0
         goal_events_count = self.session.scalar(
@@ -240,8 +252,8 @@ class SystemCheckService:
                 MatchEvent.event_type == str(MatchEventType.GOAL),
             )
         ) or 0
-        scorer_backlog_count = max(finished_matches_count - scorer_matches_count, 0)
+        scorer_backlog_count = max(finished_matches_count - covered_matches_count, 0)
         scorer_coverage_summary = (
-            f"{season} ({scorer_matches_count}/{finished_matches_count} covered, backlog={scorer_backlog_count})"
+            f"{season} ({covered_matches_count}/{finished_matches_count} covered, backlog={scorer_backlog_count})"
         )
         return season, scorer_matches_count, goal_events_count, scorer_coverage_summary

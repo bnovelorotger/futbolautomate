@@ -174,6 +174,52 @@ def test_quality_precheck_blocks_manual_only_race_narrative_variant() -> None:
         session.close()
 
 
+def test_quality_precheck_blocks_weak_race_narrative_thresholds() -> None:
+    session = build_session()
+    try:
+        seed_narratives_data(session)
+        candidate = ContentCandidate(
+            competition_slug="tercera_rfef_g11",
+            content_type="race_narrative",
+            priority=84,
+            text_draft="CD Llosetense y CD Manacor siguen cerca, pero el pulso por el liderato aun tiene demasiado margen para autoaprobarse.",
+            payload_json={
+                "content_key": "race_narrative:title_race:tercera_rfef_g11:1:llosetense-manacor:weak",
+                "source_payload": {
+                    "narrative_type": "title_race",
+                    "target_label": "liderato",
+                    "target_position": 1,
+                    "team_count": 2,
+                    "points_span": 3,
+                    "rounds_remaining": 4,
+                    "teams": [
+                        {"team": "CD Llosetense", "position": 1, "points": 58, "gap_to_target": 0},
+                        {"team": "CD Manacor", "position": 2, "points": 55, "gap_to_target": 3},
+                    ],
+                },
+            },
+            source_summary_hash="quality-race-weak-thresholds",
+            status="draft",
+            created_at=datetime(2026, 3, 18, 10, 10, tzinfo=timezone.utc),
+            updated_at=datetime(2026, 3, 18, 10, 10, tzinfo=timezone.utc),
+        )
+        session.add(candidate)
+        session.commit()
+
+        result = EditorialQualityChecksService(
+            session,
+            settings=build_settings(),
+            policy=build_export_policy(),
+        ).check_candidates([candidate.id], dry_run=True, require_published=False)
+
+        assert result.failed_count == 1
+        assert result.rows[0].passed is False
+        assert "race_narrative_priority<86" in result.rows[0].errors
+        assert "race_narrative_points_span>2" in result.rows[0].errors
+    finally:
+        session.close()
+
+
 def test_quality_checks_block_recent_duplicates() -> None:
     session = build_session()
     try:

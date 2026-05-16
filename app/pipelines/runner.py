@@ -19,6 +19,7 @@ from app.scrapers.registry import build_scraper
 from app.services.ingest_matches import ingest_matches
 from app.services.ingest_news import ingest_news
 from app.services.ingest_standings import ingest_standings
+from app.services.telegram_notification_service import TelegramNotificationService
 from app.utils.time import utcnow
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,56 @@ app = typer.Typer(
 )
 app.add_typer(pipeline_metrics_app, name="pipeline_metrics")
 app.add_typer(pipeline_summary_app, name="pipeline_summary")
+
+telegram_app = typer.Typer(
+    add_completion=False,
+    help="Comandos de configuracion y prueba de notificaciones Telegram.",
+    no_args_is_help=True,
+)
+app.add_typer(telegram_app, name="telegram_notify")
+
+
+@telegram_app.command("setup")
+def telegram_setup() -> None:
+    """Descubre el chat_id llamando a getUpdates. Envia un mensaje al bot primero si no aparece ninguno."""
+    settings = get_settings()
+    svc = TelegramNotificationService(settings=settings)
+    updates = svc.get_updates()
+
+    if not updates:
+        typer.echo("No se encontraron actualizaciones.")
+        typer.echo("Asegurate de haber enviado un mensaje al bot antes de ejecutar este comando.")
+        return
+
+    seen: set[str] = set()
+    for update in updates:
+        chat_id: str | None = None
+        if "message" in update and "chat" in update["message"]:
+            chat_id = str(update["message"]["chat"]["id"])
+        elif "callback_query" in update and "message" in update["callback_query"]:
+            chat_id = str(update["callback_query"]["message"]["chat"]["id"])
+        if chat_id and chat_id not in seen:
+            seen.add(chat_id)
+            typer.echo(f"Chat ID encontrado: {chat_id}")
+
+    if not seen:
+        typer.echo("No se encontraron chat_ids en las actualizaciones.")
+        typer.echo("Asegurate de haber enviado un mensaje al bot antes de ejecutar este comando.")
+
+
+@telegram_app.command("test")
+def telegram_test(
+    message: str = typer.Argument(..., help="Mensaje de prueba a enviar"),
+) -> None:
+    """Envia un mensaje de prueba para verificar la configuracion de Telegram."""
+    settings = get_settings()
+    svc = TelegramNotificationService(settings=settings)
+    success = svc.send_message(message)
+    if success:
+        typer.echo("Mensaje enviado correctamente.")
+    else:
+        typer.echo("Error al enviar el mensaje. Comprueba TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID.", err=True)
+        raise typer.Exit(code=1)
 
 
 def format_run_summary(

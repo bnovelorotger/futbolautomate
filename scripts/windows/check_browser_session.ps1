@@ -38,8 +38,8 @@ try {
         exit 1
     }
 
-    Write-Log -Level "INFO" -Message "Verificando sesion de X browser..."
-    $output = & $script:PythonBin -m app.pipelines.runner x_browser_session_check 2>&1
+    Write-Log -Level "INFO" -Message "Verificando sesion de X browser con x_publish browser-auth-verify..."
+    $output = & $script:PythonBin -m app.pipelines.x_publish browser-auth-verify 2>&1
     $exitCode = $LASTEXITCODE
 
     foreach ($line in $output) {
@@ -54,7 +54,7 @@ try {
         exit 0
     }
     else {
-        Write-Log -Level "ERROR" -Message "ALERTA: Sesion de X browser caducada o invalida. Ejecutar: python -m app.pipelines.runner x_browser_auth capture"
+        Write-Log -Level "ERROR" -Message "ALERTA: Sesion de X browser caducada o invalida. Ejecutar: python -m app.pipelines.x_publish browser-auth-capture"
         exit 1
     }
 }

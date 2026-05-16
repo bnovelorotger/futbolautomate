@@ -138,7 +138,7 @@ Copy-Item "ruta\segura\.x_browser_state.json" ".x_browser_state.json"
 Si no tienes copia, iniciar sesion de nuevo:
 
 ```powershell
-python -m app.pipelines.runner x_browser_auth capture
+python -m app.pipelines.x_publish browser-auth-capture
 ```
 
 Abre un navegador interactivo. Inicia sesion en X con la cuenta de la plataforma. La sesion se guarda automaticamente en `.x_browser_state.json`.
@@ -146,6 +146,7 @@ Abre un navegador interactivo. Inicia sesion en X con la cuenta de la plataforma
 Verificar que la sesion funciona:
 
 ```bash
+python -m app.pipelines.x_publish browser-auth-verify
 python scripts/debug_browser_publish.py
 ```
 
@@ -172,7 +173,9 @@ Deben aparecer las siguientes tareas:
 - `futbol_refresh_morning`, `futbol_refresh_midweek`, `futbol_refresh_other`, `futbol_refresh_afternoon`
 - `futbol_editorial_day_mon_sun`, `futbol_editorial_day_wed`, `futbol_editorial_day_fri`, `futbol_editorial_day_other`
 - `futbol_release_mon_sun`, `futbol_release_wed`, `futbol_release_fri`, `futbol_release_other`
+- `futbol_session_check`
 - `futbol_engagement`
+- `futbol_summary`
 - `futbol_backup`
 
 Ver `docs/windows_scheduler_setup.md` para el horario detallado y la logica de secuencia por dia.
@@ -244,9 +247,9 @@ La base de datos no esta corriendo. Comprobar con `docker-compose ps` (Docker) o
 **3. El publisher de X no publica (no navega fuera de /compose/post)**
 La sesion ha expirado o el archivo `.x_browser_state.json` no existe. Ejecutar:
 ```bash
-python -m app.pipelines.runner x_browser_auth capture
+python -m app.pipelines.x_publish browser-auth-capture
 ```
-Luego verificar con `python scripts/debug_browser_publish.py`.
+Luego verificar con `python -m app.pipelines.x_publish browser-auth-verify` y `python scripts/debug_browser_publish.py`.
 
 **4. Los scripts PowerShell no se ejecutan ("no se puede cargar el archivo")**
 El sistema bloquea scripts sin firmar. Ejecutar con `-ExecutionPolicy Bypass`. Para evitarlo permanentemente en el usuario actual: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.

@@ -25,8 +25,9 @@ Ruta: `scripts/windows/`
 | `editorial_release.ps1` | Quality checks + aprobacion + dispatch + export + publicacion en X via navegador |
 | `daily_engagement.ps1` | Likes diarios en el timeline de X para humanizar la cuenta (3 likes/dia por defecto) |
 | `backup_db.ps1` | Backup diario de PostgreSQL en `backups/` |
-| `auto_publish_browser.ps1` | Reintento batch de publicacion via navegador, desacoplado del release |
+| `auto_publish_browser.ps1` | Reintento batch canonico de publicacion via navegador, desacoplado del release |
 | `check_browser_session.ps1` | Comprueba que `.x_browser_state.json` existe y que la sesion de X esta activa; alerta si ha caducado |
+| `cleanup_logs.ps1` | Elimina archivos `.bak` de logs con mas de 30 dias de antiguedad |
 | `setup_scheduler.ps1` | Crea o recrea todas las tareas en el Programador de tareas (ejecutar como Admin) |
 
 ---
@@ -52,6 +53,7 @@ Todas las tareas usan `-LogonType Interactive`: requieren sesion de Windows abie
 | `futbol_release_other` | — | 10:30 | — | 10:30 | — | 10:30 | — |
 | `futbol_engagement` | 12:30 | 12:30 | 12:30 | 12:30 | 12:30 | — | — |
 | `futbol_backup` | 03:00 | 03:00 | 03:00 | 03:00 | 03:00 | 03:00 | 03:00 |
+| `futbol_log_cleanup` | — | — | — | — | — | — | 04:00 |
 
 **Logica de secuencia por dia activo:**
 - Lunes: session check a las 06:00 → refresh a las 06:30 → editorial a las 07:30 → release (+ publicacion en X) a las 08:30
@@ -87,7 +89,7 @@ El pipeline publica en X usando Playwright con Chromium en modo visible (`headle
 ### Si la sesion de X expira
 
 ```powershell
-python -m app.pipelines.runner x_browser_auth capture
+python -m app.pipelines.x_publish browser-auth-capture
 ```
 
 Abre un navegador interactivo para hacer login. Guarda la sesion en `.x_browser_state.json`. El archivo esta en `.gitignore` y nunca se sube al repositorio.
@@ -150,6 +152,7 @@ X_ENGAGEMENT_DAILY_LIKES=3
 | `logs\cron_engagement.log` | daily_engagement |
 | `logs\cron_backup.log` | backup_db |
 | `logs\cron_session_check.log` | check_browser_session |
+| `logs\cron_cleanup.log` | cleanup_logs |
 
 ---
 
@@ -160,7 +163,7 @@ X_ENGAGEMENT_DAILY_LIKES=3
 ### Que hace
 
 1. Comprueba que `.x_browser_state.json` existe en la raiz del proyecto
-2. Llama a `python -m app.pipelines.runner x_browser_session_check`, que abre Chromium con la sesion guardada y navega a `x.com/home`
+2. Llama a `python -m app.pipelines.x_publish browser-auth-verify`, que valida la sesion guardada en `.x_browser_state.json`
 3. Registra el resultado en `logs\cron_session_check.log`
 
 ### Que hacer si se dispara la alerta ERROR
@@ -168,7 +171,7 @@ X_ENGAGEMENT_DAILY_LIKES=3
 Si el log contiene `ALERTA: Sesion de X browser caducada`, renovar la sesion antes de que llegue la ventana de publicacion:
 
 ```powershell
-python -m app.pipelines.runner x_browser_auth capture
+python -m app.pipelines.x_publish browser-auth-capture
 ```
 
 Abre un navegador interactivo para hacer login. Guarda la sesion en `.x_browser_state.json`. El archivo esta en `.gitignore` y nunca se sube al repositorio.
@@ -198,13 +201,15 @@ Get-ScheduledTask | Where-Object { $_.TaskName -like "futbol_*" } | Select-Objec
 ## Parametros de editorial_release.ps1
 
 ```powershell
-.\scripts\windows\editorial_release.ps1 [-TargetDate YYYY-MM-DD] [-DryRun] [-PublishBrowser] [-SkipPublishBrowser] [-PublishX] [-PublishTypefully]
+.\scripts\windows\editorial_release.ps1 [-TargetDate YYYY-MM-DD] [-DryRun] [-PublishBrowser] [-SkipPublishBrowser] [-PublishX] [-SkipPublishX] [-PublishTypefully]
 ```
 
 - Por defecto: `run` + `--publish-browser` (sin fecha = hoy)
 - `-DryRun`: simula sin escribir nada en BD ni publicar
 - `-SkipPublishBrowser`: omite la publicacion via navegador
-- `-PublishX` y `-PublishTypefully`: rutas de compatibilidad/manuales; no forman parte del carril programado por defecto
+- `-PublishX`: alias legacy que delega en `--publish-browser`
+- `-SkipPublishX`: alias legacy que delega en `-SkipPublishBrowser`
+- `-PublishTypefully`: compatibilidad/manual; no forma parte del carril programado por defecto
 
 ---
 
@@ -216,8 +221,7 @@ Get-ScheduledTask | Where-Object { $_.TaskName -like "futbol_*" } | Select-Objec
 2. `editorial_approval_policy` — autoaprueba segun reglas del dia
 3. `publication_dispatcher` — mueve candidatos aprobados a `published`
 4. `export_base_service` → `exports/export_base.json`
-5. `XBrowserPublicationService.mark_pre_browser_published()` — marca como omitidos los candidatos publicados hace mas de 48h (evita flood del timeline con contenido obsoleto)
-6. `XBrowserPublicationService.publish_pending()` — publica los candidatos recientes pendientes
+5. `XBrowserPublicationService.publish_pending()` — marca como omitidos los candidatos publicados hace mas de 48h y publica los candidatos recientes pendientes con el mismo backend del retry batch
 
 ---
 
@@ -269,7 +273,7 @@ python scripts/debug_browser_publish.py
 
 ## Limitaciones conocidas
 
-- Los logs no rotan automaticamente; limpiar `logs\*.log` periodicamente
+- Los logs rotan automaticamente al superar 5 MB (hasta 3 archivos `.bak` por log); `futbol_log_cleanup` elimina los `.bak` con mas de 30 dias cada domingo a las 04:00
 - El lock previene solapamientos del mismo slot, pero Task Scheduler debe tener `Do not start a new instance` activado como segunda linea de defensa
 - `headless=False` requiere sesion de Windows interactiva; no funciona en sesiones de servicio (SYSTEM)
 - Si el ordenador entra en suspension durante una publicacion en curso, Playwright puede quedar colgado; el lock file evita reinicio automatico hasta que se libere manualmente

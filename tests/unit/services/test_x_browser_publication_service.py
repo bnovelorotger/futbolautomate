@@ -240,6 +240,32 @@ def test_find_image_for_candidate_returns_path_when_file_exists(tmp_path: Path) 
         session.close()
 
 
+def test_publish_standings_thread_falls_back_when_single_candidate() -> None:
+    session = build_session()
+    try:
+        seed_candidates(session)
+        publisher = Mock()
+        publisher.publish_text.return_value = XBrowserPublishResponse(
+            text="Clasificación actualizada.",
+            published_at=datetime(2026, 3, 16, 10, 5, tzinfo=timezone.utc),
+            dry_run=False,
+        )
+        service = XBrowserPublicationService(
+            session,
+            publisher=publisher,
+            scheduler=build_scheduler(current_time=datetime(2026, 3, 16, 10, 0, tzinfo=ZoneInfo("Europe/Madrid"))),
+        )
+
+        result = service.publish_standings_thread(dry_run=False)
+
+        # Only one standings_roundup candidate exists — falls back to publish_pending
+        # which publishes all pending candidates individually via publish_text
+        publisher.publish_thread.assert_not_called()
+        assert result is not None
+    finally:
+        session.close()
+
+
 def test_find_image_for_candidate_returns_none_when_file_missing(tmp_path: Path) -> None:
     session = build_session()
     try:

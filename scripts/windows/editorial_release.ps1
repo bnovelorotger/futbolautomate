@@ -19,19 +19,20 @@ $ErrorActionPreference = "Stop"
 Initialize-Runtime -LogName "cron_release.log" -SlotName "cron_release"
 
 try {
-    if ($PublishX.IsPresent -and $SkipPublishX.IsPresent) {
-        throw "PublishX y SkipPublishX no se pueden usar a la vez."
-    }
-    if ($PublishBrowser.IsPresent -and $SkipPublishBrowser.IsPresent) {
-        throw "PublishBrowser y SkipPublishBrowser no se pueden usar a la vez."
+    $skipBrowserRequested = $SkipPublishBrowser.IsPresent -or $SkipPublishX.IsPresent
+    $publishBrowserRequested = $PublishBrowser.IsPresent -or $PublishX.IsPresent
+
+    if ($publishBrowserRequested -and $skipBrowserRequested) {
+        throw "No se puede pedir y omitir a la vez la publicacion browser de X."
     }
 
     # Browser publishing es la unica via operativa real para X.
-    # PublishX se mantiene como alias legacy para no romper automatizaciones existentes.
+    # PublishX/SkipPublishX se mantienen como aliases legacy para no romper automatizaciones existentes.
     $shouldPublishX = $PublishX.IsPresent
-    $shouldPublishBrowser = $PublishX.IsPresent -or $PublishBrowser.IsPresent -or (-not $SkipPublishBrowser.IsPresent)
+    $shouldSkipBrowser = $skipBrowserRequested
+    $shouldPublishBrowser = $publishBrowserRequested -or (-not $shouldSkipBrowser)
 
-    Write-Log -Level "INFO" -Message "=== editorial_release.ps1 date=$TargetDate dry_run=$($DryRun.IsPresent) publish_x=$shouldPublishX publish_browser=$shouldPublishBrowser publish_typefully=$($PublishTypefully.IsPresent) ==="
+    Write-Log -Level "INFO" -Message "=== editorial_release.ps1 date=$TargetDate dry_run=$($DryRun.IsPresent) publish_x=$shouldPublishX skip_publish_x=$($SkipPublishX.IsPresent) publish_browser=$shouldPublishBrowser publish_typefully=$($PublishTypefully.IsPresent) ==="
 
     $arguments = @()
     if ($DryRun.IsPresent) {
@@ -57,9 +58,15 @@ try {
         if ($shouldPublishX) {
             Write-Log -Level "INFO" -Message "PublishX actua como alias legacy y delega en --publish-browser."
         }
+        if ($PublishBrowser.IsPresent) {
+            Write-Log -Level "INFO" -Message "PublishBrowser fuerza el backend browser canonico para X."
+        }
         $arguments += "--publish-browser"
     }
     else {
+        if ($SkipPublishX.IsPresent) {
+            Write-Log -Level "INFO" -Message "SkipPublishX actua como alias legacy y delega en -SkipPublishBrowser."
+        }
         Write-Log -Level "INFO" -Message "Publicacion via browser omitida por parametro."
     }
 
