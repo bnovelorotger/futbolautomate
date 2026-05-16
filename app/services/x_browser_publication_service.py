@@ -146,6 +146,7 @@ class XBrowserPublicationService:
             status=ContentCandidateStatus(candidate.status),
             selected_text_source=resolved_source,
             scheduled_at=candidate.scheduled_at,
+            published_at=candidate.published_at,
             external_publication_ref=candidate.external_publication_ref,
             external_publication_timestamp=candidate.external_publication_timestamp,
             external_publication_attempted_at=candidate.external_publication_attempted_at,
@@ -232,6 +233,23 @@ class XBrowserPublicationService:
     def list_pending(self, *, limit: int = 50) -> list[XPublicationCandidateView]:
         rows = self.scheduler.filter_candidates(self._fresh_candidates(self._pending_candidates()))
         return [self._row_to_view(row) for row in rows[:limit]]
+
+    def list_all_unpublished(self, *, limit: int = 100) -> list[XPublicationCandidateView]:
+        """All published candidates without external_publication_ref, regardless of scheduler window."""
+        query = (
+            select(ContentCandidate)
+            .where(
+                ContentCandidate.status == str(ContentCandidateStatus.PUBLISHED),
+                ContentCandidate.external_publication_ref.is_(None),
+            )
+            .order_by(
+                case((ContentCandidate.published_at.is_(None), 1), else_=0),
+                ContentCandidate.published_at.asc(),
+            )
+            .limit(limit)
+        )
+        rows = list(self.session.execute(query).scalars().all())
+        return [self._row_to_view(row) for row in rows]
 
     def build_views_from_batch_result(
         self,

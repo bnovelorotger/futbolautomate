@@ -4,7 +4,10 @@ import json
 from dataclasses import dataclass
 from collections.abc import Sequence
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.exc import IntegrityError
 
 from app.db.models import MatchEvent
 from app.db.repositories.base import BaseRepository
@@ -23,6 +26,20 @@ class MatchEventSyncResult:
 
 
 class MatchEventRepository(BaseRepository[MatchEvent]):
+    _UPSERT_FIELDS = (
+        "team_id",
+        "team_side",
+        "event_type",
+        "period",
+        "minute_raw",
+        "minute",
+        "minute_extra",
+        "player_raw",
+        "player_source_url",
+        "sort_order",
+        "raw_payload",
+    )
+
     def replace_for_match(self, match_id: int, payloads: Sequence[dict]) -> tuple[int, int]:
         existing = self.session.scalars(
             select(MatchEvent).where(MatchEvent.match_id == match_id)
@@ -51,33 +68,94 @@ class MatchEventRepository(BaseRepository[MatchEvent]):
         if self._events_match(existing, normalized_payloads):
             return MatchEventSyncResult(unchanged=True)
 
-        existing_by_key = {
-            event.source_event_key: event
-            for event in existing
-        }
-        incoming_keys = {payload["source_event_key"] for payload in normalized_payloads}
+        result = self._build_sync_result(existing, normalized_payloads)
+        try:
+            self._persist_sync(match_id, normalized_payloads)
+        except IntegrityError as exc:
+            if not self._is_match_source_key_violation(exc):
+                raise
+            current = self.list_for_match(match_id)
+            if self._events_match(current, normalized_payloads):
+                return result
+            self._persist_sync(match_id, normalized_payloads)
+        return result
+
+    def _build_sync_result(
+        self,
+        existing: Sequence[MatchEvent],
+        payloads: Sequence[dict],
+    ) -> MatchEventSyncResult:
+        existing_by_key = {event.source_event_key: event for event in existing}
+        incoming_keys = {payload["source_event_key"] for payload in payloads}
         result = MatchEventSyncResult()
 
-        for payload in normalized_payloads:
+        for payload in payloads:
             source_event_key = payload["source_event_key"]
             current = existing_by_key.get(source_event_key)
             if current is None:
-                self.session.add(MatchEvent(**payload))
                 result.inserted += 1
                 continue
             if self._event_needs_update(current, payload):
-                self._apply_payload(current, payload)
                 result.updated += 1
 
         for event in existing:
             if event.source_event_key in incoming_keys:
                 continue
-            self.session.delete(event)
             result.deleted += 1
-
-        if result.changed:
-            self.session.flush()
         return result
+
+    def _persist_sync(self, match_id: int, payloads: Sequence[dict]) -> None:
+        with self.session.begin_nested():
+            self._acquire_match_lock(match_id)
+            self._upsert_payloads(payloads)
+            self._delete_missing_events(match_id, payloads)
+            self.session.flush()
+
+    def _acquire_match_lock(self, match_id: int) -> None:
+        dialect_name = self.session.get_bind().dialect.name
+        if dialect_name == "postgresql":
+            # pg_advisory_xact_lock is re-entrant within the same session and
+            # releases automatically when the enclosing transaction commits/rolls back.
+            # Using match_id directly as the lock key (bigint space is fine for match PKs).
+            self.session.execute(text("SELECT pg_advisory_xact_lock(:id)"), {"id": match_id})
+        # SQLite is single-writer by design; no lock needed.
+
+    def _upsert_payloads(self, payloads: Sequence[dict]) -> None:
+        if not payloads:
+            return
+        statement = self._build_upsert_statement(payloads)
+        self.session.execute(statement)
+
+    def _build_upsert_statement(self, payloads: Sequence[dict]):
+        dialect_name = self.session.get_bind().dialect.name
+        if dialect_name == "postgresql":
+            insert_statement = postgresql_insert(MatchEvent).values(payloads)
+            return insert_statement.on_conflict_do_update(
+                constraint="uq_match_events_match_source_key",
+                set_={
+                    field: getattr(insert_statement.excluded, field)
+                    for field in self._UPSERT_FIELDS
+                },
+            )
+        if dialect_name == "sqlite":
+            insert_statement = sqlite_insert(MatchEvent).values(payloads)
+            return insert_statement.on_conflict_do_update(
+                index_elements=[MatchEvent.match_id, MatchEvent.source_event_key],
+                set_={
+                    field: getattr(insert_statement.excluded, field)
+                    for field in self._UPSERT_FIELDS
+                },
+            )
+        raise NotImplementedError(
+            f"Dialecto no soportado para sync concurrente de match_events: {dialect_name}"
+        )
+
+    def _delete_missing_events(self, match_id: int, payloads: Sequence[dict]) -> None:
+        incoming_keys = {payload["source_event_key"] for payload in payloads}
+        statement = delete(MatchEvent).where(MatchEvent.match_id == match_id)
+        if incoming_keys:
+            statement = statement.where(MatchEvent.source_event_key.not_in(incoming_keys))
+        self.session.execute(statement)
 
     def _dedupe_payloads(self, match_id: int, payloads: Sequence[dict]) -> list[dict]:
         deduped: dict[str, dict] = {}
@@ -105,23 +183,6 @@ class MatchEventRepository(BaseRepository[MatchEvent]):
 
     def _event_needs_update(self, event: MatchEvent, payload: dict) -> bool:
         return self._event_signature(event) != self._payload_signature(payload)
-
-    def _apply_payload(self, event: MatchEvent, payload: dict) -> None:
-        for field in (
-            "team_id",
-            "team_side",
-            "event_type",
-            "period",
-            "minute_raw",
-            "minute",
-            "minute_extra",
-            "player_raw",
-            "player_source_url",
-            "sort_order",
-            "source_event_key",
-            "raw_payload",
-        ):
-            setattr(event, field, payload.get(field))
 
     def _event_signature(self, event: MatchEvent) -> tuple[object, ...]:
         return (
@@ -157,3 +218,16 @@ class MatchEventRepository(BaseRepository[MatchEvent]):
 
     def _normalize_raw_payload(self, raw_payload: dict | None) -> str:
         return json.dumps(raw_payload or {}, sort_keys=True, ensure_ascii=True)
+
+    def _is_match_source_key_violation(self, exc: IntegrityError) -> bool:
+        original = getattr(exc, "orig", None)
+        message = str(original or exc)
+        return (
+            getattr(original, "pgcode", None) == "23505"
+            and "uq_match_events_match_source_key" in message
+        ) or (
+            "UNIQUE constraint failed: match_events.match_id, match_events.source_event_key" in message
+        ) or (
+            "duplicate key value violates unique constraint" in message
+            and "uq_match_events_match_source_key" in message
+        )

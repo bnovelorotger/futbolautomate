@@ -49,7 +49,11 @@ class MatchEventEnricherService:
 
         for match in matches:
             try:
-                row = self.enrich_match(match.id, dry_run=dry_run)
+                if dry_run:
+                    row = self.enrich_match(match.id, dry_run=True)
+                else:
+                    with self.session.begin_nested():
+                        row = self.enrich_match(match.id, dry_run=False)
             except Exception as exc:
                 if dry_run:
                     row = self._build_result_row(
@@ -60,13 +64,18 @@ class MatchEventEnricherService:
                         has_scorers=match.has_scorers,
                     )
                 else:
-                    self._record_attempt_error(match, exc)
+                    recovered_match = self.session.get(Match, match.id) or match
+                    try:
+                        with self.session.begin_nested():
+                            self._record_attempt_error(recovered_match, exc)
+                    except Exception:
+                        recovered_match = self.session.get(Match, match.id) or match
                     row = self._build_result_row(
-                        match,
-                        detail_url=self._safe_detail_url(match),
+                        recovered_match,
+                        detail_url=self._safe_detail_url(recovered_match),
                         events_found=0,
                         persisted=False,
-                        has_scorers=False,
+                        has_scorers=recovered_match.has_scorers if recovered_match is not None else False,
                     )
             rows.append(row)
             total_events_found += row.events_found

@@ -216,3 +216,101 @@ def test_match_event_enricher_leaves_partial_goal_matches_pending_and_applies_re
         assert second_run.checked_count == 0
     finally:
         session.close()
+
+
+def test_match_event_enricher_isolates_failed_match_persistence_and_continues_batch() -> None:
+    session = build_session()
+    try:
+        failed_match = _seed_finished_match(
+            session,
+            competition_code="tercera_rfef_g11",
+            external_id="1258230",
+        )
+        successful_match = _seed_finished_match(
+            session,
+            competition_code="segunda_rfef_g3_baleares",
+            external_id="1258231",
+            home_team="UE Porreres",
+            away_team="CD Atletico Baleares",
+        )
+        session.add(
+            MatchEvent(
+                match_id=failed_match.id,
+                team_id=failed_match.home_team_id,
+                team_side="home",
+                event_type="goal",
+                period="Primer Tiempo",
+                minute_raw="38",
+                minute=38,
+                minute_extra=None,
+                player_raw="Gerard",
+                player_source_url="https://example.com/jugador.php?id=51710",
+                sort_order=1,
+                source_event_key="Primer Tiempo:home:38:Gerard:https://example.com/jugador.php?id=51710",
+                raw_payload={"seeded": True},
+            )
+        )
+        session.commit()
+
+        service = MatchEventEnricherService(
+            session,
+            settings=build_settings(),
+            fetch_html=lambda url: read_fixture("futbolme_match_detail_multiple_goals.html"),
+        )
+        original_sync = service.repository.sync_for_match
+        failed_once = False
+
+        def sync_with_duplicate_failure(match_id: int, payloads: list[dict]):
+            nonlocal failed_once
+            if match_id == failed_match.id and not failed_once:
+                failed_once = True
+                service.session.add(
+                    MatchEvent(
+                        match_id=match_id,
+                        team_id=failed_match.home_team_id,
+                        team_side="home",
+                        event_type="goal",
+                        period="Primer Tiempo",
+                        minute_raw="38",
+                        minute=38,
+                        minute_extra=None,
+                        player_raw="Gerard",
+                        player_source_url="https://example.com/jugador.php?id=51710",
+                        sort_order=99,
+                        source_event_key="Primer Tiempo:home:38:Gerard:https://example.com/jugador.php?id=51710",
+                        raw_payload={"forced": True},
+                    )
+                )
+                service.session.flush()
+            return original_sync(match_id, payloads)
+
+        service.repository.sync_for_match = sync_with_duplicate_failure
+
+        result = service.enrich_pending(limit=10)
+        session.commit()
+
+        rows_by_match_id = {row.match_id: row for row in result.rows}
+        failed_stored_match = session.get(Match, failed_match.id)
+        successful_stored_match = session.get(Match, successful_match.id)
+        failed_events = session.execute(
+            select(MatchEvent).where(MatchEvent.match_id == failed_match.id).order_by(MatchEvent.sort_order.asc())
+        ).scalars().all()
+        successful_events = session.execute(
+            select(MatchEvent).where(MatchEvent.match_id == successful_match.id).order_by(MatchEvent.sort_order.asc())
+        ).scalars().all()
+
+        assert result.checked_count == 2
+        assert result.enriched_count == 1
+        assert rows_by_match_id[failed_match.id].persisted is False
+        assert rows_by_match_id[successful_match.id].persisted is True
+        assert failed_stored_match is not None
+        assert failed_stored_match.has_scorers is False
+        assert failed_stored_match.extra_data is not None
+        assert failed_stored_match.extra_data["match_events"]["status"] == "error"
+        assert failed_stored_match.extra_data["match_events"]["stored_events_count"] == 1
+        assert len(failed_events) == 1
+        assert successful_stored_match is not None
+        assert successful_stored_match.has_scorers is True
+        assert len(successful_events) == 3
+    finally:
+        session.close()

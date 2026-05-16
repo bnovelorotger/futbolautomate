@@ -106,6 +106,40 @@ def show_pending(
             typer.echo(render_x_rows(rows))
 
 
+def _render_all_unpublished(rows: list) -> str:
+    if not rows:
+        return "Total: 0 piezas sin publicar externamente."
+    lines: list[str] = []
+    header = f"{'ID':<5} | {'content_type':<25} | {'competition_slug':<25} | {'published_at':<20} | excerpt"
+    lines.append(header)
+    lines.append("-" * len(header))
+    for row in rows:
+        published_at_str = (
+            row.published_at.strftime("%Y-%m-%d %H:%M UTC") if row.published_at else "-"
+        )
+        lines.append(
+            f"{row.id:<5} | {str(row.content_type):<25} | {row.competition_slug:<25} | {published_at_str:<20} | {row.excerpt}"
+        )
+    lines.append(f"Total: {len(rows)} piezas sin publicar externamente.")
+    return "\n".join(lines)
+
+
+@app.command("show-all-unpublished")
+def show_all_unpublished(
+    limit: int = typer.Option(100, min=1, help="Numero maximo de piezas"),
+    as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
+) -> None:
+    """Lista todas las piezas published sin external_publication_ref, incluyendo las fuera de ventana."""
+
+    init_db()
+    with session_scope() as session:
+        rows = XBrowserPublicationService(session).list_all_unpublished(limit=limit)
+        if as_json:
+            _dump_json([row.model_dump(mode="json") for row in rows])
+        else:
+            typer.echo(_render_all_unpublished(rows))
+
+
 @app.command("dry-run")
 def dry_run_candidate(
     candidate_id: int = typer.Option(..., "--id", help="ID del content candidate"),

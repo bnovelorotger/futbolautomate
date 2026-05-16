@@ -266,6 +266,54 @@ def test_publish_standings_thread_falls_back_when_single_candidate() -> None:
         session.close()
 
 
+def test_list_all_unpublished_ignores_window() -> None:
+    """Candidates published 3 days ago (outside any window) still appear in list_all_unpublished."""
+    session = build_session()
+    try:
+        seed_candidates(session)
+        three_days_ago = datetime(2026, 3, 13, 10, 0, tzinfo=timezone.utc)
+        session.add(
+            ContentCandidate(
+                id=10,
+                competition_slug="segunda_rfef_g3_baleares",
+                content_type="results_roundup",
+                priority=85,
+                text_draft="RESULTADO ANTIGUO",
+                payload_json=build_results_payload(
+                    reference_date="2026-03-13",
+                    match_date="2026-03-12",
+                ),
+                source_summary_hash="hash-10",
+                status="published",
+                reviewed_at=three_days_ago,
+                approved_at=three_days_ago,
+                published_at=three_days_ago,
+                external_publication_ref=None,
+                created_at=three_days_ago,
+                updated_at=three_days_ago,
+            )
+        )
+        session.commit()
+
+        # current_time is 3 days after the candidate's published_at — outside the 48h cutoff
+        current_time = datetime(2026, 3, 16, 10, 0, tzinfo=timezone.utc)
+        service = XBrowserPublicationService(
+            session,
+            scheduler=build_scheduler(current_time=current_time),
+        )
+
+        all_unpublished = service.list_all_unpublished(limit=100)
+        pending = service.list_pending(limit=100)
+
+        all_ids = [row.id for row in all_unpublished]
+        pending_ids = [row.id for row in pending]
+
+        assert 10 in all_ids, "Stranded candidate must appear in list_all_unpublished"
+        assert 10 not in pending_ids, "Stranded candidate must NOT appear in list_pending (outside 48h window)"
+    finally:
+        session.close()
+
+
 def test_find_image_for_candidate_returns_none_when_file_missing(tmp_path: Path) -> None:
     session = build_session()
     try:
