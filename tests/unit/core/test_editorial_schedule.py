@@ -13,7 +13,7 @@ def test_default_editorial_schedule_loads_expected_rules() -> None:
     thursday_rules = schedule.rules_for_weekday("thursday")
     sunday_rules = schedule.rules_for_weekday("sunday")
 
-    assert len(monday_rules) == 14
+    assert len(monday_rules) == 24
     assert monday_rules[0].competition_slug == "tercera_rfef_g11"
     assert monday_rules[0].content_type == EditorialPlanningContent.RESULTS_ROUNDUP
     assert any(rule.content_type == EditorialPlanningContent.STANDINGS_ROUNDUP for rule in monday_rules)
@@ -41,8 +41,9 @@ def test_default_editorial_schedule_loads_expected_rules() -> None:
     assert any(rule.content_type == EditorialPlanningContent.VIRAL_STORY for rule in wednesday_rules)
     assert len(thursday_rules) == 0
     friday_rules = schedule.rules_for_weekday("friday")
-    assert len(friday_rules) == 5
+    assert len(friday_rules) == 10
     assert any(rule.content_type == EditorialPlanningContent.FEATURED_MATCH_PREVIEW for rule in friday_rules)
+    assert any(rule.content_type == EditorialPlanningContent.MATCH_IMPACT_SCENARIO for rule in friday_rules)
     assert {
         rule.competition_slug for rule in friday_rules
     } == {
@@ -56,6 +57,7 @@ def test_default_editorial_schedule_loads_expected_rules() -> None:
         rule.content_type for rule in friday_rules
     } == {
         EditorialPlanningContent.FEATURED_MATCH_PREVIEW,
+        EditorialPlanningContent.MATCH_IMPACT_SCENARIO,
     }
     assert len(sunday_rules) == 4
     assert {rule.competition_slug for rule in sunday_rules} == {
@@ -89,3 +91,28 @@ def test_wednesday_schedule_includes_narrative_duo_for_three_main_competitions()
     }
 
     assert expected_pairs.issubset(wednesday_pairs)
+
+
+def test_monday_schedule_includes_race_and_milestone_slots_for_main_competitions() -> None:
+    load_editorial_schedule.cache_clear()
+    schedule = load_editorial_schedule()
+    monday_rules = schedule.rules_for_weekday("monday")
+    monday_pairs = {
+        (rule.competition_slug, rule.content_type)
+        for rule in monday_rules
+    }
+
+    expected_pairs = {
+        ("tercera_rfef_g11", EditorialPlanningContent.RACE_NARRATIVE),
+        ("tercera_rfef_g11", EditorialPlanningContent.MILESTONE_STORY),
+        ("segunda_rfef_g3_baleares", EditorialPlanningContent.RACE_NARRATIVE),
+        ("segunda_rfef_g3_baleares", EditorialPlanningContent.MILESTONE_STORY),
+        ("division_honor_mallorca", EditorialPlanningContent.RACE_NARRATIVE),
+        ("division_honor_mallorca", EditorialPlanningContent.MILESTONE_STORY),
+        ("tercera_federacion_femenina_g11", EditorialPlanningContent.RACE_NARRATIVE),
+        ("tercera_federacion_femenina_g11", EditorialPlanningContent.MILESTONE_STORY),
+        ("primera_rfef_baleares", EditorialPlanningContent.RACE_NARRATIVE),
+        ("primera_rfef_baleares", EditorialPlanningContent.MILESTONE_STORY),
+    }
+
+    assert expected_pairs.issubset(monday_pairs)

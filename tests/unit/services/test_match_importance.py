@@ -237,6 +237,12 @@ def test_match_importance_generate_persists_featured_match_candidates() -> None:
         }
         previews = [row for row in rows if row.content_type == str(ContentType.FEATURED_MATCH_PREVIEW)]
         assert any("CE Alpha vs CE Beta" in row.text_draft for row in previews)
+        alpha_preview = next(row for row in previews if "CE Alpha vs CE Beta" in row.text_draft)
+        payload = alpha_preview.payload_json["source_payload"]
+        assert "editorial_hooks" in payload
+        assert "zone_context" in payload
+        assert "head_to_head" in payload
+        assert payload["featured_match"]["home_team"] == "CE Alpha"
     finally:
         session.close()
 

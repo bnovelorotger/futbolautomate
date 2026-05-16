@@ -16,6 +16,7 @@ from app.schemas.competition import CompetitionSeed
 from app.schemas.match import MatchRecord
 from app.services.deduplication import match_content_hash
 from app.services.validation import validate_match_record
+from app.scrapers.futbolme.parser import build_detail_url
 from app.utils.time import utcnow
 
 
@@ -67,6 +68,18 @@ def ingest_matches(session: Session, records: list[MatchRecord], dry_run: bool =
         if dry_run:
             continue
 
+        raw_payload = dict(record.raw_payload)
+        if (
+            str(record.source_name) == "futbolme"
+            and record.external_id
+            and not raw_payload.get("detail_url")
+        ):
+            raw_payload["detail_url"] = build_detail_url(
+                record.home_team,
+                record.away_team,
+                record.external_id,
+            )
+
         competition = _ensure_competition(session, record)
         home_team, _ = team_repo.get_or_create(
             name=home.canonical,
@@ -111,7 +124,7 @@ def ingest_matches(session: Session, records: list[MatchRecord], dry_run: bool =
             "has_scorers": record.has_scorers,
             "scraped_at": record.scraped_at or utcnow(),
             "content_hash": match_content_hash(record, home.normalized, away.normalized),
-            "extra_data": record.raw_payload,
+            "extra_data": raw_payload,
         }
         _, inserted, updated = match_repo.upsert(payload)
         stats.inserted += int(inserted)

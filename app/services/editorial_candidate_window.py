@@ -25,6 +25,7 @@ _FUTURE_ORIENTED_TYPES = {
     ContentType.PREVIEW,
     ContentType.FEATURED_MATCH_PREVIEW,
     ContentType.FEATURED_MATCH_EVENT,
+    ContentType.MATCH_IMPACT_SCENARIO,
 }
 _WEDNESDAY_TYPES = {
     ContentType.RANKING,
@@ -33,6 +34,8 @@ _WEDNESDAY_TYPES = {
     ContentType.FORM_EVENT,
     ContentType.STAT_NARRATIVE,
     ContentType.METRIC_NARRATIVE,
+    ContentType.RACE_NARRATIVE,
+    ContentType.MILESTONE_STORY,
     ContentType.VIRAL_STORY,
 }
 

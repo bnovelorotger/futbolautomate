@@ -22,10 +22,12 @@ from app.schemas.match_importance import (
     MatchImportanceResult,
     MatchImportanceRowView,
 )
+from app.schemas.reporting import CompetitionMatchView
 from app.schemas.team_form import TeamFormEntryView
 from app.services.competition_queries import CompetitionQueryService
 from app.services.competition_relevance import CompetitionRelevanceService
 from app.services.editorial_formatter import EditorialFormatterService
+from app.services.featured_match_preview_generator import FeaturedMatchPreviewGenerator
 from app.services.team_form import DEFAULT_FORM_WINDOW, TeamFormService
 from app.utils.hashing import stable_hash
 from app.utils.time import utcnow
@@ -80,6 +82,7 @@ class MatchImportanceService:
         self.queries = CompetitionQueryService(session)
         self.relevance = CompetitionRelevanceService()
         self.team_form = TeamFormService(session, settings=self.settings)
+        self.preview_generator = FeaturedMatchPreviewGenerator(session, settings=self.settings)
         self.repository = ContentCandidateRepository(session)
         self.catalog = load_competition_catalog()
         self.config_map = config_map or load_match_importance_config()
@@ -165,11 +168,25 @@ class MatchImportanceService:
             reference_date=reference_date,
             limit=limit,
         )
+        preview_matches = self.queries.editorial_upcoming_matches(
+            competition_code,
+            limit=3,
+            relevant_only=True,
+            reference_date=result.reference_date,
+        )
+        preview_match_map = {match.source_url: match for match in preview_matches}
         candidates: list[ContentCandidateDraft] = []
         for row in result.rows:
             if row.importance_score < MIN_GENERATION_SCORE:
                 continue
-            preview_payload = self._source_payload(row, result.reference_date)
+            featured_match = preview_match_map.get(row.source_url) or self._row_as_match_view(row)
+            preview_payload = self._source_payload(
+                competition_code,
+                row,
+                result.reference_date,
+                featured_match=featured_match,
+                matches=preview_matches or [featured_match],
+            )
             preview_content_key = (
                 f"featured_match_preview:{row.home_team}:{row.away_team}:{result.reference_date.isoformat()}"
             )
@@ -516,15 +533,19 @@ class MatchImportanceService:
 
     def _source_payload(
         self,
+        competition_code: str,
         row: MatchImportanceRowView,
         reference_date: date,
+        *,
+        featured_match: CompetitionMatchView,
+        matches: list[CompetitionMatchView],
     ) -> dict[str, Any]:
         position_gap = (
             abs(row.home_position - row.away_position)
             if row.home_position is not None and row.away_position is not None
             else None
         )
-        return {
+        payload = {
             "home_team": row.home_team,
             "away_team": row.away_team,
             "round_name": row.round_name,
@@ -541,6 +562,24 @@ class MatchImportanceService:
             "score_reasoning": list(row.score_reasoning),
             "reference_date": reference_date.isoformat(),
         }
+        enriched_payload = self.preview_generator.build_source_payload(
+            competition_code,
+            featured_match=featured_match,
+            matches=matches,
+            reference_date=reference_date,
+        )
+        payload.update(enriched_payload)
+        return payload
+
+    def _row_as_match_view(self, row: MatchImportanceRowView) -> CompetitionMatchView:
+        return CompetitionMatchView(
+            round_name=row.round_name,
+            match_date=row.match_date,
+            home_team=row.home_team,
+            away_team=row.away_team,
+            status="scheduled",
+            source_url=row.source_url,
+        )
 
     def _config(self, competition_code: str) -> MatchImportanceConfig:
         default_config = self.config_map.get("default", MatchImportanceConfig())

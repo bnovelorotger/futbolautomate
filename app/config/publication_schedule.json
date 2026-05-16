@@ -1,0 +1,23 @@
+{
+  "lunes": {
+    "publish_after": "09:00",
+    "types": [
+      "results_roundup",
+      "standings_roundup"
+    ]
+  },
+  "miercoles": {
+    "publish_after": "18:00",
+    "types": [
+      "viral_story",
+      "metric_narrative"
+    ]
+  },
+  "viernes": {
+    "publish_after": "10:00",
+    "types": [
+      "featured_match_preview",
+      "match_impact_scenario"
+    ]
+  }
+}

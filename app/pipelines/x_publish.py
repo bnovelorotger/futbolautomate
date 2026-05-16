@@ -4,12 +4,15 @@ import json
 
 import typer
 
+from app.channels.typefully.client import TypefullyApiError
+from app.channels.typefully.publisher import TypefullyPublisherValidationError
 from app.channels.x.auth import XAuthError
 from app.channels.x.client import XApiError
 from app.channels.x.publisher import XPublisherValidationError
 from app.core.exceptions import ConfigurationError, InvalidStateTransitionError
 from app.db.session import init_db, session_scope
 from app.presenters.x_publication import render_x_batch_result, render_x_result, render_x_rows
+from app.services.typefully_publication_service import TypefullyBatchResult, TypefullyPublicationService
 from app.services.x_publication_service import XPublicationService
 
 app = typer.Typer(add_completion=False, help="Adaptador de publicacion externa en X.")
@@ -83,6 +86,8 @@ def publish_candidate(
             error_message = str(exc)
     if error_message:
         _exit_error(error_message)
+    if result is None:
+        _exit_error("No se pudo publicar el candidato")
     if as_json:
         _dump_json(result.model_dump(mode="json"))
     else:
@@ -112,6 +117,38 @@ def publish_pending(
             _dump_json(result.model_dump(mode="json"))
         else:
             typer.echo(render_x_batch_result(result))
+
+
+def _render_typefully_batch(result: TypefullyBatchResult) -> str:
+    header = f"dry_run={str(result.dry_run).lower()}\npublished_count={result.published_count}"
+    lines = [
+        f"{row.id:>3} | {row.competition_slug} | {row.content_type} | priority={row.priority} | "
+        f"ref={row.external_publication_ref or '-'} | scheduled={row.scheduled_typefully_date or '-'} | {row.excerpt}"
+        for row in result.rows
+    ]
+    body = "\n".join(lines) if lines else "sin piezas"
+    return f"{header}\n{body}"
+
+
+@app.command("typefully-pending")
+def typefully_pending(
+    limit: int = typer.Option(50, min=1, help="Numero maximo de piezas"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="No persiste external_publication_ref"),
+    as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
+) -> None:
+    init_db()
+    with session_scope() as session:
+        service = TypefullyPublicationService(session)
+        try:
+            result = service.publish_pending(limit=limit, dry_run=dry_run)
+        except (TypefullyApiError, TypefullyPublisherValidationError, ConfigurationError, InvalidStateTransitionError) as exc:
+            _exit_error(str(exc))
+            return
+        if as_json:
+            import dataclasses
+            _dump_json(dataclasses.asdict(result))
+        else:
+            typer.echo(_render_typefully_batch(result))
 
 
 if __name__ == "__main__":

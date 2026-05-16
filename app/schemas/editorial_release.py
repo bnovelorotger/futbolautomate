@@ -10,6 +10,12 @@ from app.schemas.publication_dispatch import PublicationCandidateView
 from app.schemas.x_publication import XPublicationCandidateView
 
 
+class TypefullyPublicationSummary(BaseModel):
+    published_count: int
+    dry_run: bool
+    row_count: int
+
+
 class EditorialReleaseResult(BaseModel):
     dry_run: bool
     reference_date: date | None = None
@@ -22,6 +28,8 @@ class EditorialReleaseResult(BaseModel):
     export_base_path: str
     x_publish_enabled: bool = False
     x_published_count: int = 0
+    typefully_publish_enabled: bool = False
+    typefully_published_count: int = 0
     legacy_export_json_count: int = 0
     legacy_export_json_path: str | None = None
     legacy_export_blocked_series_count: int = 0

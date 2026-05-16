@@ -1,4 +1,4 @@
-from app.scrapers.futbolme.parser import FutbolmeParser
+from app.scrapers.futbolme.parser import FutbolmeParser, build_detail_url
 from tests.helpers import read_fixture
 
 
@@ -141,10 +141,10 @@ def test_futbolme_parser_prefers_desktop_team_name_in_match_cards() -> None:
       <head><title>Calendario - TERCERA FEDERACION - Grupo 11 - Temporada 2025-26</title></head>
       <body>
         <div id="contenedorCentral">
-          <div class="contenedorTitularTorneoCalendario">Jornada 26 - sábado, 14 de marzo de 2026</div>
+          <div class="contenedorTitularTorneoCalendario">Jornada 26 - sabado, 14 de marzo de 2026</div>
           <div class="cajaPartido">
             <div class="equipoPartidoLocal">
-              <p><span itemprop="name"><span class="d-block d-sm-none">CE Santanyí</span><span class="d-none d-sm-block">CE Santanyí</span></span></p>
+              <p><span itemprop="name"><span class="d-block d-sm-none">CE Santanyi</span><span class="d-none d-sm-block">CE Santanyi</span></span></p>
             </div>
             <div class="resultadoPartido">17:15</div>
             <div class="equipoPartidoVisitante">
@@ -163,5 +163,66 @@ def test_futbolme_parser_prefers_desktop_team_name_in_match_cards() -> None:
     )
 
     assert len(records) == 1
-    assert records[0].home_team == "CE Santanyí"
+    assert records[0].home_team == "CE Santanyi"
     assert records[0].away_team == "RCD Mallorca B"
+
+
+def test_build_detail_url_reconstructs_futbolme_match_detail_url() -> None:
+    assert (
+        build_detail_url("CE Constancia", "Inter Ibiza CD", "1258230")
+        == "https://futbolme.com/resultados-directo/partido/ce-constancia-inter-ibiza-cd/1258230"
+    )
+    assert (
+        build_detail_url("Pena Deportiva", "Platges Calvia", "999")
+        == "https://futbolme.com/resultados-directo/partido/pena-deportiva-platges-calvia/999"
+    )
+
+
+def test_futbolme_parser_extracts_goal_events_for_home_and_away_teams() -> None:
+    parser = FutbolmeParser()
+
+    records = parser.parse_match_events(
+        read_fixture("futbolme_match_detail_goals_home_away.html"),
+        source_url="https://futbolme.com/resultados-directo/partido/cd-manacor-rcd-mallorca-b/1258227",
+    )
+
+    assert len(records) == 2
+    assert records[0].team_side == "home"
+    assert records[0].period == "Primer Tiempo"
+    assert records[0].minute_raw == "45+1"
+    assert records[0].minute == 45
+    assert records[0].minute_extra == 1
+    assert records[0].player_raw == "Nando"
+    assert records[1].team_side == "away"
+    assert records[1].period == "Segundo Tiempo"
+    assert records[1].minute_raw == "54"
+    assert records[1].player_raw == "Nico"
+    assert records[1].player_source_url == "https://futbolme.com/jugador.php?id=60223"
+
+
+def test_futbolme_parser_extracts_multiple_goal_events_with_periods() -> None:
+    parser = FutbolmeParser()
+
+    records = parser.parse_match_events(
+        read_fixture("futbolme_match_detail_multiple_goals.html"),
+        source_url="https://futbolme.com/resultados-directo/partido/ce-constancia-inter-ibiza-cd/1258230",
+    )
+
+    assert len(records) == 3
+    assert [record.period for record in records] == [
+        "Primer Tiempo",
+        "Segundo Tiempo",
+        "Segundo Tiempo",
+    ]
+    assert [record.player_raw for record in records] == ["Gerard", "Socias", "Llabres"]
+
+
+def test_futbolme_parser_returns_empty_event_list_for_scoreless_match() -> None:
+    parser = FutbolmeParser()
+
+    records = parser.parse_match_events(
+        read_fixture("futbolme_match_detail_nil_nil.html"),
+        source_url="https://futbolme.com/resultados-directo/partido/ce-constancia-inter-ibiza-cd/1258230",
+    )
+
+    assert records == []

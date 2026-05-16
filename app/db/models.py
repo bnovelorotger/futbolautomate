@@ -106,6 +106,36 @@ class Match(Base, TimestampMixin):
     extra_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     competition: Mapped["Competition"] = relationship(back_populates="matches")
+    events: Mapped[list["MatchEvent"]] = relationship(
+        back_populates="match",
+        cascade="all, delete-orphan",
+    )
+
+
+class MatchEvent(Base, TimestampMixin):
+    __tablename__ = "match_events"
+    __table_args__ = (
+        UniqueConstraint("match_id", "source_event_key", name="uq_match_events_match_source_key"),
+        Index("ix_match_events_match_sort_order", "match_id", "sort_order"),
+        Index("ix_match_events_team_event_type", "team_id", "event_type"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    match_id: Mapped[int] = mapped_column(ForeignKey("matches.id"), index=True)
+    team_id: Mapped[int | None] = mapped_column(ForeignKey("teams.id"), nullable=True, index=True)
+    team_side: Mapped[str] = mapped_column(String(10), index=True)
+    event_type: Mapped[str] = mapped_column(String(30), index=True)
+    period: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    minute_raw: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    minute: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    minute_extra: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    player_raw: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    player_source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    source_event_key: Mapped[str] = mapped_column(String(255), index=True)
+    raw_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    match: Mapped["Match"] = relationship(back_populates="events")
 
 
 class Standing(Base, TimestampMixin):
@@ -264,6 +294,7 @@ class ContentCandidate(Base, TimestampMixin):
     external_publication_timestamp: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     external_publication_attempted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     external_publication_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    publication_attempts: Mapped[int] = mapped_column(Integer, default=0)
     quality_check_passed: Mapped[bool | None] = mapped_column(Boolean, nullable=True, index=True)
     quality_check_errors: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     quality_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -15,6 +15,7 @@ from app.schemas.x_publication import (
     XPublicationResult,
 )
 from app.services.editorial_text_selector import EditorialTextSelectorService
+from app.services.x_publication_scheduler import XPublicationScheduler
 from app.services.x_auth_service import XAuthService
 from app.channels.x.auth import XAuthError
 from app.utils.time import utcnow
@@ -43,12 +44,14 @@ class XPublicationService:
         publisher: XPublisher | None = None,
         auth_service: XAuthService | None = None,
         text_selector: EditorialTextSelectorService | None = None,
+        scheduler: XPublicationScheduler | None = None,
     ) -> None:
         self.session = session
         settings = get_settings()
         self.publisher = publisher or XPublisher(XApiClient(settings))
         self.auth_service = auth_service or XAuthService(session, settings=settings)
         self.text_selector = text_selector or EditorialTextSelectorService(session, settings=settings)
+        self.scheduler = scheduler or XPublicationScheduler(settings=settings)
 
     def _candidate(self, candidate_id: int) -> ContentCandidate:
         candidate = self.session.get(ContentCandidate, candidate_id)
@@ -100,6 +103,10 @@ class XPublicationService:
         )
 
     def list_pending(self, *, limit: int = 50) -> list[XPublicationCandidateView]:
+        rows = self._pending_candidates(limit=limit)
+        return [self._row_to_view(row) for row in rows]
+
+    def _pending_candidates(self, *, limit: int | None = None) -> list[ContentCandidate]:
         query = (
             select(ContentCandidate)
             .where(
@@ -113,10 +120,10 @@ class XPublicationService:
                 ContentCandidate.priority.desc(),
                 ContentCandidate.created_at.asc(),
             )
-            .limit(limit)
         )
-        rows = self.session.execute(query).scalars().all()
-        return [self._row_to_view(row) for row in rows]
+        if limit is not None:
+            query = query.limit(limit)
+        return self.session.execute(query).scalars().all()
 
     def publish_candidate(self, candidate_id: int, *, dry_run: bool = False) -> XPublicationResult:
         candidate = self._candidate(candidate_id)
@@ -126,6 +133,7 @@ class XPublicationService:
             return XPublicationResult(dry_run=True, candidate=self._row_to_view(candidate))
 
         attempted_at = utcnow()
+        candidate.publication_attempts = (candidate.publication_attempts or 0) + 1
         try:
             access_token = self.auth_service.get_valid_user_access_token()
             response = self.publisher.publish_text(
@@ -155,15 +163,17 @@ class XPublicationService:
         candidate_ids: list[int],
         *,
         dry_run: bool = False,
+        respect_schedule: bool = True,
     ) -> XBatchPublicationResult:
         result_rows: list[XPublicationCandidateView] = []
-        for candidate_id in candidate_ids:
+        candidates = [self.session.get(ContentCandidate, candidate_id) for candidate_id in candidate_ids]
+        selected_candidates = [candidate for candidate in candidates if candidate is not None]
+        if respect_schedule:
+            selected_candidates = self.scheduler.filter_candidates(selected_candidates)
+        for candidate in selected_candidates:
             try:
-                result = self.publish_candidate(candidate_id, dry_run=dry_run)
+                result = self.publish_candidate(candidate.id, dry_run=dry_run)
             except (XAuthError, XApiError, XPublisherValidationError, InvalidStateTransitionError, ConfigurationError):
-                candidate = self.session.get(ContentCandidate, candidate_id)
-                if candidate is None:
-                    continue
                 result_rows.append(self._row_to_view(candidate))
                 continue
             result_rows.append(result.candidate)
@@ -182,20 +192,5 @@ class XPublicationService:
         limit: int = 20,
         dry_run: bool = False,
     ) -> XBatchPublicationResult:
-        query = (
-            select(ContentCandidate)
-            .where(
-                ContentCandidate.status == str(ContentCandidateStatus.PUBLISHED),
-                ContentCandidate.external_publication_ref.is_(None),
-                func.length(func.trim(ContentCandidate.text_draft)) > 0,
-            )
-            .order_by(
-                case((ContentCandidate.published_at.is_(None), 1), else_=0),
-                ContentCandidate.published_at.asc(),
-                ContentCandidate.priority.desc(),
-                ContentCandidate.created_at.asc(),
-            )
-            .limit(limit)
-        )
-        rows = self.session.execute(query).scalars().all()
-        return self.publish_candidates([row.id for row in rows], dry_run=dry_run)
+        rows = self.scheduler.filter_candidates(self._pending_candidates())
+        return self.publish_candidates([row.id for row in rows[:limit]], dry_run=dry_run, respect_schedule=False)

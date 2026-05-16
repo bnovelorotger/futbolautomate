@@ -34,6 +34,14 @@ class MatchStatus(StrEnum):
     UNKNOWN = "unknown"
 
 
+class MatchEventType(StrEnum):
+    GOAL = "goal"
+    YELLOW_CARD = "yellow_card"
+    RED_CARD = "red_card"
+    SUBSTITUTION = "substitution"
+    UNKNOWN = "unknown"
+
+
 class Gender(StrEnum):
     MALE = "male"
     FEMALE = "female"
@@ -100,8 +108,11 @@ class ContentType(StrEnum):
     FORM_EVENT = "form_event"
     FEATURED_MATCH_PREVIEW = "featured_match_preview"
     FEATURED_MATCH_EVENT = "featured_match_event"
+    MATCH_IMPACT_SCENARIO = "match_impact_scenario"
     STAT_NARRATIVE = "stat_narrative"
     METRIC_NARRATIVE = "metric_narrative"
+    RACE_NARRATIVE = "race_narrative"
+    MILESTONE_STORY = "milestone_story"
     VIRAL_STORY = "viral_story"
 
 
@@ -112,9 +123,12 @@ class EditorialPlanningContent(StrEnum):
     STANDINGS_ROUNDUP = "standings_roundup"
     PREVIEW = "preview"
     FEATURED_MATCH_PREVIEW = "featured_match_preview"
+    MATCH_IMPACT_SCENARIO = "match_impact_scenario"
     RANKING = "ranking"
     STAT_NARRATIVE = "stat_narrative"
     METRIC_NARRATIVE = "metric_narrative"
+    RACE_NARRATIVE = "race_narrative"
+    MILESTONE_STORY = "milestone_story"
     VIRAL_STORY = "viral_story"
 
 

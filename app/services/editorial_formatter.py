@@ -47,10 +47,13 @@ CURATED_MENTION_TYPES = {
 NARRATIVE_TYPES = {
     ContentType.STAT_NARRATIVE,
     ContentType.METRIC_NARRATIVE,
+    ContentType.RACE_NARRATIVE,
+    ContentType.MILESTONE_STORY,
     ContentType.VIRAL_STORY,
     ContentType.FORM_EVENT,
     ContentType.STANDINGS_EVENT,
     ContentType.FEATURED_MATCH_EVENT,
+    ContentType.MATCH_IMPACT_SCENARIO,
 }
 
 
@@ -522,10 +525,12 @@ class EditorialFormatterService:
                     f"{self._render_team_label(self._string(featured_match.get('home_team')) or '-', mention_map)} vs "
                     f"{self._render_team_label(self._string(featured_match.get('away_team')) or '-', mention_map)}"
                 ),
-                "",
-                self._hashtags_line(competition_slug),
             ]
         )
+        insight_line = self._preview_insight_line(source_payload)
+        if insight_line:
+            lines.append(insight_line)
+        lines.extend(["", self._hashtags_line(competition_slug)])
         return self._compact_blank_lines("\n".join(lines))
 
     def format_ranking_summary(
@@ -1151,6 +1156,12 @@ class EditorialFormatterService:
         return f"Salvacion: {safe_label} | +{relegation_gap} sobre {relegation_label}"
 
     def _preview_insight_line(self, source_payload: dict[str, Any]) -> str | None:
+        hooks = source_payload.get("editorial_hooks")
+        if isinstance(hooks, list):
+            for hook in hooks:
+                normalized_hook = self._string(hook)
+                if normalized_hook:
+                    return normalized_hook
         primary_tag = self._string(source_payload.get("primary_tag"))
         if primary_tag is None:
             tags = source_payload.get("tags")

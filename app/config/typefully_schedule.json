@@ -1,0 +1,15 @@
+{
+  "stagger_between_posts_minutes": 5,
+  "content_type_delays_minutes": {
+    "results_roundup": 0,
+    "standings_roundup": 5,
+    "viral_story": 0,
+    "metric_narrative": 5,
+    "featured_match_preview": 0,
+    "match_impact_scenario": 5,
+    "race_narrative": 3,
+    "milestone_story": 8,
+    "standings_event": 2,
+    "form_event": 4
+  }
+}

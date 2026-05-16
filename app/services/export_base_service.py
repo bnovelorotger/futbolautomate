@@ -24,6 +24,7 @@ _PREVIEW_TYPES = {
     ContentType.PREVIEW,
     ContentType.FEATURED_MATCH_PREVIEW,
     ContentType.FEATURED_MATCH_EVENT,
+    ContentType.MATCH_IMPACT_SCENARIO,
 }
 _POST_MATCHDAY_TYPES = {
     ContentType.RESULTS_ROUNDUP,
@@ -35,7 +36,9 @@ _POST_MATCHDAY_TYPES = {
 _WEEKLY_TYPES = {
     ContentType.RANKING,
     ContentType.METRIC_NARRATIVE,
+    ContentType.RACE_NARRATIVE,
     ContentType.STAT_NARRATIVE,
+    ContentType.MILESTONE_STORY,
     ContentType.VIRAL_STORY,
     ContentType.FORM_EVENT,
     ContentType.FORM_RANKING,
@@ -272,7 +275,11 @@ class ExportBaseService:
         except ValueError:
             content_type = None
 
-        if content_type in {ContentType.PREVIEW, ContentType.FEATURED_MATCH_PREVIEW}:
+        if content_type in {
+            ContentType.PREVIEW,
+            ContentType.FEATURED_MATCH_PREVIEW,
+            ContentType.MATCH_IMPACT_SCENARIO,
+        }:
             try:
                 selection = self.selector.select_text(candidate, prefer_rewrite=True)
                 return selection.text, selection.source

@@ -95,9 +95,21 @@ TYPE_SPECIFIC_GUIDANCE = {
         "Escribe como una narrativa social breve y fiable. "
         "No exageres la metrica ni anadas contexto no medido por el sistema."
     ),
+    ContentType.RACE_NARRATIVE: (
+        "Resume una carrera de clasificacion con tension clara y verificable. "
+        "No inventes probabilidades ni anadas equipos fuera del payload."
+    ),
+    ContentType.MILESTONE_STORY: (
+        "Presenta el hito de forma concreta y compartible, sin adornos. "
+        "No exageres la racha ni anadas contexto que no este medido."
+    ),
     ContentType.VIRAL_STORY: (
         "Refuerza la claridad y el ritmo de lectura sin convertirlo en clickbait. "
         "No exageres, no dramatices y no anadas causas que el sistema no haya medido."
+    ),
+    ContentType.MATCH_IMPACT_SCENARIO: (
+        "Explica escenarios de clasificacion en formato breve y util. "
+        "No inventes desempates, porcentajes ni consecuencias fuera de la simulacion."
     ),
 }
 

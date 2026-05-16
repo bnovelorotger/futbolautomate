@@ -4,7 +4,9 @@ param(
     [switch]$DryRun,
     [switch]$UseDraft,
     [switch]$UseRewrite,
-    [switch]$PublishX
+    [switch]$PublishX,
+    [switch]$SkipPublishX,
+    [switch]$PublishTypefully
 )
 
 Set-StrictMode -Version Latest
@@ -15,7 +17,12 @@ $ErrorActionPreference = "Stop"
 Initialize-Runtime -LogName "cron_release.log" -SlotName "cron_release"
 
 try {
-    Write-Log -Level "INFO" -Message "=== editorial_release.ps1 date=$TargetDate dry_run=$($DryRun.IsPresent) ==="
+    if ($PublishX.IsPresent -and $SkipPublishX.IsPresent) {
+        throw "PublishX y SkipPublishX no se pueden usar a la vez."
+    }
+
+    $shouldPublishX = $PublishX.IsPresent -or (-not $SkipPublishX.IsPresent)
+    Write-Log -Level "INFO" -Message "=== editorial_release.ps1 date=$TargetDate dry_run=$($DryRun.IsPresent) publish_x=$shouldPublishX publish_typefully=$($PublishTypefully.IsPresent) ==="
 
     $arguments = @()
     if ($DryRun.IsPresent) {
@@ -34,8 +41,14 @@ try {
     elseif ($UseRewrite.IsPresent) {
         $arguments += "--use-rewrite"
     }
-    if ($PublishX.IsPresent) {
+    if ($shouldPublishX) {
         $arguments += "--publish-x"
+    }
+    else {
+        Write-Log -Level "INFO" -Message "Publicacion en X omitida por parametro."
+    }
+    if ($PublishTypefully.IsPresent) {
+        $arguments += "--publish-typefully"
     }
 
     Invoke-PythonModule -Label "editorial_release" -Module "app.pipelines.editorial_release" -Arguments $arguments

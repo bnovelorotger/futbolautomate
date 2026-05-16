@@ -25,14 +25,18 @@ def test_editorial_ops_preview_and_run_daily_for_real_schedule() -> None:
 
         rows = session.execute(select(ContentCandidate).order_by(ContentCandidate.id.asc())).scalars().all()
 
-        assert preview.total_tasks == 14
-        assert preview.blocked_tasks == 10
-        assert preview.expected_total == 4
-        assert run.generated_total == 4
-        assert run.inserted_total == 4
-        assert run.blocked_tasks == 10
-        assert len(rows) == 4
-        assert {row.content_type for row in rows} == {"results_roundup", "standings_roundup"}
+        assert preview.total_tasks == 24
+        assert preview.ready_tasks == 5
+        assert preview.blocked_tasks == 19
+        assert preview.expected_total == 5
+        assert run.generated_total == 5
+        assert run.inserted_total == 5
+        assert run.blocked_tasks == 19
+        assert len(rows) == 5
+        assert {row.content_type for row in rows} == {"results_roundup", "standings_roundup", "race_narrative"}
+        race_row = next(row for row in rows if row.content_type == "race_narrative")
+        assert "team_analytics" in race_row.payload_json["source_payload"]
+        assert "puntos por partido en sus ultimos 5" in race_row.text_draft
     finally:
         session.close()
 
@@ -125,11 +129,17 @@ def test_editorial_ops_preview_and_run_daily_generate_featured_match_drafts_on_f
             for row in preview.rows
             if row.planning_type == EditorialPlanningContent.FEATURED_MATCH_PREVIEW
         ]
+        match_impact_rows = [
+            row
+            for row in preview.rows
+            if row.planning_type == EditorialPlanningContent.MATCH_IMPACT_SCENARIO
+        ]
 
-        assert preview.total_tasks == 5
-        assert preview.ready_tasks == 2
-        assert preview.blocked_tasks == 3
+        assert preview.total_tasks == 10
+        assert preview.ready_tasks == 5
+        assert preview.blocked_tasks == 5
         assert len(featured_preview_rows) == 5
+        assert len(match_impact_rows) == 5
         segunda_featured_row = next(
             row for row in featured_preview_rows if row.competition_slug == "segunda_rfef_g3_baleares"
         )
@@ -145,13 +155,29 @@ def test_editorial_ops_preview_and_run_daily_generate_featured_match_drafts_on_f
         assert not tercera_featured_row.missing_dependencies
         assert division_honor_featured_row.expected_count == 2
         assert not division_honor_featured_row.missing_dependencies
-        assert run.generated_total == 4
+        segunda_match_impact_row = next(
+            row for row in match_impact_rows if row.competition_slug == "segunda_rfef_g3_baleares"
+        )
+        tercera_match_impact_row = next(
+            row for row in match_impact_rows if row.competition_slug == "tercera_rfef_g11"
+        )
+        division_honor_match_impact_row = next(
+            row for row in match_impact_rows if row.competition_slug == "division_honor_mallorca"
+        )
+        assert segunda_match_impact_row.expected_count == 1
+        assert not segunda_match_impact_row.missing_dependencies
+        assert tercera_match_impact_row.expected_count == 1
+        assert not tercera_match_impact_row.missing_dependencies
+        assert division_honor_match_impact_row.expected_count == 1
+        assert not division_honor_match_impact_row.missing_dependencies
+        assert run.generated_total == 7
         assert featured_rows
         assert all(row.status == "draft" for row in featured_rows)
         assert {row.competition_slug for row in featured_rows} == {
             "tercera_rfef_g11",
             "division_honor_mallorca",
         }
+        assert any(row.content_type == "match_impact_scenario" for row in rows)
     finally:
         session.close()
 

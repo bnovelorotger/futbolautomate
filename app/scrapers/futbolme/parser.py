@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup, Tag
 
-from app.core.enums import MatchStatus, SourceName
+from app.core.enums import MatchEventType, MatchStatus, SourceName
 from app.core.exceptions import SelectorDriftError
 from app.schemas.match import MatchRecord
+from app.schemas.match_event import MatchEventRecord
 from app.schemas.standing import StandingRecord
 from app.scrapers.futbolme import selectors
 from app.utils.time import utcnow
@@ -18,6 +20,7 @@ _ROUND_PATTERN = re.compile(r"(Jornada\s+\d+)", re.IGNORECASE)
 _SCORE_PATTERN = re.compile(r"^\s*(\d+)\s*-\s*(\d+)\s*$")
 _TIME_PATTERN = re.compile(r"^\s*\d{1,2}:\d{2}\s*$")
 _MATCH_ID_PATTERN = re.compile(r"/partido/[^/]+/(\d+)")
+_MINUTE_PATTERN = re.compile(r"^\s*(\d+)(?:\+(\d+))?\s*$")
 
 
 @dataclass(slots=True)
@@ -60,6 +63,21 @@ def _absolute_url(source_url: str, href: str | None) -> str:
     return urljoin(source_url, href)
 
 
+def _slugify_team_name(value: str) -> str:
+    normalized = unicodedata.normalize("NFKD", value)
+    ascii_value = "".join(char for char in normalized if not unicodedata.combining(char))
+    lowered = ascii_value.lower()
+    lowered = re.sub(r"[^a-z0-9]+", "-", lowered)
+    lowered = re.sub(r"-{2,}", "-", lowered)
+    return lowered.strip("-")
+
+
+def build_detail_url(home_team: str, away_team: str, external_id: str) -> str:
+    home_slug = _slugify_team_name(home_team)
+    away_slug = _slugify_team_name(away_team)
+    return f"https://futbolme.com/resultados-directo/partido/{home_slug}-{away_slug}/{external_id}"
+
+
 def _extract_match_id(match_card: Tag) -> str | None:
     detail_link = match_card.select_one(selectors.MATCH_DETAIL_LINK_SELECTOR)
     if detail_link and detail_link.get("href"):
@@ -82,6 +100,17 @@ def _match_source_url(page_url: str, detail_href: str | None, external_id: str |
     if external_id:
         return f"{page_url}#match-{external_id}"
     return page_url
+
+
+def _parse_minute_value(value: str | None) -> tuple[int | None, int | None]:
+    if not value:
+        return None, None
+    match = _MINUTE_PATTERN.match(value)
+    if match is None:
+        return None, None
+    minute = int(match.group(1))
+    minute_extra = int(match.group(2)) if match.group(2) is not None else None
+    return minute, minute_extra
 
 
 def _parse_page_metadata(soup: BeautifulSoup) -> FutbolmePageMetadata:
@@ -151,12 +180,21 @@ class FutbolmeParser:
             if home_node is None or away_node is None:
                 continue
 
+            home_team = _strip_duplicate_halves(_team_text(home_node))
+            away_team = _strip_duplicate_halves(_team_text(away_node))
             round_name, match_date_raw = _parse_round_heading(match_card)
             status, status_raw, home_score, away_score, match_time_raw = _parse_match_status_and_result(match_card)
             detail_link = match_card.select_one(selectors.MATCH_DETAIL_LINK_SELECTOR)
             external_id = _extract_match_id(match_card)
             team_links = match_card.select("a[href*='/resultados-directo/equipo/']")
             detail_href = detail_link.get("href") if detail_link else None
+            detail_url = (
+                _absolute_url(source_url, detail_href)
+                if detail_href
+                else build_detail_url(home_team, away_team, external_id)
+                if external_id
+                else None
+            )
 
             records.append(
                 MatchRecord(
@@ -169,8 +207,8 @@ class FutbolmeParser:
                     external_id=external_id,
                     match_date_raw=match_date_raw,
                     match_time_raw=match_time_raw,
-                    home_team=_strip_duplicate_halves(_team_text(home_node)),
-                    away_team=_strip_duplicate_halves(_team_text(away_node)),
+                    home_team=home_team,
+                    away_team=away_team,
                     home_score=home_score,
                     away_score=away_score,
                     status_raw=status_raw,
@@ -179,7 +217,7 @@ class FutbolmeParser:
                     scraped_at=utcnow(),
                     raw_payload={
                         "page_url": source_url,
-                        "detail_url": _absolute_url(source_url, detail_href) if detail_href else None,
+                        "detail_url": detail_url,
                         "home_team_url": _absolute_url(source_url, team_links[0].get("href")) if len(team_links) >= 1 else None,
                         "away_team_url": _absolute_url(source_url, team_links[1].get("href")) if len(team_links) >= 2 else None,
                     },
@@ -239,4 +277,67 @@ class FutbolmeParser:
 
         if not records:
             raise SelectorDriftError("No se encontro clasificacion en Futbolme")
+        return records
+
+    def parse_match_events(
+        self,
+        html: str,
+        source_url: str,
+    ) -> list[MatchEventRecord]:
+        soup = BeautifulSoup(html, "html.parser")
+        tables = soup.select(selectors.MATCH_EVENT_TABLE_SELECTOR)
+        records: list[MatchEventRecord] = []
+        seen_keys: set[str] = set()
+        sort_order = 0
+
+        for table in tables:
+            current_period: str | None = None
+            for row in table.select("tr"):
+                heading = row.select_one(selectors.MATCH_EVENT_PERIOD_HEADING_SELECTOR)
+                if heading is not None:
+                    current_period = _text(heading) or current_period
+                    continue
+                if row.select_one(selectors.MATCH_EVENT_GOAL_ICON_SELECTOR) is None:
+                    continue
+
+                cells = row.find_all("td")
+                if len(cells) < 2:
+                    continue
+                team_side = "home" if _text(cells[0]) else "away" if _text(cells[1]) else None
+                event_cell = cells[0] if team_side == "home" else cells[1] if team_side == "away" else None
+                if team_side is None or event_cell is None:
+                    continue
+
+                minute_raw = _text(event_cell.select_one(selectors.MATCH_EVENT_MINUTE_SELECTOR))
+                minute, minute_extra = _parse_minute_value(minute_raw)
+                player_link = event_cell.select_one(selectors.MATCH_EVENT_PLAYER_LINK_SELECTOR)
+                player_raw = _text(player_link) or None
+                player_source_url = _absolute_url(source_url, player_link.get("href")) if player_link else None
+                source_event_key = (
+                    f"{current_period or 'unknown'}:{team_side}:{minute_raw or '-'}:{player_raw or '-'}:"
+                    f"{player_source_url or '-'}"
+                )
+                if source_event_key in seen_keys:
+                    continue
+                seen_keys.add(source_event_key)
+                sort_order += 1
+                records.append(
+                    MatchEventRecord(
+                        team_side=team_side,
+                        event_type=MatchEventType.GOAL,
+                        period=current_period,
+                        minute_raw=minute_raw or None,
+                        minute=minute,
+                        minute_extra=minute_extra,
+                        player_raw=player_raw,
+                        player_source_url=player_source_url,
+                        sort_order=sort_order,
+                        source_event_key=source_event_key,
+                        raw_payload={
+                            "source_url": source_url,
+                            "team_side": team_side,
+                            "period": current_period,
+                        },
+                    )
+                )
         return records

@@ -149,10 +149,14 @@ class SystemCheckService:
             EditorialPlanningContent.RESULTS_ROUNDUP,
             EditorialPlanningContent.STAT_NARRATIVE,
             EditorialPlanningContent.METRIC_NARRATIVE,
+            EditorialPlanningContent.MILESTONE_STORY,
             EditorialPlanningContent.VIRAL_STORY,
         } and catalog_row.finished_matches_count == 0:
             missing_dependencies.append("finished_matches")
-        if content_type == EditorialPlanningContent.PREVIEW and catalog_row.scheduled_matches_count == 0:
+        if content_type in {
+            EditorialPlanningContent.PREVIEW,
+            EditorialPlanningContent.MATCH_IMPACT_SCENARIO,
+        } and catalog_row.scheduled_matches_count == 0:
             missing_dependencies.append("scheduled_matches")
         if content_type == EditorialPlanningContent.FEATURED_MATCH_PREVIEW:
             if catalog_row.scheduled_matches_count == 0:
@@ -164,6 +168,8 @@ class SystemCheckService:
             EditorialPlanningContent.STANDINGS_ROUNDUP,
             EditorialPlanningContent.RANKING,
             EditorialPlanningContent.METRIC_NARRATIVE,
+            EditorialPlanningContent.MATCH_IMPACT_SCENARIO,
+            EditorialPlanningContent.RACE_NARRATIVE,
         } and catalog_row.standings_count == 0:
             missing_dependencies.append("standings")
         return missing_dependencies

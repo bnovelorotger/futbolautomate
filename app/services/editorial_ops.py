@@ -154,6 +154,24 @@ class EditorialOperationsService:
                         reference_date=target_date,
                         limit=1,
                     )
+            elif task.planning_type == EditorialPlanningContent.MATCH_IMPACT_SCENARIO:
+                if not missing:
+                    candidate_cache[key] = self.planner._build_match_impact_candidates(
+                        task.competition_slug,
+                        reference_date=target_date,
+                    )
+            elif task.planning_type == EditorialPlanningContent.RACE_NARRATIVE:
+                if not missing:
+                    candidate_cache[key] = self.planner._build_race_narrative_candidates(
+                        task.competition_slug,
+                        reference_date=target_date,
+                    )
+            elif task.planning_type == EditorialPlanningContent.MILESTONE_STORY:
+                if not missing:
+                    candidate_cache[key] = self.planner._build_milestone_candidates(
+                        task.competition_slug,
+                        reference_date=target_date,
+                    )
             elif task.planning_type == EditorialPlanningContent.VIRAL_STORY:
                 if not missing:
                     candidate_cache[key] = self.viral_stories.build_candidate_drafts(
@@ -199,12 +217,14 @@ class EditorialOperationsService:
             EditorialPlanningContent.RESULTS_ROUNDUP,
             EditorialPlanningContent.STAT_NARRATIVE,
             EditorialPlanningContent.METRIC_NARRATIVE,
+            EditorialPlanningContent.MILESTONE_STORY,
             EditorialPlanningContent.VIRAL_STORY,
         } and readiness_row.finished_matches_count == 0:
             return ["finished_matches"]
         if task.planning_type in {
             EditorialPlanningContent.PREVIEW,
             EditorialPlanningContent.FEATURED_MATCH_PREVIEW,
+            EditorialPlanningContent.MATCH_IMPACT_SCENARIO,
         } and readiness_row.scheduled_matches_count == 0:
             return ["scheduled_matches"]
         if task.planning_type in {
@@ -212,6 +232,8 @@ class EditorialOperationsService:
             EditorialPlanningContent.STANDINGS_ROUNDUP,
             EditorialPlanningContent.RANKING,
             EditorialPlanningContent.FEATURED_MATCH_PREVIEW,
+            EditorialPlanningContent.MATCH_IMPACT_SCENARIO,
+            EditorialPlanningContent.RACE_NARRATIVE,
         } and readiness_row.standings_count == 0:
             return ["standings"]
         return ["no_candidates_available"]
@@ -228,12 +250,14 @@ class EditorialOperationsService:
             EditorialPlanningContent.RESULTS_ROUNDUP,
             EditorialPlanningContent.STAT_NARRATIVE,
             EditorialPlanningContent.METRIC_NARRATIVE,
+            EditorialPlanningContent.MILESTONE_STORY,
             EditorialPlanningContent.VIRAL_STORY,
         } and readiness_row.finished_matches_count == 0:
             return ["finished_matches"]
         if task.planning_type in {
             EditorialPlanningContent.PREVIEW,
             EditorialPlanningContent.FEATURED_MATCH_PREVIEW,
+            EditorialPlanningContent.MATCH_IMPACT_SCENARIO,
         } and readiness_row.scheduled_matches_count == 0:
             return ["scheduled_matches"]
         if task.planning_type in {
@@ -241,6 +265,8 @@ class EditorialOperationsService:
             EditorialPlanningContent.STANDINGS_ROUNDUP,
             EditorialPlanningContent.RANKING,
             EditorialPlanningContent.FEATURED_MATCH_PREVIEW,
+            EditorialPlanningContent.MATCH_IMPACT_SCENARIO,
+            EditorialPlanningContent.RACE_NARRATIVE,
         } and readiness_row.standings_count == 0:
             return ["standings"]
         return []
@@ -253,9 +279,12 @@ class EditorialOperationsService:
             EditorialPlanningContent.STANDINGS_ROUNDUP: ContentType.STANDINGS_ROUNDUP,
             EditorialPlanningContent.PREVIEW: ContentType.PREVIEW,
             EditorialPlanningContent.FEATURED_MATCH_PREVIEW: ContentType.FEATURED_MATCH_PREVIEW,
+            EditorialPlanningContent.MATCH_IMPACT_SCENARIO: ContentType.MATCH_IMPACT_SCENARIO,
             EditorialPlanningContent.RANKING: ContentType.RANKING,
             EditorialPlanningContent.STAT_NARRATIVE: ContentType.STAT_NARRATIVE,
             EditorialPlanningContent.METRIC_NARRATIVE: ContentType.METRIC_NARRATIVE,
+            EditorialPlanningContent.RACE_NARRATIVE: ContentType.RACE_NARRATIVE,
+            EditorialPlanningContent.MILESTONE_STORY: ContentType.MILESTONE_STORY,
             EditorialPlanningContent.VIRAL_STORY: ContentType.VIRAL_STORY,
         }[planning_type]
 

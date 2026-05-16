@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from unittest.mock import Mock
+from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy import create_engine
@@ -13,10 +14,12 @@ from app.channels.x.schemas import XPublishResponse
 from app.core.exceptions import InvalidStateTransitionError
 from app.db.base import Base
 from app.db.models import Competition, ContentCandidate
+from app.services.x_publication_scheduler import XPublicationScheduler
 from app.services.x_publication_service import (
     XPublicationService,
     is_candidate_eligible_for_x,
 )
+from tests.unit.services.service_test_support import build_settings
 
 
 def build_session() -> Session:
@@ -24,6 +27,13 @@ def build_session() -> Session:
     Base.metadata.create_all(bind=engine)
     factory = sessionmaker(bind=engine, expire_on_commit=False)
     return factory()
+
+
+def build_scheduler(*, current_time: datetime) -> XPublicationScheduler:
+    return XPublicationScheduler(
+        settings=build_settings(timezone="Europe/Madrid"),
+        now_provider=lambda: current_time,
+    )
 
 
 def seed_candidates(session: Session) -> None:
@@ -47,7 +57,7 @@ def seed_candidates(session: Session) -> None:
             ContentCandidate(
                 id=1,
                 competition_slug="segunda_rfef_g3_baleares",
-                content_type="match_result",
+                content_type="results_roundup",
                 priority=99,
                 text_draft="RESULTADO FINAL\n\nTorrent CF 1-0 UE Porreres",
                 formatted_text="Resultado | Torrent CF 1-0 UE Porreres #2aRFEF",
@@ -72,7 +82,7 @@ def seed_candidates(session: Session) -> None:
             ContentCandidate(
                 id=2,
                 competition_slug="segunda_rfef_g3_baleares",
-                content_type="standings",
+                content_type="standings_roundup",
                 priority=80,
                 text_draft="CLASIFICACION\n\n1. UE Sant Andreu - 54 pts",
                 payload_json={},
@@ -95,7 +105,7 @@ def seed_candidates(session: Session) -> None:
             ContentCandidate(
                 id=3,
                 competition_slug="segunda_rfef_g3_baleares",
-                content_type="preview",
+                content_type="featured_match_preview",
                 priority=90,
                 text_draft="PREVIA",
                 payload_json={},
@@ -178,7 +188,12 @@ def test_x_publication_service_lists_and_publishes_successfully() -> None:
         )
         auth_service = Mock()
         auth_service.get_valid_user_access_token.return_value = "user-access-token"
-        service = XPublicationService(session, publisher=publisher, auth_service=auth_service)
+        service = XPublicationService(
+            session,
+            publisher=publisher,
+            auth_service=auth_service,
+            scheduler=build_scheduler(current_time=datetime(2026, 3, 16, 10, 0, tzinfo=ZoneInfo("Europe/Madrid"))),
+        )
 
         pending = service.list_pending(limit=10)
         result = service.publish_candidate(1, dry_run=False)
@@ -209,7 +224,12 @@ def test_x_publication_service_records_api_error_without_ref() -> None:
         publisher.publish_text.side_effect = XApiError("rate limit")
         auth_service = Mock()
         auth_service.get_valid_user_access_token.return_value = "user-access-token"
-        service = XPublicationService(session, publisher=publisher, auth_service=auth_service)
+        service = XPublicationService(
+            session,
+            publisher=publisher,
+            auth_service=auth_service,
+            scheduler=build_scheduler(current_time=datetime(2026, 3, 16, 10, 0, tzinfo=ZoneInfo("Europe/Madrid"))),
+        )
 
         with pytest.raises(XApiError):
             service.publish_candidate(1, dry_run=False)
@@ -219,6 +239,7 @@ def test_x_publication_service_records_api_error_without_ref() -> None:
         assert candidate.external_publication_ref is None
         assert candidate.external_publication_attempted_at is not None
         assert candidate.external_publication_error == "rate limit"
+        assert candidate.publication_attempts == 1
     finally:
         session.close()
 
@@ -236,7 +257,12 @@ def test_x_publication_service_supports_dry_run_without_persistence() -> None:
             dry_run=True,
         )
         auth_service = Mock()
-        service = XPublicationService(session, publisher=publisher, auth_service=auth_service)
+        service = XPublicationService(
+            session,
+            publisher=publisher,
+            auth_service=auth_service,
+            scheduler=build_scheduler(current_time=datetime(2026, 3, 16, 10, 0, tzinfo=ZoneInfo("Europe/Madrid"))),
+        )
 
         result = service.publish_candidate(1, dry_run=True)
         session.commit()
@@ -268,7 +294,12 @@ def test_x_publication_service_publish_pending_dry_run() -> None:
             dry_run=True,
         )
         auth_service = Mock()
-        service = XPublicationService(session, publisher=publisher, auth_service=auth_service)
+        service = XPublicationService(
+            session,
+            publisher=publisher,
+            auth_service=auth_service,
+            scheduler=build_scheduler(current_time=datetime(2026, 3, 16, 10, 0, tzinfo=ZoneInfo("Europe/Madrid"))),
+        )
 
         result = service.publish_pending(limit=10, dry_run=True)
         session.commit()
@@ -288,7 +319,12 @@ def test_x_publication_service_rejects_invalid_states_and_config_errors() -> Non
         publisher = Mock()
         auth_service = Mock()
         auth_service.get_valid_user_access_token.side_effect = XAuthError("no hay token de usuario")
-        service = XPublicationService(session, publisher=publisher, auth_service=auth_service)
+        service = XPublicationService(
+            session,
+            publisher=publisher,
+            auth_service=auth_service,
+            scheduler=build_scheduler(current_time=datetime(2026, 3, 16, 10, 0, tzinfo=ZoneInfo("Europe/Madrid"))),
+        )
 
         with pytest.raises(InvalidStateTransitionError):
             service.publish_candidate(3, dry_run=False)
@@ -303,5 +339,161 @@ def test_x_publication_service_rejects_invalid_states_and_config_errors() -> Non
             service.publish_candidate(1, dry_run=False)
         assert session.get(ContentCandidate, 1).external_publication_attempted_at is not None
         assert session.get(ContentCandidate, 1).external_publication_error == "no hay token de usuario"
+        assert session.get(ContentCandidate, 1).publication_attempts == 1
+    finally:
+        session.close()
+
+
+def test_x_publication_service_publish_pending_respects_schedule_and_retry_budget() -> None:
+    session = build_session()
+    try:
+        seed_candidates(session)
+        now = datetime(2026, 3, 16, 10, 0, tzinfo=ZoneInfo("Europe/Madrid"))
+        session.add_all(
+            [
+                ContentCandidate(
+                    id=5,
+                    competition_slug="segunda_rfef_g3_baleares",
+                    content_type="results_roundup",
+                    priority=95,
+                    text_draft="SEGUNDO INTENTO",
+                    payload_json={},
+                    source_summary_hash="hash-5",
+                    scheduled_at=now,
+                    status="published",
+                    reviewed_at=now,
+                    approved_at=now,
+                    published_at=now,
+                    external_publication_error="rate limit",
+                    publication_attempts=2,
+                    created_at=now,
+                    updated_at=now,
+                ),
+                ContentCandidate(
+                    id=6,
+                    competition_slug="segunda_rfef_g3_baleares",
+                    content_type="results_roundup",
+                    priority=94,
+                    text_draft="NO MAS RETRIES",
+                    payload_json={},
+                    source_summary_hash="hash-6",
+                    scheduled_at=now,
+                    status="published",
+                    reviewed_at=now,
+                    approved_at=now,
+                    published_at=now,
+                    external_publication_error="rate limit",
+                    publication_attempts=3,
+                    created_at=now,
+                    updated_at=now,
+                ),
+                ContentCandidate(
+                    id=7,
+                    competition_slug="segunda_rfef_g3_baleares",
+                    content_type="featured_match_preview",
+                    priority=93,
+                    text_draft="VIERNES SOLO",
+                    payload_json={},
+                    source_summary_hash="hash-7",
+                    scheduled_at=now,
+                    status="published",
+                    reviewed_at=now,
+                    approved_at=now,
+                    published_at=now,
+                    created_at=now,
+                    updated_at=now,
+                ),
+            ]
+        )
+        session.commit()
+
+        publisher = Mock()
+        publisher.publish_text.side_effect = [
+            XPublishResponse(
+                post_id="tweet-1",
+                text="RESULTADO FINAL",
+                published_at=datetime(2026, 3, 16, 9, 5, tzinfo=timezone.utc),
+                raw_response={"data": {"id": "tweet-1"}},
+                dry_run=False,
+            ),
+            XPublishResponse(
+                post_id="tweet-5",
+                text="SEGUNDO INTENTO",
+                published_at=datetime(2026, 3, 16, 9, 6, tzinfo=timezone.utc),
+                raw_response={"data": {"id": "tweet-5"}},
+                dry_run=False,
+            ),
+        ]
+        auth_service = Mock()
+        auth_service.get_valid_user_access_token.return_value = "user-access-token"
+        service = XPublicationService(
+            session,
+            publisher=publisher,
+            auth_service=auth_service,
+            scheduler=build_scheduler(current_time=now),
+        )
+
+        result = service.publish_pending(limit=10, dry_run=False)
+        session.commit()
+
+        assert [row.id for row in result.rows] == [1, 5]
+        assert result.published_count == 2
+        assert session.get(ContentCandidate, 5).external_publication_ref == "tweet-5"
+        assert session.get(ContentCandidate, 5).publication_attempts == 3
+        assert session.get(ContentCandidate, 6).external_publication_ref is None
+        assert session.get(ContentCandidate, 6).publication_attempts == 3
+        assert session.get(ContentCandidate, 7).external_publication_ref is None
+    finally:
+        session.close()
+
+
+def test_x_publication_service_publish_candidates_respects_schedule_for_release_batches() -> None:
+    session = build_session()
+    try:
+        seed_candidates(session)
+        friday_candidate_time = datetime(2026, 3, 16, 10, 0, tzinfo=timezone.utc)
+        session.add(
+            ContentCandidate(
+                id=7,
+                competition_slug="segunda_rfef_g3_baleares",
+                content_type="featured_match_preview",
+                priority=93,
+                text_draft="PREVIA DE VIERNES",
+                payload_json={},
+                source_summary_hash="hash-7",
+                scheduled_at=friday_candidate_time,
+                status="published",
+                reviewed_at=friday_candidate_time,
+                approved_at=friday_candidate_time,
+                published_at=friday_candidate_time,
+                created_at=friday_candidate_time,
+                updated_at=friday_candidate_time,
+            )
+        )
+        session.commit()
+
+        publisher = Mock()
+        publisher.publish_text.return_value = XPublishResponse(
+            post_id="tweet-1",
+            text="RESULTADO FINAL",
+            published_at=datetime(2026, 3, 16, 9, 5, tzinfo=timezone.utc),
+            raw_response={"data": {"id": "tweet-1"}},
+            dry_run=False,
+        )
+        auth_service = Mock()
+        auth_service.get_valid_user_access_token.return_value = "user-access-token"
+        service = XPublicationService(
+            session,
+            publisher=publisher,
+            auth_service=auth_service,
+            scheduler=build_scheduler(current_time=datetime(2026, 3, 16, 10, 0, tzinfo=ZoneInfo("Europe/Madrid"))),
+        )
+
+        result = service.publish_candidates([1, 7], dry_run=False)
+        session.commit()
+
+        assert [row.id for row in result.rows] == [1]
+        assert session.get(ContentCandidate, 1).external_publication_ref == "tweet-1"
+        assert session.get(ContentCandidate, 7).external_publication_ref is None
     finally:
         session.close()
