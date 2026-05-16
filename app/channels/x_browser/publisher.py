@@ -63,13 +63,14 @@ class XBrowserPublisher:
                     raise XBrowserSessionError("Session expired. Run: x_browser_auth capture")
                 page.wait_for_selector(self.TEXTAREA_SELECTOR, timeout=15_000)
                 textarea = page.locator(self.TEXTAREA_SELECTOR).first
-                textarea.click()
-                textarea.type(text, delay=self.typing_delay_ms)
+                textarea.scroll_into_view_if_needed(timeout=5_000)
+                textarea.click(force=True, timeout=15_000)
+                page.keyboard.type(text, delay=self.typing_delay_ms)
                 # Small pause before posting (human-like)
                 time.sleep(0.8)
                 post_btn = page.locator(self.POST_BUTTON_SELECTOR)
                 post_btn.wait_for(state="visible", timeout=10_000)
-                post_btn.click()
+                post_btn.click(force=True)
                 # Wait briefly for submission to complete
                 time.sleep(2)
                 # Refresh session state
