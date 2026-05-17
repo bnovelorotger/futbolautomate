@@ -13,7 +13,7 @@ def test_default_editorial_schedule_loads_expected_rules() -> None:
     thursday_rules = schedule.rules_for_weekday("thursday")
     sunday_rules = schedule.rules_for_weekday("sunday")
 
-    assert len(monday_rules) == 36
+    assert len(monday_rules) == 37
     assert monday_rules[0].competition_slug == "tercera_rfef_g11"
     assert monday_rules[0].content_type == EditorialPlanningContent.RESULTS_ROUNDUP
     assert any(rule.content_type == EditorialPlanningContent.STANDINGS_ROUNDUP for rule in monday_rules)

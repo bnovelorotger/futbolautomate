@@ -717,14 +717,14 @@
   },
   {
     "code": "division_honor_mallorca_playoff",
-    "name": "Division Honor Mallorca Eliminatorias de Ascenso",
+    "name": "Division de Honor Eliminatorias de Ascenso",
     "editorial_name": "Playoff Ascenso Division Honor Mallorca",
     "competition_type": "playoff",
     "playoff_type": "ascenso",
     "parent_competition": "division_honor_mallorca",
     "aliases": [
-      "Division Honor Mallorca Eliminatorias de Ascenso",
-      "Division Honor Mallorca Promocion de Ascenso"
+      "Division de Honor Eliminatorias de Ascenso",
+      "Division Honor Mallorca Eliminatorias de Ascenso"
     ],
     "category_level": 6,
     "gender": "male",
@@ -732,12 +732,32 @@
     "country": "Spain",
     "federation": "FFIB",
     "priority": 1,
-    "status": "deferred",
+    "status": "integrated",
     "primary_source": "futbolme",
     "coverage_scope": "Playoff local de ascenso a 3a Federacion desde Division Honor Mallorca.",
-    "integration_notes": "La pagina de Division Honor Mallorca (4018) menciona eliminatorias de ascenso pero no expone el ID de competicion del playoff. Pendiente de localizar el competition_id correcto en futbolme.",
-    "references": [],
-    "sources": {}
+    "integration_notes": "URL facilitada por el usuario el 17 de mayo de 2026. competition_id 282.",
+    "references": [
+      {
+        "source_name": "futbolme",
+        "role": "primary",
+        "urls": [
+          "https://futbolme.com/resultados-directo/torneo/division-de-honor-eliminatorias-de-ascenso/282/",
+          "https://futbolme.com/resultados-directo/torneo/division-de-honor-eliminatorias-de-ascenso/282/calendario"
+        ],
+        "notes": "URL validada el 17 de mayo de 2026."
+      }
+    ],
+    "sources": {
+      "futbolme": {
+        "competition_id": "282",
+        "enabled": true,
+        "urls": {
+          "matches": "https://futbolme.com/resultados-directo/torneo/division-de-honor-eliminatorias-de-ascenso/282/calendario",
+          "standings": "https://futbolme.com/resultados-directo/torneo/division-de-honor-eliminatorias-de-ascenso/282/"
+        },
+        "notes": "URL validada el 17 de mayo de 2026."
+      }
+    }
   },
   {
     "code": "juvenil_division_honor_g3",

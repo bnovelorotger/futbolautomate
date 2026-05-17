@@ -181,6 +181,11 @@
         "competition_slug": "division_honor_menorca_playoff",
         "content_type": "results_roundup",
         "priority": 74
+      },
+      {
+        "competition_slug": "division_honor_mallorca_playoff",
+        "content_type": "results_roundup",
+        "priority": 76
       }
     ],
     "miercoles": [
