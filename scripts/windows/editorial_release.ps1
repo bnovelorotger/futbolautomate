@@ -34,6 +34,26 @@ try {
 
     Write-Log -Level "INFO" -Message "=== editorial_release.ps1 date=$TargetDate dry_run=$($DryRun.IsPresent) publish_x=$shouldPublishX skip_publish_x=$($SkipPublishX.IsPresent) publish_browser=$shouldPublishBrowser publish_typefully=$($PublishTypefully.IsPresent) ==="
 
+    # --- PRE-FLIGHT: verificacion de sesion de browser ---
+    # Solo advertimos; el export y el approval se ejecutan igualmente aunque la sesion este caducada.
+    if ($shouldPublishBrowser) {
+        $stateFile = Join-Path $script:ProjectRoot ".x_browser_state.json"
+        if (-not (Test-Path -LiteralPath $stateFile)) {
+            Write-Log -Level "WARN" -Message "PRE-FLIGHT: .x_browser_state.json no encontrado. La publicacion via browser fallara. Ejecuta: python -m app.pipelines.x_publish browser-auth-capture"
+        }
+        else {
+            $fileAge = (Get-Date) - (Get-Item -LiteralPath $stateFile).LastWriteTime
+            if ($fileAge.TotalDays -gt 7) {
+                $ageDays = [int]$fileAge.TotalDays
+                Write-Log -Level "WARN" -Message "PRE-FLIGHT: .x_browser_state.json tiene $ageDays dias de antiguedad (umbral: 7). La sesion puede estar proxima a caducar. Considera ejecutar: python -m app.pipelines.x_publish browser-auth-capture"
+            }
+            else {
+                Write-Log -Level "INFO" -Message "PRE-FLIGHT: .x_browser_state.json presente y reciente ($([int]$fileAge.TotalDays) dias)."
+            }
+        }
+    }
+    # --- FIN PRE-FLIGHT ---
+
     $arguments = @()
     if ($DryRun.IsPresent) {
         $arguments += "dry-run"

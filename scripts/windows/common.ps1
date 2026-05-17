@@ -183,7 +183,41 @@ function Initialize-Runtime {
     $script:PythonBin = Resolve-PythonBinary
     $script:CurrentLogFile = Join-Path $script:LogDir $LogName
     Invoke-LogRotation -LogFile $script:CurrentLogFile
+
+    # Clean up stale locks before attempting to acquire our own slot.
+    Remove-StaleLocks
     Acquire-Lock -SlotName $SlotName
+}
+
+
+function Remove-StaleLocks {
+    # Lock files older than 2 hours indicate a zombie process (e.g. suspended while Playwright was open).
+    # We remove them before acquiring the current slot so the new run is not blocked by a ghost lock.
+    param(
+        [int]$MaxAgeHours = 2
+    )
+
+    $staleFiles = Get-ChildItem -LiteralPath $script:LockDir -Filter "*.lock" -File -ErrorAction SilentlyContinue |
+        Where-Object { ((Get-Date) - $_.LastWriteTime).TotalHours -gt $MaxAgeHours }
+
+    foreach ($lockFile in $staleFiles) {
+        try {
+            # Try to open exclusively; if we can, the file is not held by anyone — safe to delete.
+            $stream = [System.IO.File]::Open(
+                $lockFile.FullName,
+                [System.IO.FileMode]::Open,
+                [System.IO.FileAccess]::ReadWrite,
+                [System.IO.FileShare]::None
+            )
+            $stream.Dispose()
+            Remove-Item -LiteralPath $lockFile.FullName -Force -ErrorAction SilentlyContinue
+            Write-Log -Level "WARN" -Message "Lock colgado eliminado: $($lockFile.Name) (edad: $([int]((Get-Date) - $lockFile.LastWriteTime).TotalHours)h)"
+        }
+        catch {
+            # File is still held by another process — leave it alone.
+            Write-Log -Level "WARN" -Message "Lock antiguo detectado pero sigue bloqueado por otro proceso: $($lockFile.Name)"
+        }
+    }
 }
 
 

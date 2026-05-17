@@ -36,6 +36,48 @@ app.add_typer(pipeline_metrics_app, name="pipeline_metrics")
 app.add_typer(pipeline_summary_app, name="pipeline_summary")
 app.add_typer(top_scorer_app, name="top_scorer")
 
+
+@app.command("x_browser_session_check")
+def x_browser_session_check() -> None:
+    """Verifica si la sesion de browser de X sigue activa sin publicar nada.
+
+    Abre Chromium en modo headless, navega a x.com/home con la sesion guardada
+    y comprueba que no hay redirect a /login.
+
+    Exit code 0: sesion valida.
+    Exit code 1: sesion caducada, inexistente o Playwright fallido.
+    """
+    from pathlib import Path
+
+    from app.channels.x_browser import auth as x_browser_auth
+
+    settings = get_settings()
+    state_file = Path(settings.x_browser_state_file)
+
+    if not state_file.exists():
+        typer.echo(
+            f"EXPIRED — archivo de sesion no encontrado: {state_file}. "
+            "Ejecuta: python -m app.pipelines.x_publish browser-auth-capture",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    try:
+        valid = x_browser_auth.verify_session(state_file=state_file)
+    except Exception as exc:
+        typer.echo(f"ERROR — Playwright fallo durante la verificacion: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+
+    if valid:
+        typer.echo("OK — sesion valida")
+    else:
+        typer.echo(
+            "EXPIRED — sesion caducada o invalida. Ejecuta: python -m app.pipelines.x_publish browser-auth-capture",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+
 telegram_app = typer.Typer(
     add_completion=False,
     help="Comandos de configuracion y prueba de notificaciones Telegram.",
