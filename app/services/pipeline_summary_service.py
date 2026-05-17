@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import logging
 from collections import Counter
-from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta, timezone
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -51,17 +51,17 @@ class PublicationSummary:
     """Summary of published candidates and their X-publication state."""
 
     window_hours: int
-    published_to_x: int            # browser: ref present
-    skipped_stale: int             # pre_browser:skipped ref
-    publication_errors: int        # external_publication_error not null
-    pending_dispatch: int          # published, no ref, no error
+    published_to_x: int  # browser: ref present
+    skipped_stale: int  # pre_browser:skipped ref
+    publication_errors: int  # external_publication_error not null
+    pending_dispatch: int  # published, no ref, no error
     error_entries: list[PublicationCandidateEntry]
     pending_entries: list[PublicationCandidateEntry]
 
 
 @dataclass
 class PipelineAlert:
-    level: str   # "ERROR" | "WARNING"
+    level: str  # "ERROR" | "WARNING"
     code: str
     message: str
 
@@ -124,15 +124,21 @@ class PipelineSummaryService:
     # ------------------------------------------------------------------
 
     def _build_blocked_summary(self, window_start: datetime) -> BlockedCandidateSummary:
-        rows = self.session.execute(
-            select(ContentCandidate).where(
-                ContentCandidate.status.in_([
-                    str(ContentCandidateStatus.DRAFT),
-                    str(ContentCandidateStatus.REJECTED),
-                ]),
-                ContentCandidate.created_at >= window_start,
+        rows = (
+            self.session.execute(
+                select(ContentCandidate).where(
+                    ContentCandidate.status.in_(
+                        [
+                            str(ContentCandidateStatus.DRAFT),
+                            str(ContentCandidateStatus.REJECTED),
+                        ]
+                    ),
+                    ContentCandidate.created_at >= window_start,
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         draft_count = 0
         rejected_count = 0
@@ -175,12 +181,16 @@ class PipelineSummaryService:
     def _build_publication_summary(self, window_start: datetime) -> PublicationSummary:
         window_hours = int((utcnow() - window_start).total_seconds() // 3600)
 
-        rows = self.session.execute(
-            select(ContentCandidate).where(
-                ContentCandidate.status == str(ContentCandidateStatus.PUBLISHED),
-                ContentCandidate.published_at >= window_start,
+        rows = (
+            self.session.execute(
+                select(ContentCandidate).where(
+                    ContentCandidate.status == str(ContentCandidateStatus.PUBLISHED),
+                    ContentCandidate.published_at >= window_start,
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         published_to_x = 0
         skipped_stale = 0
@@ -236,56 +246,66 @@ class PipelineSummaryService:
         if publication.publication_errors > 0:
             ids = ", ".join(str(e.id) for e in publication.error_entries[:5])
             suffix = f" ... (+{publication.publication_errors - 5} mas)" if publication.publication_errors > 5 else ""
-            alerts.append(PipelineAlert(
-                level="ERROR",
-                code="publication_errors",
-                message=(
-                    f"{publication.publication_errors} candidato(s) con error de publicacion en X "
-                    f"en las ultimas {publication.window_hours}h. IDs: {ids}{suffix}"
-                ),
-            ))
+            alerts.append(
+                PipelineAlert(
+                    level="ERROR",
+                    code="publication_errors",
+                    message=(
+                        f"{publication.publication_errors} candidato(s) con error de publicacion en X "
+                        f"en las ultimas {publication.window_hours}h. IDs: {ids}{suffix}"
+                    ),
+                )
+            )
 
         # Alert: too many rejections in the last 24h
         last_24h = utcnow() - timedelta(hours=24)
-        recent_rejected = self.session.execute(
-            select(ContentCandidate).where(
-                ContentCandidate.status == str(ContentCandidateStatus.REJECTED),
-                ContentCandidate.created_at >= last_24h,
+        recent_rejected = (
+            self.session.execute(
+                select(ContentCandidate).where(
+                    ContentCandidate.status == str(ContentCandidateStatus.REJECTED),
+                    ContentCandidate.created_at >= last_24h,
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         if len(recent_rejected) >= self.rejection_alert_threshold:
-            alerts.append(PipelineAlert(
-                level="WARNING",
-                code="high_rejection_rate",
-                message=(
-                    f"{len(recent_rejected)} candidato(s) rechazados en las ultimas 24h "
-                    f"(umbral: {self.rejection_alert_threshold})."
-                ),
-            ))
+            alerts.append(
+                PipelineAlert(
+                    level="WARNING",
+                    code="high_rejection_rate",
+                    message=(
+                        f"{len(recent_rejected)} candidato(s) rechazados en las ultimas 24h "
+                        f"(umbral: {self.rejection_alert_threshold})."
+                    ),
+                )
+            )
 
         # Alert: stuck published candidates (published >2h ago, no ref, no error)
         stuck_cutoff = utcnow() - timedelta(hours=_STUCK_PUBLISHED_HOURS)
         stuck = [
-            e for e in publication.pending_entries
-            if e.published_at is not None
-            and _ensure_utc(e.published_at) < stuck_cutoff
+            e
+            for e in publication.pending_entries
+            if e.published_at is not None and _ensure_utc(e.published_at) < stuck_cutoff
         ]
         if stuck:
             ids = ", ".join(str(e.id) for e in stuck[:5])
             suffix = f" ... (+{len(stuck) - 5} mas)" if len(stuck) > 5 else ""
-            alerts.append(PipelineAlert(
-                level="WARNING",
-                code="stuck_published",
-                message=(
-                    f"{len(stuck)} candidato(s) en estado 'published' hace mas de "
-                    f"{_STUCK_PUBLISHED_HOURS}h sin ref ni error de publicacion. IDs: {ids}{suffix}"
-                ),
-            ))
+            alerts.append(
+                PipelineAlert(
+                    level="WARNING",
+                    code="stuck_published",
+                    message=(
+                        f"{len(stuck)} candidato(s) en estado 'published' hace mas de "
+                        f"{_STUCK_PUBLISHED_HOURS}h sin ref ni error de publicacion. IDs: {ids}{suffix}"
+                    ),
+                )
+            )
 
         return alerts
 
 
 def _ensure_utc(dt: datetime) -> datetime:
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+        return dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)

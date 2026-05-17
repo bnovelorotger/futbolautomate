@@ -537,7 +537,9 @@ class MilestoneDetectorService:
         return candidates[0][3]
 
     def _detect_round_biggest_win(self, latest_round_matches: list[CompetitionMatchView]) -> MilestoneStory | None:
-        valid = [match for match in latest_round_matches if match.home_score is not None and match.away_score is not None]
+        valid = [
+            match for match in latest_round_matches if match.home_score is not None and match.away_score is not None
+        ]
         if not valid:
             return None
         ordered = sorted(
@@ -575,7 +577,9 @@ class MilestoneDetectorService:
         )
 
     def _detect_round_goals_record(self, latest_round_matches: list[CompetitionMatchView]) -> MilestoneStory | None:
-        valid = [match for match in latest_round_matches if match.home_score is not None and match.away_score is not None]
+        valid = [
+            match for match in latest_round_matches if match.home_score is not None and match.away_score is not None
+        ]
         if not valid:
             return None
         total_goals = sum(int(match.home_score or 0) + int(match.away_score or 0) for match in valid)

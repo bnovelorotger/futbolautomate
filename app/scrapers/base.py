@@ -32,9 +32,7 @@ class BaseScraper(ABC):
             raise ConfigurationError(f"Competición desconocida: {competition_code}")
         source_mapping = competition.sources.get(self.source_name)
         if source_mapping is None:
-            raise ConfigurationError(
-                f"La competición {competition_code} no está configurada para {self.source_name}"
-            )
+            raise ConfigurationError(f"La competición {competition_code} no está configurada para {self.source_name}")
         if not source_mapping.enabled:
             raise ConfigurationError(
                 f"La competición {competition_code} tiene {self.source_name} deshabilitada para scraping automático"
@@ -50,9 +48,7 @@ class BaseScraper(ABC):
         fallback = self.default_url_for_target(context.target)
         if fallback:
             return fallback
-        raise ConfigurationError(
-            f"No hay URL configurada para {self.source_name}/{context.target}"
-        )
+        raise ConfigurationError(f"No hay URL configurada para {self.source_name}/{context.target}")
 
     def default_url_for_target(self, target: TargetType) -> str | None:
         return None

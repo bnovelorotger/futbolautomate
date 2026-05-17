@@ -57,10 +57,7 @@ class SocialEnricherService:
         if not team_names:
             return text
 
-        existing_handles = {
-            handle.lower()
-            for handle in _HANDLE_PATTERN.findall(text)
-        }
+        existing_handles = {handle.lower() for handle in _HANDLE_PATTERN.findall(text)}
         mention_budget = max(0, self.settings.max_mentions_per_post - len(existing_handles))
         if mention_budget <= 0:
             return text
@@ -143,9 +140,7 @@ class SocialEnricherService:
             if isinstance(rows, list):
                 ordered_rows = sorted(rows, key=lambda row: int(row.get("position") or 999))
                 return self._unique(
-                    self._string(row.get("team"))
-                    for row in ordered_rows[:3]
-                    if self._string(row.get("team"))
+                    self._string(row.get("team")) for row in ordered_rows[:3] if self._string(row.get("team"))
                 )
         if content_type == ContentType.PREVIEW:
             featured = source_payload.get("featured_match")
@@ -204,7 +199,7 @@ class SocialEnricherService:
         position = text.find(needle)
         if position < 0:
             return text, False
-        return f"{text[:position]}{replacement}{text[position + len(needle):]}", True
+        return f"{text[:position]}{replacement}{text[position + len(needle) :]}", True
 
     def _unique(self, values) -> list[str]:
         seen: set[str] = set()

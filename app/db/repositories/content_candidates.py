@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 
@@ -14,8 +14,8 @@ def _normalized_datetime(value: datetime | None) -> datetime | None:
     if value is None:
         return None
     if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def _preview_anchor(payload_json: dict | None) -> tuple[str, str, str, str] | None:
@@ -57,15 +57,19 @@ class ContentCandidateRepository(BaseRepository[ContentCandidate]):
         anchor = _preview_anchor(payload.get("payload_json"))
         if anchor is None:
             return None
-        rows = self.session.execute(
-            select(ContentCandidate)
-            .where(
-                ContentCandidate.competition_slug == payload["competition_slug"],
-                ContentCandidate.content_type == str(ContentType.PREVIEW),
-                ContentCandidate.status == str(ContentCandidateStatus.DRAFT),
+        rows = (
+            self.session.execute(
+                select(ContentCandidate)
+                .where(
+                    ContentCandidate.competition_slug == payload["competition_slug"],
+                    ContentCandidate.content_type == str(ContentType.PREVIEW),
+                    ContentCandidate.status == str(ContentCandidateStatus.DRAFT),
+                )
+                .order_by(ContentCandidate.created_at.desc(), ContentCandidate.id.desc())
             )
-            .order_by(ContentCandidate.created_at.desc(), ContentCandidate.id.desc())
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         for row in rows:
             if _preview_anchor(row.payload_json) == anchor:
                 return row

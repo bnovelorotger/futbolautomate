@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, time
 from functools import lru_cache
 from pathlib import Path
-from typing import Callable
 from zoneinfo import ZoneInfo
 
 from app.core.config import Settings, get_settings
@@ -100,10 +100,7 @@ class XPublicationScheduler:
 
     def is_scheduled_now(self, candidate: ContentCandidate, *, now: datetime | None = None) -> bool:
         current = now or self.current_local_time()
-        if current.tzinfo is None:
-            current = current.replace(tzinfo=self.timezone)
-        else:
-            current = current.astimezone(self.timezone)
+        current = current.replace(tzinfo=self.timezone) if current.tzinfo is None else current.astimezone(self.timezone)
 
         day_key = _WEEKDAY_TO_KEY[current.weekday()]
         day_schedule = self.schedule.day(day_key)

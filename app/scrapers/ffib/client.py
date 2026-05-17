@@ -15,4 +15,3 @@ class FFIBClient(HTTPClient):
             settings=settings,
             headers=source.headers,
         )
-

@@ -114,9 +114,7 @@ def _render_all_unpublished(rows: list) -> str:
     lines.append(header)
     lines.append("-" * len(header))
     for row in rows:
-        published_at_str = (
-            row.published_at.strftime("%Y-%m-%d %H:%M UTC") if row.published_at else "-"
-        )
+        published_at_str = row.published_at.strftime("%Y-%m-%d %H:%M UTC") if row.published_at else "-"
         lines.append(
             f"{row.id:<5} | {str(row.content_type):<25} | {row.competition_slug:<25} | {published_at_str:<20} | {row.excerpt}"
         )
@@ -200,7 +198,9 @@ def publish_candidate(
 def publish_pending(
     limit: int = typer.Option(20, min=1, help="Numero maximo de piezas"),
     dry_run: bool = typer.Option(False, "--dry-run", help="No persiste external_publication_ref"),
-    stagger: int = typer.Option(None, "--stagger", help="Segundos entre tweets (por defecto: x_browser_stagger_seconds de settings)"),
+    stagger: int = typer.Option(
+        None, "--stagger", help="Segundos entre tweets (por defecto: x_browser_stagger_seconds de settings)"
+    ),
     as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
 ) -> None:
     """Alias legacy de browser-pending; usa el mismo backend browser."""
@@ -220,7 +220,12 @@ def typefully_pending(
         service = TypefullyPublicationService(session)
         try:
             result = service.publish_pending(limit=limit, dry_run=dry_run)
-        except (TypefullyApiError, TypefullyPublisherValidationError, ConfigurationError, InvalidStateTransitionError) as exc:
+        except (
+            TypefullyApiError,
+            TypefullyPublisherValidationError,
+            ConfigurationError,
+            InvalidStateTransitionError,
+        ) as exc:
             _exit_error(str(exc))
             return
         if as_json:
@@ -260,7 +265,9 @@ def browser_auth_verify() -> None:
 def browser_pending(
     limit: int = typer.Option(20, min=1, help="Numero maximo de piezas"),
     dry_run: bool = typer.Option(False, "--dry-run", help="No persiste external_publication_ref"),
-    stagger: int = typer.Option(None, "--stagger", help="Segundos entre tweets (por defecto: x_browser_stagger_seconds de settings)"),
+    stagger: int = typer.Option(
+        None, "--stagger", help="Segundos entre tweets (por defecto: x_browser_stagger_seconds de settings)"
+    ),
     as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
 ) -> None:
     """Publica piezas pendientes en X via automatizacion de browser (sin API key)."""

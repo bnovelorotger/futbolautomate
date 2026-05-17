@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session
@@ -25,8 +25,8 @@ def _excerpt(text: str, limit: int = 90) -> str:
 
 def _normalized_datetime(value: datetime) -> datetime:
     if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def is_candidate_ready_for_dispatch(
@@ -52,9 +52,7 @@ def validate_candidate_can_publish(candidate: ContentCandidate) -> None:
     if status == ContentCandidateStatus.PUBLISHED or candidate.published_at is not None:
         raise InvalidStateTransitionError(f"El candidato {candidate.id} ya esta publicado")
     if status != ContentCandidateStatus.APPROVED:
-        raise InvalidStateTransitionError(
-            f"Solo se pueden publicar candidatos aprobados. Estado actual: {status}"
-        )
+        raise InvalidStateTransitionError(f"Solo se pueden publicar candidatos aprobados. Estado actual: {status}")
 
 
 class PublicationDispatcherService:
@@ -172,14 +170,18 @@ class PublicationDispatcherService:
         if not candidate_ids:
             return PublicationDispatchResult(dry_run=dry_run, dispatched_count=0, rows=[])
         dispatch_at = published_at or utcnow()
-        rows = self.session.execute(
-            select(ContentCandidate)
-            .where(ContentCandidate.id.in_(candidate_ids))
-            .order_by(
-                ContentCandidate.priority.desc(),
-                ContentCandidate.created_at.asc(),
+        rows = (
+            self.session.execute(
+                select(ContentCandidate)
+                .where(ContentCandidate.id.in_(candidate_ids))
+                .order_by(
+                    ContentCandidate.priority.desc(),
+                    ContentCandidate.created_at.asc(),
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         if only_ready:
             rows = [
                 row
@@ -224,25 +226,31 @@ class PublicationDispatcherService:
 
     def summary(self, *, now: datetime | None = None) -> PublicationDispatchSummary:
         reference = now or utcnow()
-        total_ready = self.session.scalar(
-            select(func.count())
-            .select_from(ContentCandidate)
-            .where(
-                ContentCandidate.status == str(ContentCandidateStatus.APPROVED),
-                ContentCandidate.published_at.is_(None),
-                or_(ContentCandidate.scheduled_at.is_(None), ContentCandidate.scheduled_at <= reference),
+        total_ready = (
+            self.session.scalar(
+                select(func.count())
+                .select_from(ContentCandidate)
+                .where(
+                    ContentCandidate.status == str(ContentCandidateStatus.APPROVED),
+                    ContentCandidate.published_at.is_(None),
+                    or_(ContentCandidate.scheduled_at.is_(None), ContentCandidate.scheduled_at <= reference),
+                )
             )
-        ) or 0
-        total_approved_future = self.session.scalar(
-            select(func.count())
-            .select_from(ContentCandidate)
-            .where(
-                ContentCandidate.status == str(ContentCandidateStatus.APPROVED),
-                ContentCandidate.published_at.is_(None),
-                ContentCandidate.scheduled_at.is_not(None),
-                ContentCandidate.scheduled_at > reference,
+            or 0
+        )
+        total_approved_future = (
+            self.session.scalar(
+                select(func.count())
+                .select_from(ContentCandidate)
+                .where(
+                    ContentCandidate.status == str(ContentCandidateStatus.APPROVED),
+                    ContentCandidate.published_at.is_(None),
+                    ContentCandidate.scheduled_at.is_not(None),
+                    ContentCandidate.scheduled_at > reference,
+                )
             )
-        ) or 0
+            or 0
+        )
         status_rows = self.session.execute(
             select(ContentCandidate.status, func.count())
             .group_by(ContentCandidate.status)

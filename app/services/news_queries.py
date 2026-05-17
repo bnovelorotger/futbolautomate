@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
@@ -42,8 +42,8 @@ class NewsQueryService:
         current_date = reference_date or datetime.now(madrid_tz).date()
         start_local = datetime.combine(current_date, time.min, tzinfo=madrid_tz)
         end_local = start_local + timedelta(days=1)
-        start_utc = start_local.astimezone(timezone.utc)
-        end_utc = end_local.astimezone(timezone.utc)
+        start_utc = start_local.astimezone(UTC)
+        end_utc = end_local.astimezone(UTC)
 
         rows = self.session.execute(
             self._base_query()

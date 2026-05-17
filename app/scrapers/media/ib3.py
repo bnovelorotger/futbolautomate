@@ -40,9 +40,7 @@ class IB3Scraper(BaseScraper):
                     source_name=self.source_name,
                     source_url=absolutize(self.source_definition.base_url, link.get("href")) or "",
                     title=title.get_text(" ", strip=True),
-                    summary=article.select_one("p").get_text(" ", strip=True)
-                    if article.select_one("p")
-                    else None,
+                    summary=article.select_one("p").get_text(" ", strip=True) if article.select_one("p") else None,
                     scraped_at=utcnow(),
                     news_type=NewsType.OTHER,
                 )

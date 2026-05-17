@@ -6,7 +6,6 @@ from app.normalizers.text import normalize_token
 from app.schemas.match import MatchRecord
 from app.schemas.news import NewsRecord
 
-
 NEWS_KEYWORDS = {
     NewsType.PREVIEW: ("previa", "horario", "donde ver"),
     NewsType.CHRONICLE: ("cronica", "cronica del partido", "resumen"),
@@ -21,9 +20,7 @@ NEWS_KEYWORDS = {
 
 
 def validate_match_record(record: MatchRecord) -> MatchRecord:
-    if record.status == MatchStatus.FINISHED and (
-        record.home_score is None or record.away_score is None
-    ):
+    if record.status == MatchStatus.FINISHED and (record.home_score is None or record.away_score is None):
         raise ValueError(f"Match finished without score: {record.source_url}")
     return record
 

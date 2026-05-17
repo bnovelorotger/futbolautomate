@@ -17,25 +17,26 @@ from app.core.editorial_schedule import (
 )
 from app.core.enums import ContentType, EditorialPlanningContent
 from app.schemas.editorial_content import ContentCandidateDraft
-from app.schemas.editorial_summary import CompetitionEditorialSummary
-from app.schemas.race_narrative import RaceNarrativeSeasonContext
 from app.schemas.editorial_planner import (
     EditorialCampaignGenerationResult,
     EditorialCampaignPlan,
     EditorialCampaignTask,
     EditorialGeneratedTaskResult,
-    EditorialWeekPlan,
     EditorialWeeklySchedule,
+    EditorialWeekPlan,
 )
-from app.services.editorial_content_generator import EditorialContentGenerator
+from app.schemas.editorial_summary import CompetitionEditorialSummary
+from app.schemas.race_narrative import RaceNarrativeSeasonContext
 from app.services.competition_queries import CompetitionQueryService
+from app.services.editorial_content_generator import EditorialContentGenerator
+from app.services.editorial_narratives import EditorialNarrativesService
+from app.services.editorial_viral_stories import EditorialViralStoriesService
 from app.services.match_impact_calculator import MatchImpactCalculatorService
+from app.services.match_importance import MatchImportanceService
 from app.services.milestone_detector import MilestoneDetectorService
 from app.services.race_narrative_generator import RaceNarrativeService
 from app.services.results_roundup import ResultsRoundupService
 from app.services.standings_roundup import StandingsRoundupService
-from app.services.match_importance import MatchImportanceService
-from app.services.editorial_narratives import EditorialNarrativesService
 from app.services.team_analytics import TeamAnalyticsService
 from app.services.top_scorer_tracker import (
     MIN_TOP_SCORER_GOAL_EVENTS,
@@ -43,7 +44,6 @@ from app.services.top_scorer_tracker import (
     MIN_TOP_SCORER_SCORER_MATCHES,
     TopScorerTrackerService,
 )
-from app.services.editorial_viral_stories import EditorialViralStoriesService
 from app.utils.hashing import stable_hash
 
 _PLANNING_CONTENT_MAP = {
@@ -183,9 +183,11 @@ class EditorialPlannerService:
                     stats = self.results_roundup.store_candidates(selected_candidates)
                 elif task.planning_type == EditorialPlanningContent.STANDINGS_ROUNDUP:
                     if competition_slug not in generated_standings_roundup_cache:
-                        generated_standings_roundup_cache[competition_slug] = self.standings_roundup.build_candidate_drafts(
-                            competition_slug,
-                            reference_date=plan.date,
+                        generated_standings_roundup_cache[competition_slug] = (
+                            self.standings_roundup.build_candidate_drafts(
+                                competition_slug,
+                                reference_date=plan.date,
+                            )
                         )
                         self._validate_candidates_for_competition(
                             competition_slug,
@@ -352,9 +354,7 @@ class EditorialPlannerService:
         candidates: list[ContentCandidateDraft],
     ) -> None:
         mismatched = [
-            candidate.competition_slug
-            for candidate in candidates
-            if candidate.competition_slug != competition_slug
+            candidate.competition_slug for candidate in candidates if candidate.competition_slug != competition_slug
         ]
         if mismatched:
             raise ValueError(
@@ -379,8 +379,7 @@ class EditorialPlannerService:
             source_payload = row.model_dump(mode="json")
             source_payload["teams"] = [row.home_team, row.away_team]
             content_key = (
-                f"match_impact_scenario:{competition_slug}:{row.home_team}:{row.away_team}:"
-                f"{reference_date.isoformat()}"
+                f"match_impact_scenario:{competition_slug}:{row.home_team}:{row.away_team}:{reference_date.isoformat()}"
             )
             candidates.append(
                 ContentCandidateDraft(
@@ -658,11 +657,7 @@ class EditorialPlannerService:
         self,
         standings: list[Any],
     ) -> RaceNarrativeSeasonContext | None:
-        played_values = [
-            int(row.played)
-            for row in standings
-            if getattr(row, "played", None) is not None
-        ]
+        played_values = [int(row.played) for row in standings if getattr(row, "played", None) is not None]
         if not played_values:
             return None
         total_teams = len(standings)
@@ -680,11 +675,7 @@ class EditorialPlannerService:
         analytics_map: dict[str, Any],
     ) -> dict[str, Any]:
         payload = dict(source_payload)
-        teams = [
-            dict(team)
-            for team in list(source_payload.get("teams") or [])
-            if isinstance(team, dict)
-        ]
+        teams = [dict(team) for team in list(source_payload.get("teams") or []) if isinstance(team, dict)]
         analytics_payload: list[dict[str, Any]] = []
         for team in teams:
             team_name = team.get("team")
@@ -713,11 +704,7 @@ class EditorialPlannerService:
         source_payload: dict[str, Any],
         analytics_map: dict[str, Any],
     ) -> str:
-        teams = [
-            dict(team)
-            for team in list(source_payload.get("teams") or [])
-            if isinstance(team, dict)
-        ]
+        teams = [dict(team) for team in list(source_payload.get("teams") or []) if isinstance(team, dict)]
         note = self._race_narrative_analytics_note(teams, analytics_map)
         if note is None:
             return base_text
@@ -739,7 +726,8 @@ class EditorialPlannerService:
                 continue
             if (
                 best_team_analytics is None
-                or analytics.recent_trend.recent_points_per_game > best_team_analytics.recent_trend.recent_points_per_game
+                or analytics.recent_trend.recent_points_per_game
+                > best_team_analytics.recent_trend.recent_points_per_game
             ):
                 best_team_name = team_name
                 best_team_analytics = analytics

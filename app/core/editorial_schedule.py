@@ -6,7 +6,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from app.core.catalog import load_competition_catalog
-from app.schemas.editorial_planner import EditorialWeeklySchedule
+from app.schemas.editorial_planner import EditorialScheduleRule, EditorialWeeklySchedule
 
 EDITORIAL_WEEKDAY_ORDER = (
     "monday",
@@ -70,15 +70,13 @@ def editorial_weekday_label(value: str) -> str:
 
 def normalize_editorial_schedule(schedule: EditorialWeeklySchedule) -> EditorialWeeklySchedule:
     competition_catalog = load_competition_catalog()
-    normalized_plan = {weekday: [] for weekday in EDITORIAL_WEEKDAY_ORDER}
+    normalized_plan: dict[str, list[EditorialScheduleRule]] = {weekday: [] for weekday in EDITORIAL_WEEKDAY_ORDER}
 
     for weekday, rules in schedule.weekly_plan.items():
         canonical_weekday = canonical_editorial_weekday(weekday)
         for rule in rules:
             if rule.competition_slug not in competition_catalog:
-                raise ValueError(
-                    f"Competicion desconocida en el planning editorial: {rule.competition_slug}"
-                )
+                raise ValueError(f"Competicion desconocida en el planning editorial: {rule.competition_slug}")
             normalized_plan[canonical_weekday].append(rule)
 
     return schedule.model_copy(update={"weekly_plan": normalized_plan})

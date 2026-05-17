@@ -198,7 +198,9 @@ class EditorialFormatterService:
                 for row in source_payload["ranking"]
             ]
         elif content_type == ContentType.MATCH_RESULT:
-            normalized_source_payload = self._normalize_match(source_payload) if source_payload else normalized_source_payload
+            normalized_source_payload = (
+                self._normalize_match(source_payload) if source_payload else normalized_source_payload
+            )
 
         normalized_payload_json["source_payload"] = normalized_source_payload
         return normalized_text_draft, normalized_payload_json
@@ -214,7 +216,9 @@ class EditorialFormatterService:
         source_payload = payload_json.get("source_payload", {}) if isinstance(payload_json, dict) else {}
         competition_name = str(payload_json.get("competition_name") or self._competition_name(competition_slug))
         if content_type == ContentType.RESULTS_ROUNDUP:
-            return self.format_results_summary(competition_slug=competition_slug, competition_name=competition_name, source_payload=source_payload)
+            return self.format_results_summary(
+                competition_slug=competition_slug, competition_name=competition_name, source_payload=source_payload
+            )
         if content_type in {ContentType.STANDINGS, ContentType.STANDINGS_ROUNDUP}:
             return self.format_standings_summary(
                 competition_slug=competition_slug,
@@ -230,9 +234,13 @@ class EditorialFormatterService:
                 content_type=content_type,
             )
         if content_type == ContentType.RANKING:
-            return self.format_ranking_summary(competition_slug=competition_slug, competition_name=competition_name, source_payload=source_payload)
+            return self.format_ranking_summary(
+                competition_slug=competition_slug, competition_name=competition_name, source_payload=source_payload
+            )
         if content_type == ContentType.FORM_RANKING:
-            return self.format_form_ranking(competition_slug=competition_slug, competition_name=competition_name, source_payload=source_payload)
+            return self.format_form_ranking(
+                competition_slug=competition_slug, competition_name=competition_name, source_payload=source_payload
+            )
         if content_type in NARRATIVE_TYPES:
             return self.format_narrative(
                 competition_slug=competition_slug,
@@ -517,7 +525,9 @@ class EditorialFormatterService:
             "Partidos:",
         ]
         for match in matches:
-            lines.append(f"{self._string(match.get('home_team')) or '-'} vs {self._string(match.get('away_team')) or '-'}")
+            lines.append(
+                f"{self._string(match.get('home_team')) or '-'} vs {self._string(match.get('away_team')) or '-'}"
+            )
         lines.extend(
             [
                 "",
@@ -560,11 +570,18 @@ class EditorialFormatterService:
         mention_limit: int,
     ) -> str:
         mention_map = self._mention_map([row["team"] for row in ranking_rows], competition_slug, limit=mention_limit)
-        lines = [self._ranking_title(competition_slug=competition_slug, competition_name=competition_name, ranking_rows=ranking_rows), ""]
+        lines = [
+            self._ranking_title(
+                competition_slug=competition_slug, competition_name=competition_name, ranking_rows=ranking_rows
+            ),
+            "",
+        ]
         for row in ranking_rows:
             team_label = self._render_team_label(row["team"], mention_map)
             value = row.get("value")
-            lines.append(f"{row['title']}: {team_label}" if value is None else f"{row['title']}: {team_label} - {value}")
+            lines.append(
+                f"{row['title']}: {team_label}" if value is None else f"{row['title']}: {team_label} - {value}"
+            )
         lines.extend(["", self._hashtags_line(competition_slug)])
         return self._compact_blank_lines("\n".join(lines))
 
@@ -696,9 +713,13 @@ class EditorialFormatterService:
         if content_type == ContentType.RESULTS_ROUNDUP:
             return self._viral_results_summary(competition_slug, competition_name, source_payload, fallback_text)
         if content_type in {ContentType.STANDINGS, ContentType.STANDINGS_ROUNDUP}:
-            return self._viral_standings_summary(competition_slug, competition_name, source_payload, fallback_text, content_type)
+            return self._viral_standings_summary(
+                competition_slug, competition_name, source_payload, fallback_text, content_type
+            )
         if content_type in {ContentType.PREVIEW, ContentType.FEATURED_MATCH_PREVIEW}:
-            return self._viral_preview_summary(competition_slug, competition_name, source_payload, fallback_text, content_type)
+            return self._viral_preview_summary(
+                competition_slug, competition_name, source_payload, fallback_text, content_type
+            )
         if content_type == ContentType.RANKING:
             return self._viral_ranking_summary(competition_slug, competition_name, source_payload, fallback_text)
         if content_type == ContentType.FORM_RANKING:
@@ -946,11 +967,15 @@ class EditorialFormatterService:
             ),
             "",
         ]
-        insight_lines = [line for line in (
-            self._leader_insight_line(table_insights, mention_map),
-            self._playoff_insight_line(table_insights, mention_map),
-            self._relegation_insight_line(table_insights, mention_map),
-        ) if line]
+        insight_lines = [
+            line
+            for line in (
+                self._leader_insight_line(table_insights, mention_map),
+                self._playoff_insight_line(table_insights, mention_map),
+                self._relegation_insight_line(table_insights, mention_map),
+            )
+            if line
+        ]
         if not insight_lines:
             return None
 
@@ -1013,7 +1038,9 @@ class EditorialFormatterService:
             "Partidos:",
         ]
         for match in matches:
-            lines.append(f"{self._string(match.get('home_team')) or '-'} vs {self._string(match.get('away_team')) or '-'}")
+            lines.append(
+                f"{self._string(match.get('home_team')) or '-'} vs {self._string(match.get('away_team')) or '-'}"
+            )
         lines.extend(
             [
                 "",
@@ -1223,7 +1250,9 @@ class EditorialFormatterService:
                     if not isinstance(event_payload, dict):
                         continue
                     signature = f"event:{self._string(event_payload.get('team')) or '-'}:{self._string(event_payload.get('event_type')) or '-'}"
-                    insight_rows.append((key, signature, self._table_event_result_line(event_payload, competition_slug, mention_limit)))
+                    insight_rows.append(
+                        (key, signature, self._table_event_result_line(event_payload, competition_slug, mention_limit))
+                    )
                 continue
             payload = results_insights.get(key)
             if not isinstance(payload, dict):
@@ -1261,7 +1290,13 @@ class EditorialFormatterService:
                 line = f"{line} | {context_suffix}"
             return line
         if leader_team is None:
-            leader_team = home_team if payload.get("home_position") == 1 else away_team if payload.get("away_position") == 1 else None
+            leader_team = (
+                home_team
+                if payload.get("home_position") == 1
+                else away_team
+                if payload.get("away_position") == 1
+                else None
+            )
         if leader_team is None:
             return None
         opponent = away_team if leader_team == home_team else home_team
@@ -1287,7 +1322,9 @@ class EditorialFormatterService:
             f"{score} {self._render_team_label(away_team, mention_map)}"
         )
 
-    def _biggest_margin_result_line(self, payload: dict[str, Any], competition_slug: str, mention_limit: int) -> str | None:
+    def _biggest_margin_result_line(
+        self, payload: dict[str, Any], competition_slug: str, mention_limit: int
+    ) -> str | None:
         margin = payload.get("goal_margin")
         if not isinstance(margin, int) or margin <= 1:
             return None
@@ -1302,7 +1339,9 @@ class EditorialFormatterService:
             f"{score} {self._render_team_label(away_team, mention_map)}"
         )
 
-    def _highest_scoring_result_line(self, payload: dict[str, Any], competition_slug: str, mention_limit: int) -> str | None:
+    def _highest_scoring_result_line(
+        self, payload: dict[str, Any], competition_slug: str, mention_limit: int
+    ) -> str | None:
         total_goals = payload.get("total_goals")
         if not isinstance(total_goals, int) or total_goals < 3:
             return None
@@ -1317,7 +1356,9 @@ class EditorialFormatterService:
             f"{score} {self._render_team_label(away_team, mention_map)}"
         )
 
-    def _table_event_result_line(self, payload: dict[str, Any], competition_slug: str, mention_limit: int) -> str | None:
+    def _table_event_result_line(
+        self, payload: dict[str, Any], competition_slug: str, mention_limit: int
+    ) -> str | None:
         team = self._string(payload.get("team"))
         event_type = self._string(payload.get("event_type"))
         if team is None or event_type is None:
@@ -1441,7 +1482,11 @@ class EditorialFormatterService:
         standings_text: str | None,
         narrative_text: str | None,
     ) -> list[MatchdayThreadPart]:
-        parts = [MatchdayThreadPart(slot="header", text="\n".join([part for part in (competition_name, group_label) if part]))]
+        parts = [
+            MatchdayThreadPart(
+                slot="header", text="\n".join([part for part in (competition_name, group_label) if part])
+            )
+        ]
         if results_text:
             parts.append(MatchdayThreadPart(slot="results", text=results_text))
         if standings_text:
@@ -1505,7 +1550,9 @@ class EditorialFormatterService:
             compact=compact,
         )
 
-    def _ranking_title(self, *, competition_slug: str, competition_name: str, ranking_rows: list[dict[str, Any]]) -> str:
+    def _ranking_title(
+        self, *, competition_slug: str, competition_name: str, ranking_rows: list[dict[str, Any]]
+    ) -> str:
         return build_ranking_title(
             competition_slug=competition_slug,
             competition_name=competition_name,
@@ -1585,7 +1632,9 @@ class EditorialFormatterService:
             if team_name:
                 normalized[field] = normalize_team_name(team_name)
         if isinstance(normalized.get("teams"), list):
-            normalized["teams"] = [normalize_team_name(item) if isinstance(item, str) else item for item in normalized["teams"]]
+            normalized["teams"] = [
+                normalize_team_name(item) if isinstance(item, str) else item for item in normalized["teams"]
+            ]
         return normalized
 
     def _normalize_matches(self, value: Any) -> list[dict[str, Any]] | Any:
@@ -1623,7 +1672,13 @@ class EditorialFormatterService:
         if isinstance(featured_match, dict):
             return [featured_match]
         if self._string(source_payload.get("home_team")) and self._string(source_payload.get("away_team")):
-            return [{"home_team": source_payload.get("home_team"), "away_team": source_payload.get("away_team"), "round_name": source_payload.get("round_name")}]
+            return [
+                {
+                    "home_team": source_payload.get("home_team"),
+                    "away_team": source_payload.get("away_team"),
+                    "round_name": source_payload.get("round_name"),
+                }
+            ]
         return []
 
     def _featured_match(self, source_payload: dict[str, Any], matches: list[dict[str, Any]]) -> dict[str, Any] | None:

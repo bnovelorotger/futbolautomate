@@ -45,4 +45,3 @@ class ScrapeResult(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     stats: IngestStats = Field(default_factory=IngestStats)
     status: RunStatus = RunStatus.SUCCESS
-

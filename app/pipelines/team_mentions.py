@@ -42,8 +42,7 @@ def list_mentions(
         else:
             for row in payload:
                 typer.echo(
-                    f"{row['id']:>3} | {row['competition_slug'] or '-'} | "
-                    f"{row['team_name']} | {row['twitter_handle']}"
+                    f"{row['id']:>3} | {row['competition_slug'] or '-'} | {row['team_name']} | {row['twitter_handle']}"
                 )
 
 
@@ -58,12 +57,16 @@ def upsert_mention(
     if handle and not handle.startswith("@"):
         handle = f"@{handle}"
     with session_scope() as session:
-        row = session.execute(
-            select(TeamMention).where(
-                TeamMention.team_name == team_name,
-                TeamMention.competition_slug == competition,
+        row = (
+            session.execute(
+                select(TeamMention).where(
+                    TeamMention.team_name == team_name,
+                    TeamMention.competition_slug == competition,
+                )
             )
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
         if row is None:
             row = TeamMention(
                 team_name=team_name,

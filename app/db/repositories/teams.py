@@ -25,4 +25,3 @@ class TeamRepository(BaseRepository[Team]):
                 updated = True
         self.session.flush()
         return team, updated
-

@@ -12,9 +12,7 @@ def render_approval_rows(rows: list[EditorialApprovalCandidateView]) -> str:
         return "sin drafts evaluables"
     lines: list[str] = []
     for row in rows:
-        autoapproved = (
-            row.autoapproved_at.isoformat() if row.autoapproved_at else "-"
-        )
+        autoapproved = row.autoapproved_at.isoformat() if row.autoapproved_at else "-"
         lines.append(
             f"{row.id:>3} | {row.competition_slug} | {row.content_type} | priority={row.priority} | "
             f"status={row.status} | autoapprovable={str(row.autoapprovable).lower()} | "

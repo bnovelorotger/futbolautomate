@@ -236,8 +236,12 @@ class FutbolmeParser:
                     raw_payload={
                         "page_url": source_url,
                         "detail_url": detail_url,
-                        "home_team_url": _absolute_url(source_url, team_links[0].get("href")) if len(team_links) >= 1 else None,
-                        "away_team_url": _absolute_url(source_url, team_links[1].get("href")) if len(team_links) >= 2 else None,
+                        "home_team_url": _absolute_url(source_url, team_links[0].get("href"))
+                        if len(team_links) >= 1
+                        else None,
+                        "away_team_url": _absolute_url(source_url, team_links[1].get("href"))
+                        if len(team_links) >= 2
+                        else None,
                     },
                 )
             )

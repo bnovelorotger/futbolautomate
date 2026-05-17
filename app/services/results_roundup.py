@@ -14,6 +14,7 @@ from app.core.exceptions import ConfigurationError
 from app.core.standings_zones import load_standings_zones
 from app.db.models import Competition, ContentCandidate
 from app.db.repositories.content_candidates import ContentCandidateRepository
+from app.db.repositories.match_events import MatchEventRepository
 from app.schemas.common import IngestStats
 from app.schemas.editorial_content import ContentCandidateDraft
 from app.schemas.results_roundup import (
@@ -22,7 +23,6 @@ from app.schemas.results_roundup import (
     ResultsRoundupMatchView,
     ResultsRoundupPreviewResult,
 )
-from app.db.repositories.match_events import MatchEventRepository
 from app.services.competition_queries import CompetitionQueryService
 from app.services.editorial_formatter import EditorialFormatterService
 from app.services.standings_events import StandingsEventsService
@@ -124,17 +124,23 @@ class ResultsRoundupService:
         preview = self._preview(competition_code, reference_date=reference_date)
         if not preview.matches:
             return []
-        latest_match_date = max((match.match_date for match in preview.matches if match.match_date is not None), default=None)
+        latest_match_date = max(
+            (match.match_date for match in preview.matches if match.match_date is not None), default=None
+        )
         scheduled_at = None
         if latest_match_date is not None:
-            scheduled_at = datetime.combine(latest_match_date, datetime.min.time(), tzinfo=ZoneInfo(self.settings.timezone))
+            scheduled_at = datetime.combine(
+                latest_match_date, datetime.min.time(), tzinfo=ZoneInfo(self.settings.timezone)
+            )
         candidates: list[ContentCandidateDraft] = []
         match_chunks = [preview.matches]
         part_total = len(match_chunks)
         for part_index, match_chunk in enumerate(match_chunks, start=1):
             payload_matches = [match.model_dump(mode="json") for match in match_chunk]
             chunk_signature = stable_hash(payload_matches)[:12]
-            content_key = f"results_roundup:{preview.group_label or 'results'}:{chunk_signature}:p{part_index}of{part_total}"
+            content_key = (
+                f"results_roundup:{preview.group_label or 'results'}:{chunk_signature}:p{part_index}of{part_total}"
+            )
             goals_by_half = self.match_event_repository.goals_by_half_for_competition(
                 preview.competition_slug,
             )
@@ -192,16 +198,20 @@ class ResultsRoundupService:
         return stats
 
     def _reuse_existing_candidate_hash(self, candidate: ContentCandidateDraft) -> ContentCandidateDraft:
-        row = self.session.execute(
-            select(ContentCandidate)
-            .where(
-                ContentCandidate.competition_slug == candidate.competition_slug,
-                ContentCandidate.content_type == str(candidate.content_type),
-                ContentCandidate.text_draft == candidate.text_draft,
-                ContentCandidate.status != str(ContentCandidateStatus.REJECTED),
+        row = (
+            self.session.execute(
+                select(ContentCandidate)
+                .where(
+                    ContentCandidate.competition_slug == candidate.competition_slug,
+                    ContentCandidate.content_type == str(candidate.content_type),
+                    ContentCandidate.text_draft == candidate.text_draft,
+                    ContentCandidate.status != str(ContentCandidateStatus.REJECTED),
+                )
+                .order_by(ContentCandidate.created_at.asc(), ContentCandidate.id.asc())
             )
-            .order_by(ContentCandidate.created_at.asc(), ContentCandidate.id.asc())
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
         if row is None:
             return candidate
         payload_json = dict(candidate.payload_json)
@@ -264,7 +274,6 @@ class ResultsRoundupService:
 
         selected: list[ResultsRoundupMatchView] = []
         lines = [header, ""]
-        base_text = "\n".join(lines)
         for match in matches:
             trial_selected = selected + [match]
             trial_lines = lines + [_score_line(match)]
@@ -338,10 +347,7 @@ class ResultsRoundupService:
         self,
         matches: list[ResultsRoundupMatchView],
     ) -> list[list[ResultsRoundupMatchView]]:
-        chunks = [
-            matches[index : index + 4]
-            for index in range(0, len(matches), 4)
-        ]
+        chunks = [matches[index : index + 4] for index in range(0, len(matches), 4)]
         if len(chunks) > 1 and len(chunks[-1]) == 1 and len(chunks[-2]) > 1:
             chunks[-1] = [chunks[-2].pop(), *chunks[-1]]
         return [chunk for chunk in chunks if chunk]
@@ -382,21 +388,14 @@ class ResultsRoundupService:
         if not matches:
             return {}
 
-        positions = {
-            row.team: row.position
-            for row in standings
-        }
+        positions = {row.team: row.position for row in standings}
         team_contexts = self._team_table_contexts(competition_code, standings)
         insights: dict[str, Any] = {}
 
         leader_team = next((row.team for row in standings if row.position == 1), None)
         if leader_team is not None:
             leader_match = next(
-                (
-                    match
-                    for match in matches
-                    if match.home_team == leader_team or match.away_team == leader_team
-                ),
+                (match for match in matches if match.home_team == leader_team or match.away_team == leader_team),
                 None,
             )
             if leader_match is not None:
@@ -421,14 +420,24 @@ class ResultsRoundupService:
 
         biggest_margin_match = max(
             matches,
-            key=lambda match: (abs(match.home_score - match.away_score), match.home_score + match.away_score, match.home_team, match.away_team),
+            key=lambda match: (
+                abs(match.home_score - match.away_score),
+                match.home_score + match.away_score,
+                match.home_team,
+                match.away_team,
+            ),
         )
         if abs(biggest_margin_match.home_score - biggest_margin_match.away_score) > 0:
             insights["biggest_margin_match"] = self._match_insight_payload(biggest_margin_match, positions)
 
         highest_scoring_match = max(
             matches,
-            key=lambda match: (match.home_score + match.away_score, abs(match.home_score - match.away_score), match.home_team, match.away_team),
+            key=lambda match: (
+                match.home_score + match.away_score,
+                abs(match.home_score - match.away_score),
+                match.home_team,
+                match.away_team,
+            ),
         )
         if highest_scoring_match.home_score + highest_scoring_match.away_score >= 3:
             insights["highest_scoring_match"] = self._match_insight_payload(highest_scoring_match, positions)
@@ -480,11 +489,7 @@ class ResultsRoundupService:
         except ConfigurationError:
             return []
 
-        match_teams = {
-            team_name
-            for match in matches
-            for team_name in (match.home_team, match.away_team)
-        }
+        match_teams = {team_name for match in matches for team_name in (match.home_team, match.away_team)}
         rows: list[dict[str, Any]] = []
         seen_teams: set[str] = set()
         for row in preview.rows:
@@ -527,7 +532,9 @@ class ResultsRoundupService:
         playoff_cutoff_position = max(playoff_positions) if playoff_positions else None
         playoff_cutoff = rows_by_position.get(playoff_cutoff_position) if playoff_cutoff_position is not None else None
         playoff_outside_position = playoff_cutoff_position + 1 if playoff_cutoff_position is not None else None
-        playoff_outside = rows_by_position.get(playoff_outside_position) if playoff_outside_position is not None else None
+        playoff_outside = (
+            rows_by_position.get(playoff_outside_position) if playoff_outside_position is not None else None
+        )
 
         relegation_line = min(relegation_positions) if relegation_positions else None
         safe_position = relegation_line - 1 if relegation_line is not None and relegation_line > 1 else None
@@ -540,11 +547,7 @@ class ResultsRoundupService:
                 "current_position": row.position,
                 "current_points": row.points,
             }
-            if (
-                leader is not None
-                and leader_points is not None
-                and row.points is not None
-            ):
+            if leader is not None and leader_points is not None and row.points is not None:
                 if row.position == 1 and challenger is not None and challenger_points is not None:
                     context["leader_gap"] = leader_points - challenger_points
                     context["leader_chaser_team"] = challenger.team

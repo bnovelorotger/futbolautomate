@@ -209,7 +209,4 @@ class StandingRepository(BaseRepository[Standing]):
             .group_by(schedule_totals.c.team)
         )
         rows = self.session.execute(totals).all()
-        return [
-            TeamScheduleRow(team=str(row.team), total_matches=int(row.total_matches or 0))
-            for row in rows
-        ]
+        return [TeamScheduleRow(team=str(row.team), total_matches=int(row.total_matches or 0)) for row in rows]

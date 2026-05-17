@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-import re
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -142,9 +142,13 @@ class EditorialCandidateWindowService:
 
         window = CompetitionMatchdayWindow(
             current_round=self._group_round(current_group),
-            current_match_date=max((match.match_date for match in current_group if match.match_date is not None), default=None),
+            current_match_date=max(
+                (match.match_date for match in current_group if match.match_date is not None), default=None
+            ),
             next_round=self._group_round(next_group),
-            next_match_date=min((match.match_date for match in next_group if match.match_date is not None), default=None),
+            next_match_date=min(
+                (match.match_date for match in next_group if match.match_date is not None), default=None
+            ),
         )
         self._window_cache[cache_key] = window
         return window
@@ -162,13 +166,15 @@ class EditorialCandidateWindowService:
             latest_date = max(match_dates)
             if latest_date >= reference_date:
                 return False
-            if context.current_match_date is not None and latest_date != context.current_match_date:
-                if candidate_round is None or context.current_round is None or candidate_round != context.current_round:
-                    return False
-            return True
-        if candidate_round:
-            if context.current_round is not None:
-                return candidate_round == context.current_round
+            return not (
+                context.current_match_date is not None
+                and latest_date != context.current_match_date
+                and (
+                    candidate_round is None or context.current_round is None or candidate_round != context.current_round
+                )
+            )
+        if candidate_round and context.current_round is not None:
+            return candidate_round == context.current_round
         return self._matches_reference_date(candidate, reference_date=reference_date)
 
     def _matches_future_window(
@@ -184,13 +190,13 @@ class EditorialCandidateWindowService:
             earliest_date = min(match_dates)
             if earliest_date < reference_date:
                 return False
-            if context.next_match_date is not None and earliest_date != context.next_match_date:
-                if candidate_round is None or context.next_round is None or candidate_round != context.next_round:
-                    return False
-            return True
-        if candidate_round:
-            if context.next_round is not None:
-                return candidate_round == context.next_round
+            return not (
+                context.next_match_date is not None
+                and earliest_date != context.next_match_date
+                and (candidate_round is None or context.next_round is None or candidate_round != context.next_round)
+            )
+        if candidate_round and context.next_round is not None:
+            return candidate_round == context.next_round
         return self._matches_reference_date(candidate, reference_date=reference_date)
 
     def _matches_reference_date(

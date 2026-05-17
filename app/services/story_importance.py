@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -132,13 +132,7 @@ class StoryImportanceService:
             payload_json = candidate.payload_json or {}
             source_payload = payload_json.get("source_payload", {}) if isinstance(payload_json, dict) else {}
             team_keys = tuple(
-                sorted(
-                    {
-                        normalize_token(team)
-                        for team in self._extract_team_names(source_payload)
-                        if team
-                    }
-                )
+                sorted({normalize_token(team) for team in self._extract_team_names(source_payload) if team})
             )
             scored_rows.append((candidate, self._score_candidate_row(candidate), team_keys))
 
@@ -413,7 +407,9 @@ class StoryImportanceService:
                 tags.append("strong_form")
 
         streak_length = source_payload.get("streak_length") or source_payload.get("metric_value")
-        if content_type in {ContentType.VIRAL_STORY, ContentType.FORM_EVENT} and isinstance(streak_length, (int, float)):
+        if content_type in {ContentType.VIRAL_STORY, ContentType.FORM_EVENT} and isinstance(
+            streak_length, (int, float)
+        ):
             if streak_length >= 5:
                 score += self.config.team_form.streak_5_plus_bonus
                 reasons.append(f"team_form:streak_{int(streak_length)}:+{self.config.team_form.streak_5_plus_bonus}")
@@ -510,9 +506,9 @@ class StoryImportanceService:
     def _recent_candidates(self, candidate: ContentCandidate) -> list[ContentCandidate]:
         reference_timestamp = candidate.published_at or candidate.created_at or utcnow()
         if reference_timestamp.tzinfo is None:
-            reference_timestamp = reference_timestamp.replace(tzinfo=timezone.utc)
+            reference_timestamp = reference_timestamp.replace(tzinfo=UTC)
         else:
-            reference_timestamp = reference_timestamp.astimezone(timezone.utc)
+            reference_timestamp = reference_timestamp.astimezone(UTC)
         cutoff = reference_timestamp - timedelta(hours=self.config.repetition.window_hours)
         query = (
             select(ContentCandidate)
@@ -589,6 +585,6 @@ class StoryImportanceService:
         start_local = datetime.combine(target_date, time.min, tzinfo=ZoneInfo(self.settings.timezone))
         end_local = start_local + timedelta(days=1)
         return (
-            start_local.astimezone(timezone.utc),
-            end_local.astimezone(timezone.utc),
+            start_local.astimezone(UTC),
+            end_local.astimezone(UTC),
         )

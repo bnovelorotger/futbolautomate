@@ -18,7 +18,7 @@ class NewsEnrichmentRepository(BaseRepository[NewsEnrichment]):
             self.session.flush()
             return item, True, False
 
-        comparable_keys = [key for key in payload.keys() if key != "analyzed_at"]
+        comparable_keys = [key for key in payload if key != "analyzed_at"]
         changed = any(getattr(existing, key) != payload[key] for key in comparable_keys)
         if not changed:
             return existing, False, False

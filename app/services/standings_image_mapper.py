@@ -147,9 +147,13 @@ def _map_payload_row(competition_slug: str, raw_row: Any) -> dict[str, Any] | No
     if position is None or team_name is None:
         return None
 
-    zone = _normalize_zone(raw_row.get("zone")) or _normalize_zone(raw_row.get("zone_tag")) or _zone_for_position(
-        competition_slug,
-        position,
+    zone = (
+        _normalize_zone(raw_row.get("zone"))
+        or _normalize_zone(raw_row.get("zone_tag"))
+        or _zone_for_position(
+            competition_slug,
+            position,
+        )
     )
     return {
         "position": position,

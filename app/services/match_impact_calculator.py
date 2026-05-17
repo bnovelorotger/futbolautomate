@@ -272,16 +272,8 @@ class MatchImpactCalculatorService:
         if self.zone_resolver is not None:
             all_zones = sorted(
                 {
-                    *(
-                        zone
-                        for tags in current_zone_tags.values()
-                        for zone in tags
-                    ),
-                    *(
-                        zone
-                        for tags in projected_zone_tags.values()
-                        for zone in tags
-                    ),
+                    *(zone for tags in current_zone_tags.values() for zone in tags),
+                    *(zone for tags in projected_zone_tags.values() for zone in tags),
                 }
             )
             for team, current_row in current_map.items():
@@ -533,9 +525,7 @@ class MatchImpactCalculatorService:
         return (value or 0) + amount
 
     def _competition(self, competition_code: str) -> Competition:
-        competition = self.session.scalar(
-            select(Competition).where(Competition.code == competition_code)
-        )
+        competition = self.session.scalar(select(Competition).where(Competition.code == competition_code))
         if competition is None:
             raise ConfigurationError(f"Competicion desconocida o no sembrada: {competition_code}")
         return competition

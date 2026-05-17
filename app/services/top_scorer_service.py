@@ -23,7 +23,6 @@ from app.services.top_scorer_tracker import (
     TopScorerTrackerService,
 )
 from app.utils.hashing import stable_hash
-from app.utils.time import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -99,8 +98,7 @@ class TopScorerService:
         )
         if not self._has_enough_data(tracker_result):
             logger.info(
-                "top_scorer_service: datos insuficientes para %s "
-                "(scorer_matches=%d, goal_events=%d, leader_goals=%d)",
+                "top_scorer_service: datos insuficientes para %s (scorer_matches=%d, goal_events=%d, leader_goals=%d)",
                 competition_slug,
                 tracker_result.scorer_matches_count,
                 tracker_result.goal_events_count,
@@ -109,10 +107,7 @@ class TopScorerService:
             return None
 
         competition_name = self._competition_name(competition)
-        scorers = [
-            {"player": row.player, "goals": row.goals}
-            for row in tracker_result.rows
-        ]
+        scorers = [{"player": row.player, "goals": row.goals} for row in tracker_result.rows]
         text_draft = _build_text(competition_name, scorers, max_characters=self.max_characters)
         source_payload: dict[str, Any] = {
             "season": tracker_result.season,
@@ -198,21 +193,23 @@ class TopScorerService:
             return False
         if not result.rows:
             return False
-        if result.rows[0].goals < MIN_TOP_SCORER_LEADER_GOALS:
-            return False
-        return True
+        return result.rows[0].goals >= MIN_TOP_SCORER_LEADER_GOALS
 
     def _reuse_existing_candidate_hash(self, candidate: ContentCandidateDraft) -> ContentCandidateDraft:
-        row = self.session.execute(
-            select(ContentCandidate)
-            .where(
-                ContentCandidate.competition_slug == candidate.competition_slug,
-                ContentCandidate.content_type == str(candidate.content_type),
-                ContentCandidate.text_draft == candidate.text_draft,
-                ContentCandidate.status != str(ContentCandidateStatus.REJECTED),
+        row = (
+            self.session.execute(
+                select(ContentCandidate)
+                .where(
+                    ContentCandidate.competition_slug == candidate.competition_slug,
+                    ContentCandidate.content_type == str(candidate.content_type),
+                    ContentCandidate.text_draft == candidate.text_draft,
+                    ContentCandidate.status != str(ContentCandidateStatus.REJECTED),
+                )
+                .order_by(ContentCandidate.created_at.asc(), ContentCandidate.id.asc())
             )
-            .order_by(ContentCandidate.created_at.asc(), ContentCandidate.id.asc())
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
         if row is None:
             return candidate
         payload_json = dict(candidate.payload_json)
@@ -225,9 +222,7 @@ class TopScorerService:
         )
 
     def _competition(self, competition_slug: str) -> Competition:
-        competition = self.session.scalar(
-            select(Competition).where(Competition.code == competition_slug)
-        )
+        competition = self.session.scalar(select(Competition).where(Competition.code == competition_slug))
         if competition is None:
             raise ConfigurationError(f"Competicion desconocida o no sembrada: {competition_slug}")
         return competition

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import case, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
@@ -18,16 +18,13 @@ from app.services.editorial_candidate_window import EditorialCandidateWindowServ
 from app.services.editorial_quality_checks import EditorialQualityChecksService
 from app.utils.time import utcnow
 
-
 AUTOAPPROVABLE_CONTENT_TYPES = (
     ContentType.RESULTS_ROUNDUP,
     ContentType.STANDINGS_ROUNDUP,
     ContentType.PREVIEW,
     ContentType.RANKING,
 )
-MONDAY_AUTOAPPROVABLE_CONTENT_TYPES = (
-    ContentType.TOP_SCORER_UPDATE,
-)
+MONDAY_AUTOAPPROVABLE_CONTENT_TYPES = (ContentType.TOP_SCORER_UPDATE,)
 TUE_WED_AUTOAPPROVABLE_CONTENT_TYPES = (
     ContentType.VIRAL_STORY,
     ContentType.METRIC_NARRATIVE,
@@ -38,9 +35,7 @@ FRIDAY_AUTOAPPROVABLE_CONTENT_TYPES = (
     ContentType.FEATURED_MATCH_PREVIEW,
     ContentType.MATCH_IMPACT_SCENARIO,
 )
-CONDITIONAL_AUTOAPPROVABLE_CONTENT_TYPES = (
-    ContentType.RACE_NARRATIVE,
-)
+CONDITIONAL_AUTOAPPROVABLE_CONTENT_TYPES = (ContentType.RACE_NARRATIVE,)
 MANUAL_REVIEW_CONTENT_TYPES = (
     ContentType.MATCH_RESULT,
     ContentType.STANDINGS,
@@ -122,9 +117,7 @@ class EditorialApprovalPolicyService:
             autoapprovable_content_types=autoapprovable_types,
             conditional_autoapprovable_content_types=list(CONDITIONAL_AUTOAPPROVABLE_CONTENT_TYPES),
             manual_review_content_types=[
-                content_type
-                for content_type in MANUAL_REVIEW_CONTENT_TYPES
-                if content_type not in autoapprovable_types
+                content_type for content_type in MANUAL_REVIEW_CONTENT_TYPES if content_type not in autoapprovable_types
             ],
             drafts_found=len(rows),
             autoapprovable_count=autoapprovable_count,
@@ -400,10 +393,9 @@ class EditorialApprovalPolicyService:
         if not candidate.text_draft.strip():
             return False
         content_type = ContentType(candidate.content_type)
-        return (
-            content_type in self._autoapprovable_types_for_date(reference_date)
-            or self._is_conditional_autoapproval_window(candidate, reference_date=reference_date)
-        )
+        return content_type in self._autoapprovable_types_for_date(
+            reference_date
+        ) or self._is_conditional_autoapproval_window(candidate, reference_date=reference_date)
 
     def _is_conditional_autoapproval_window(
         self,
@@ -425,9 +417,7 @@ class EditorialApprovalPolicyService:
         reference_date: date,
     ) -> dict[int, tuple[bool, list[str]]]:
         candidate_ids = [
-            row.id
-            for row in rows
-            if self._is_potential_autoapprovable(row, reference_date=reference_date)
+            row.id for row in rows if self._is_potential_autoapprovable(row, reference_date=reference_date)
         ]
         if not candidate_ids:
             return {}
@@ -436,10 +426,7 @@ class EditorialApprovalPolicyService:
             dry_run=True,
             require_published=False,
         )
-        return {
-            row.id: (row.passed, list(row.errors))
-            for row in batch.rows
-        }
+        return {row.id: (row.passed, list(row.errors)) for row in batch.rows}
 
     def _autoapprovable_types_for_date(self, target_date: date) -> tuple[ContentType, ...]:
         ordered_unique = dict.fromkeys(
@@ -525,9 +512,7 @@ class EditorialApprovalPolicyService:
         )
         rows = self.session.execute(query).scalars().all()
         eligible_rows = [
-            row
-            for row in rows
-            if self.window_service.matches_release_window(row, reference_date=selected_date)
+            row for row in rows if self.window_service.matches_release_window(row, reference_date=selected_date)
         ]
         return eligible_rows[:limit]
 
@@ -535,6 +520,6 @@ class EditorialApprovalPolicyService:
         start_local = datetime.combine(target_date, time.min, tzinfo=ZoneInfo(self.settings.timezone))
         end_local = start_local + timedelta(days=1)
         return (
-            start_local.astimezone(timezone.utc),
-            end_local.astimezone(timezone.utc),
+            start_local.astimezone(UTC),
+            end_local.astimezone(UTC),
         )

@@ -32,6 +32,4 @@ class TypefullyPublisher:
             )
         if dry_run:
             return TypefullyPublishResponse(draft_id="dry-run", text=normalized_text, dry_run=True)
-        return self.client.create_draft(
-            TypefullyDraftRequest(content=normalized_text, schedule_date=schedule_date)
-        )
+        return self.client.create_draft(TypefullyDraftRequest(content=normalized_text, schedule_date=schedule_date))

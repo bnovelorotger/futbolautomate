@@ -83,10 +83,7 @@ class TeamAliasCatalog(BaseModel):
 @lru_cache(maxsize=1)
 def load_source_catalog() -> dict[SourceName, SourceDefinition]:
     path = Path(__file__).resolve().parents[1] / "config" / "sources.json"
-    return {
-        SourceName(entry["name"]): SourceDefinition.model_validate(entry)
-        for entry in _load_json(path)
-    }
+    return {SourceName(entry["name"]): SourceDefinition.model_validate(entry) for entry in _load_json(path)}
 
 
 @lru_cache(maxsize=1)

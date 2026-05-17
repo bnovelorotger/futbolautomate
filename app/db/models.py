@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, JSON, String, Text, Time, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Index, Integer, String, Text, Time, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin
@@ -23,9 +23,9 @@ class Competition(Base, TimestampMixin):
     source_name: Mapped[str | None] = mapped_column(String(50), nullable=True)
     source_competition_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
 
-    matches: Mapped[list["Match"]] = relationship(back_populates="competition")
-    standings: Mapped[list["Standing"]] = relationship(back_populates="competition")
-    standings_snapshots: Mapped[list["StandingSnapshot"]] = relationship(back_populates="competition")
+    matches: Mapped[list[Match]] = relationship(back_populates="competition")
+    standings: Mapped[list[Standing]] = relationship(back_populates="competition")
+    standings_snapshots: Mapped[list[StandingSnapshot]] = relationship(back_populates="competition")
 
 
 class Team(Base, TimestampMixin):
@@ -43,9 +43,7 @@ class Team(Base, TimestampMixin):
 
 class TeamMention(Base, TimestampMixin):
     __tablename__ = "team_mentions"
-    __table_args__ = (
-        UniqueConstraint("competition_slug", "team_name", name="uq_team_mentions_competition_team"),
-    )
+    __table_args__ = (UniqueConstraint("competition_slug", "team_name", name="uq_team_mentions_competition_team"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     team_name: Mapped[str] = mapped_column(String(255), index=True)
@@ -107,8 +105,8 @@ class Match(Base, TimestampMixin):
     content_hash: Mapped[str] = mapped_column(String(64), index=True)
     extra_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
-    competition: Mapped["Competition"] = relationship(back_populates="matches")
-    events: Mapped[list["MatchEvent"]] = relationship(
+    competition: Mapped[Competition] = relationship(back_populates="matches")
+    events: Mapped[list[MatchEvent]] = relationship(
         back_populates="match",
         cascade="all, delete-orphan",
     )
@@ -137,14 +135,12 @@ class MatchEvent(Base, TimestampMixin):
     source_event_key: Mapped[str] = mapped_column(String(255), index=True)
     raw_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
-    match: Mapped["Match"] = relationship(back_populates="events")
+    match: Mapped[Match] = relationship(back_populates="events")
 
 
 class Standing(Base, TimestampMixin):
     __tablename__ = "standings"
-    __table_args__ = (
-        UniqueConstraint("source_name", "competition_id", "season", "group_name", "team_raw"),
-    )
+    __table_args__ = (UniqueConstraint("source_name", "competition_id", "season", "group_name", "team_raw"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     source_name: Mapped[str] = mapped_column(String(50), index=True)
@@ -168,7 +164,7 @@ class Standing(Base, TimestampMixin):
     content_hash: Mapped[str] = mapped_column(String(64), index=True)
     extra_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
-    competition: Mapped["Competition"] = relationship(back_populates="standings")
+    competition: Mapped[Competition] = relationship(back_populates="standings")
 
 
 class StandingSnapshot(Base, TimestampMixin):
@@ -210,7 +206,7 @@ class StandingSnapshot(Base, TimestampMixin):
     content_hash: Mapped[str] = mapped_column(String(64), index=True)
     extra_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
-    competition: Mapped["Competition"] = relationship(back_populates="standings_snapshots")
+    competition: Mapped[Competition] = relationship(back_populates="standings_snapshots")
 
 
 class News(Base, TimestampMixin):
@@ -232,7 +228,7 @@ class News(Base, TimestampMixin):
     scraped_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     content_hash: Mapped[str] = mapped_column(String(64), index=True)
 
-    enrichment: Mapped["NewsEnrichment | None"] = relationship(
+    enrichment: Mapped[NewsEnrichment | None] = relationship(
         back_populates="news",
         uselist=False,
         cascade="all, delete-orphan",
@@ -254,7 +250,7 @@ class NewsEnrichment(Base, TimestampMixin):
     signals: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     analyzed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
-    news: Mapped["News"] = relationship(back_populates="enrichment")
+    news: Mapped[News] = relationship(back_populates="enrichment")
 
 
 class ContentCandidate(Base, TimestampMixin):
@@ -304,9 +300,7 @@ class ContentCandidate(Base, TimestampMixin):
 
 class ChannelAuthSession(Base, TimestampMixin):
     __tablename__ = "channel_auth_sessions"
-    __table_args__ = (
-        UniqueConstraint("provider", "state", name="uq_channel_auth_sessions_provider_state"),
-    )
+    __table_args__ = (UniqueConstraint("provider", "state", name="uq_channel_auth_sessions_provider_state"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     provider: Mapped[str] = mapped_column(String(50), index=True)
@@ -320,9 +314,7 @@ class ChannelAuthSession(Base, TimestampMixin):
 
 class ChannelUserToken(Base, TimestampMixin):
     __tablename__ = "channel_user_tokens"
-    __table_args__ = (
-        UniqueConstraint("provider", name="uq_channel_user_tokens_provider"),
-    )
+    __table_args__ = (UniqueConstraint("provider", name="uq_channel_user_tokens_provider"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     provider: Mapped[str] = mapped_column(String(50), index=True)
@@ -356,9 +348,7 @@ class ScraperRun(Base):
 
 class PipelineMetric(Base, TimestampMixin):
     __tablename__ = "pipeline_metrics"
-    __table_args__ = (
-        UniqueConstraint("run_date", "pipeline_name", name="uq_pipeline_metrics_date_pipeline"),
-    )
+    __table_args__ = (UniqueConstraint("run_date", "pipeline_name", name="uq_pipeline_metrics_date_pipeline"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     run_date: Mapped[date] = mapped_column(Date, index=True)

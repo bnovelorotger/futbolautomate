@@ -26,4 +26,3 @@ class TeamNameNormalizer:
             canonical=canonical,
             normalized=normalize_token(canonical),
         )
-

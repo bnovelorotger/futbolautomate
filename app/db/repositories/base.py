@@ -10,4 +10,3 @@ ModelT = TypeVar("ModelT")
 class BaseRepository(Generic[ModelT]):
     def __init__(self, session: Session) -> None:
         self.session = session
-

@@ -3,7 +3,6 @@ from __future__ import annotations
 from app.core.enums import MatchStatus
 from app.normalizers.text import normalize_token
 
-
 STATUS_MAP = {
     "programado": MatchStatus.SCHEDULED,
     "scheduled": MatchStatus.SCHEDULED,
@@ -28,4 +27,3 @@ def normalize_match_status(raw_status: str | None) -> MatchStatus:
         return MatchStatus.UNKNOWN
     token = normalize_token(raw_status)
     return STATUS_MAP.get(token, MatchStatus.UNKNOWN)
-

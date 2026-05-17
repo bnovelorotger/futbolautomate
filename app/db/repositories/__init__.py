@@ -1,2 +1,1 @@
 """Repositorios SQLAlchemy."""
-

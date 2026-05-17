@@ -7,11 +7,11 @@ from sqlalchemy.orm import Session
 
 from app.core.enums import ContentCandidateStatus, ContentType
 from app.db.repositories.content_candidates import ContentCandidateRepository
+from app.normalizers.text import normalize_token
 from app.schemas.common import IngestStats
 from app.schemas.editorial_content import ContentCandidateDraft, ContentGenerationResult
 from app.schemas.editorial_summary import CompetitionEditorialSummary
 from app.schemas.reporting import CompetitionMatchView
-from app.normalizers.text import normalize_token
 from app.services.editorial_formatter import EditorialFormatterService
 from app.services.editorial_summary import CompetitionEditorialSummaryService
 from app.utils.hashing import stable_hash

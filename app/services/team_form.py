@@ -279,10 +279,7 @@ class TeamFormService:
                 row.team,
             ),
         )
-        return [
-            row.model_copy(update={"rank": index})
-            for index, row in enumerate(rows, start=1)
-        ]
+        return [row.model_copy(update={"rank": index}) for index, row in enumerate(rows, start=1)]
 
     def build_candidate_drafts(
         self,
@@ -558,9 +555,7 @@ class TeamFormService:
         return self.relevance.canonical_team(competition_code, team_name)
 
     def _competition(self, competition_code: str) -> Competition:
-        competition = self.session.scalar(
-            select(Competition).where(Competition.code == competition_code)
-        )
+        competition = self.session.scalar(select(Competition).where(Competition.code == competition_code))
         if competition is None:
             raise ConfigurationError(f"Competicion desconocida o no sembrada: {competition_code}")
         return competition

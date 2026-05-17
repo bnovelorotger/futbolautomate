@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -15,6 +14,7 @@ from app.normalizers.text import normalize_token
 from app.schemas.common import IngestStats
 from app.schemas.editorial import NewsEditorialRecord
 from app.utils.time import utcnow
+
 
 @dataclass(slots=True)
 class AliasMap:
@@ -129,8 +129,8 @@ class NewsEditorialAnalyzer:
                 best_other_sport = sport
                 best_other_score = hits
 
-        football_signal_strength = sport_hits.get("football", 0) + len(football_hits) + len(clubs) + int(
-            competition_detected is not None
+        football_signal_strength = (
+            sport_hits.get("football", 0) + len(football_hits) + len(clubs) + int(competition_detected is not None)
         )
         hard_football_signal = bool(clubs or competition_detected)
         if hard_football_signal:

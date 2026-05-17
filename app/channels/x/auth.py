@@ -27,10 +27,7 @@ def x_auth_config_presence(settings: Settings) -> dict[str, bool]:
         "X_CLIENT_ID": settings.x_client_id,
         "X_REDIRECT_URI": settings.x_redirect_uri,
     }
-    return {
-        key: isinstance(value, str) and value.strip() != ""
-        for key, value in values.items()
-    }
+    return {key: isinstance(value, str) and value.strip() != "" for key, value in values.items()}
 
 
 def missing_x_auth_config(settings: Settings) -> list[str]:

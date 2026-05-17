@@ -48,11 +48,7 @@ class TopScorerTrackerService:
         if season:
             query = query.where(Match.season == season)
         rows = self.session.execute(query).all()
-        scorer_match_ids = {
-            row.Match.id
-            for row in rows
-            if row.Match.id is not None
-        }
+        scorer_match_ids = {row.Match.id for row in rows if row.Match.id is not None}
 
         player_rows: dict[tuple[str, str], TopScorerRowView] = {}
         goal_counts: dict[tuple[str, str], int] = defaultdict(int)
@@ -80,7 +76,12 @@ class TopScorerTrackerService:
 
         ordered = sorted(
             player_rows.values(),
-            key=lambda item: (-item.goals, -(item.latest_goal_date.toordinal() if item.latest_goal_date else 0), item.player.lower(), item.team.lower()),
+            key=lambda item: (
+                -item.goals,
+                -(item.latest_goal_date.toordinal() if item.latest_goal_date else 0),
+                item.player.lower(),
+                item.team.lower(),
+            ),
         )[:limit]
 
         return TopScorerResult(

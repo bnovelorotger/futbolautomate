@@ -43,19 +43,11 @@ class NewsEditorialQueryService:
         return [EditorialNewsView.model_validate(dict(row._mapping)) for row in rows]
 
     def relevant_balearic_football(self, limit: int = 20) -> list[EditorialNewsView]:
-        rows = [
-            row
-            for row in self._base_rows()
-            if row.is_football and row.is_balearic_related
-        ][:limit]
+        rows = [row for row in self._base_rows() if row.is_football and row.is_balearic_related][:limit]
         return self._views(rows)
 
     def football_non_balearic(self, limit: int = 20) -> list[EditorialNewsView]:
-        rows = [
-            row
-            for row in self._base_rows()
-            if row.is_football and not row.is_balearic_related
-        ][:limit]
+        rows = [row for row in self._base_rows() if row.is_football and not row.is_balearic_related][:limit]
         return self._views(rows)
 
     def by_club(self, club: str, limit: int = 20) -> list[EditorialNewsView]:

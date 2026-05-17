@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import date, datetime
 import re
+from datetime import date, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -183,16 +183,20 @@ class StandingsRoundupService:
         return stats
 
     def _reuse_existing_candidate_hash(self, candidate: ContentCandidateDraft) -> ContentCandidateDraft:
-        row = self.session.execute(
-            select(ContentCandidate)
-            .where(
-                ContentCandidate.competition_slug == candidate.competition_slug,
-                ContentCandidate.content_type == str(candidate.content_type),
-                ContentCandidate.text_draft == candidate.text_draft,
-                ContentCandidate.status != str(ContentCandidateStatus.REJECTED),
+        row = (
+            self.session.execute(
+                select(ContentCandidate)
+                .where(
+                    ContentCandidate.competition_slug == candidate.competition_slug,
+                    ContentCandidate.content_type == str(candidate.content_type),
+                    ContentCandidate.text_draft == candidate.text_draft,
+                    ContentCandidate.status != str(ContentCandidateStatus.REJECTED),
+                )
+                .order_by(ContentCandidate.created_at.asc(), ContentCandidate.id.asc())
             )
-            .order_by(ContentCandidate.created_at.asc(), ContentCandidate.id.asc())
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
         if row is None:
             return candidate
         payload_json = dict(candidate.payload_json)
@@ -405,11 +409,7 @@ class StandingsRoundupService:
         return None
 
     def _played_group_label(self, standings: list[StandingView]) -> str | None:
-        played_values = {
-            row.played
-            for row in standings
-            if row.played is not None and row.played > 0
-        }
+        played_values = {row.played for row in standings if row.played is not None and row.played > 0}
         if played_values:
             return f"Jornada {max(played_values)}"
         return None

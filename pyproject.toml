@@ -48,6 +48,9 @@ line-length = 120
 select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = ["E501"]
 
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["typer.Argument", "typer.Option"]
+
 [tool.mypy]
 python_version = "3.11"
 strict = false

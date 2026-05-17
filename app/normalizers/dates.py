@@ -8,7 +8,6 @@ from dateutil import parser as date_parser
 
 from app.normalizers.text import normalize_spaces, strip_accents
 
-
 SPANISH_MONTHS = {
     "enero": "january",
     "febrero": "february",

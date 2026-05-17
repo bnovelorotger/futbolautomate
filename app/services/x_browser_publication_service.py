@@ -10,8 +10,8 @@ from sqlalchemy import case, func, select, update
 from sqlalchemy.orm import Session
 
 from app.channels.x_browser.publisher import (
-    XBrowserPublishError,
     XBrowserPublisher,
+    XBrowserPublishError,
     XBrowserSessionError,
 )
 from app.core.config import Settings, get_settings
@@ -349,9 +349,7 @@ class XBrowserPublicationService:
         dry_run: bool = False,
     ) -> XBrowserBatchResult:
         all_pending = self._pending_candidates()
-        standings_candidates = [
-            c for c in all_pending if c.content_type == str(ContentType.STANDINGS_ROUNDUP)
-        ]
+        standings_candidates = [c for c in all_pending if c.content_type == str(ContentType.STANDINGS_ROUNDUP)]
         standings_candidates = self.scheduler.filter_candidates(self._fresh_candidates(standings_candidates))
 
         if len(standings_candidates) < 2:

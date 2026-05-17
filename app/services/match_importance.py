@@ -271,8 +271,7 @@ class MatchImportanceService:
             for row in filtered_standings
         }
         full_positions = {
-            self.relevance.canonical_team(competition_code, row.team) or row.team: row.position
-            for row in standings
+            self.relevance.canonical_team(competition_code, row.team) or row.team: row.position for row in standings
         }
         form_rows = self.team_form.build_form_rows(
             competition_code,
@@ -343,9 +342,7 @@ class MatchImportanceService:
         full_home_position = full_positions.get(home_team_key)
         full_away_position = full_positions.get(away_team_key)
         position_gap = (
-            abs(home_position - away_position)
-            if home_position is not None and away_position is not None
-            else None
+            abs(home_position - away_position) if home_position is not None and away_position is not None else None
         )
         home_form = form_map.get(match.home_team)
         away_form = form_map.get(match.away_team)
@@ -353,35 +350,25 @@ class MatchImportanceService:
         away_recent_points = away_form.points if away_form is not None else None
         weights = config.weights
 
-        if (
-            home_position is not None
-            and away_position is not None
-            and home_position <= 2
-            and away_position <= 2
-        ):
+        if home_position is not None and away_position is not None and home_position <= 2 and away_position <= 2:
             score += weights.title_race
             tags.append("title_race")
             reasoning.append(f"title_race:+{weights.title_race}")
 
-        if (
-            home_position in config.top_zone_positions
-            and away_position in config.top_zone_positions
-        ):
+        if home_position in config.top_zone_positions and away_position in config.top_zone_positions:
             score += weights.top_table_match
             tags.append("top_table_match")
             reasoning.append(f"top_table_match:+{weights.top_table_match}")
 
-        if (
-            _near_zone(home_position, config.playoff_positions, config.near_playoff_margin)
-            and _near_zone(away_position, config.playoff_positions, config.near_playoff_margin)
+        if _near_zone(home_position, config.playoff_positions, config.near_playoff_margin) and _near_zone(
+            away_position, config.playoff_positions, config.near_playoff_margin
         ):
             score += weights.playoff_clash
             tags.append("playoff_clash")
             reasoning.append(f"playoff_clash:+{weights.playoff_clash}")
 
-        if (
-            _near_zone(home_position, config.bottom_zone_positions, config.near_bottom_margin)
-            and _near_zone(away_position, config.bottom_zone_positions, config.near_bottom_margin)
+        if _near_zone(home_position, config.bottom_zone_positions, config.near_bottom_margin) and _near_zone(
+            away_position, config.bottom_zone_positions, config.near_bottom_margin
         ):
             score += weights.relegation_clash
             tags.append("relegation_clash")
@@ -483,7 +470,11 @@ class MatchImportanceService:
 
     def _event_text(self, row: MatchImportanceRowView) -> str | None:
         primary_tag = self._primary_tag(row)
-        if primary_tag == "hot_form_match" and row.home_recent_points is not None and row.away_recent_points is not None:
+        if (
+            primary_tag == "hot_form_match"
+            and row.home_recent_points is not None
+            and row.away_recent_points is not None
+        ):
             return (
                 f"Choque de equipos en forma en {row.competition_name}: {row.home_team} y {row.away_team} "
                 f"llegan con {row.home_recent_points} y {row.away_recent_points} puntos en los ultimos 5 partidos."
@@ -593,9 +584,7 @@ class MatchImportanceService:
         return MatchImportanceConfig.model_validate(payload)
 
     def _competition(self, competition_code: str) -> Competition:
-        competition = self.session.scalar(
-            select(Competition).where(Competition.code == competition_code)
-        )
+        competition = self.session.scalar(select(Competition).where(Competition.code == competition_code))
         if competition is None:
             raise ConfigurationError(f"Competicion desconocida o no sembrada: {competition_code}")
         return competition

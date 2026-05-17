@@ -10,4 +10,3 @@ class SoccerwayClient(PlaywrightClient):
     def __init__(self, settings: Settings):
         load_source_catalog()[SourceName.SOCCERWAY]
         super().__init__(source_name=SourceName.SOCCERWAY, settings=settings)
-

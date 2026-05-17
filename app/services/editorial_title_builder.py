@@ -239,7 +239,11 @@ def build_narrative_label(content_type: ContentType, source_payload: dict[str, A
         return "Dato"
     if content_type == ContentType.VIRAL_STORY:
         story_type = _string(source_payload.get("story_type"))
-        if story_type in {str(ViralStoryType.WIN_STREAK), str(ViralStoryType.UNBEATEN_STREAK), str(ViralStoryType.LOSING_STREAK)}:
+        if story_type in {
+            str(ViralStoryType.WIN_STREAK),
+            str(ViralStoryType.UNBEATEN_STREAK),
+            str(ViralStoryType.LOSING_STREAK),
+        }:
             return "Forma"
         if story_type in {str(ViralStoryType.HOT_FORM), str(ViralStoryType.COLD_FORM), str(ViralStoryType.GOALS_TREND)}:
             return "Tendencia"

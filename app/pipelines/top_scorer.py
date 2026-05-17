@@ -23,7 +23,9 @@ def main() -> None:
 
 @app.command("generate")
 def generate(
-    competition: str | None = typer.Option(None, "--competition", help="Codigo interno de competicion (omitir para todas las integradas)"),
+    competition: str | None = typer.Option(
+        None, "--competition", help="Codigo interno de competicion (omitir para todas las integradas)"
+    ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Simular sin persistir cambios"),
 ) -> None:
     """Genera candidatos TOP_SCORER_UPDATE para una competicion o para todas las integradas."""

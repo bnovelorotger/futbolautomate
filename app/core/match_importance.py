@@ -41,6 +41,5 @@ def load_match_importance_config(
     with config_path.open("r", encoding="utf-8") as handle:
         payload = json.load(handle)
     return {
-        competition_slug: MatchImportanceConfig.model_validate(config)
-        for competition_slug, config in payload.items()
+        competition_slug: MatchImportanceConfig.model_validate(config) for competition_slug, config in payload.items()
     }

@@ -1,2 +1,1 @@
 """Scraper de noticias FFIB."""
-

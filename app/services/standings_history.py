@@ -10,9 +10,9 @@ from app.core.catalog import load_competition_catalog
 from app.core.exceptions import ConfigurationError
 from app.db.models import Competition, StandingSnapshot, Team
 from app.schemas.standings_history import (
-    StandingSnapshotRowView,
     StandingsComparisonRowView,
     StandingsComparisonView,
+    StandingSnapshotRowView,
     StandingsSnapshotView,
 )
 
@@ -67,11 +67,7 @@ class StandingsHistoryService:
     def compare_latest(self, competition_code: str) -> StandingsComparisonView:
         current_snapshot, previous_snapshot = self.latest_snapshot_pair(competition_code)
         rows: list[StandingsComparisonRowView] = []
-        previous_map = (
-            {row.team_key: row for row in previous_snapshot.rows}
-            if previous_snapshot is not None
-            else {}
-        )
+        previous_map = {row.team_key: row for row in previous_snapshot.rows} if previous_snapshot is not None else {}
         for current_row in current_snapshot.rows:
             previous_row = previous_map.get(current_row.team_key)
             previous_position = previous_row.position if previous_row is not None else None
@@ -120,9 +116,7 @@ class StandingsHistoryService:
         return current_snapshot, previous_snapshot
 
     def _competition(self, competition_code: str) -> Competition:
-        competition = self.session.scalar(
-            select(Competition).where(Competition.code == competition_code)
-        )
+        competition = self.session.scalar(select(Competition).where(Competition.code == competition_code))
         if competition is None:
             raise ConfigurationError(f"Competicion desconocida o no sembrada: {competition_code}")
         return competition
