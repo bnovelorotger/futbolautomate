@@ -14,7 +14,6 @@ from app.scrapers.futbolme.client import FutbolmeClient
 from app.scrapers.futbolme.parser import FutbolmeParser, build_detail_url
 from app.utils.time import utcnow
 
-
 RECENT_MATCH_WINDOW_DAYS = 21
 RECENT_PRIORITY_SHARE = 0.75
 RETRY_COOLDOWN_DAYS = 1
@@ -101,6 +100,7 @@ class MatchEventEnricherService:
         detail_url = self._detail_url(match)
         html = self.fetch_html(detail_url)
         events = self.parser.parse_match_events(html, detail_url)
+        ht_home, ht_away = self.parser.parse_halftime_score(html)
         expected_goal_events = self._expected_goal_events(match)
         existing_events = self.repository.list_for_match(match.id)
         existing_count = len(existing_events)
@@ -145,6 +145,9 @@ class MatchEventEnricherService:
             )
             match.extra_data = extra_data
             match.has_scorers = completed
+            if ht_home is not None and ht_away is not None:
+                match.halftime_home_score = ht_home
+                match.halftime_away_score = ht_away
             self.session.add(match)
             self.session.flush()
 
@@ -170,9 +173,9 @@ class MatchEventEnricherService:
         )
         if competition_slug is not None:
             query = query.where(Match.competition.has(code=competition_slug))
-        candidates = self.session.execute(
-            query.order_by(Match.match_date.desc().nullslast(), Match.id.desc())
-        ).scalars().all()
+        candidates = (
+            self.session.execute(query.order_by(Match.match_date.desc().nullslast(), Match.id.desc())).scalars().all()
+        )
         return self._prioritize_pending_matches(candidates, limit=limit)
 
     def _detail_url(self, match: Match) -> str:
