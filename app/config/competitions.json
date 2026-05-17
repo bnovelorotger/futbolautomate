@@ -391,6 +391,355 @@
     }
   },
   {
+    "code": "tercera_rfef_g11_playoff",
+    "name": "3a RFEF Grupo 11 Promocion de Ascenso",
+    "editorial_name": "Playoff Ascenso 3a RFEF Baleares",
+    "competition_type": "playoff",
+    "playoff_type": "ascenso",
+    "parent_competition": "tercera_rfef_g11",
+    "aliases": [
+      "Tercera Federacion Grupo 11 Promocion de Ascenso",
+      "TERCERA FEDERACION - Grupo 11 - Promocion de Ascenso"
+    ],
+    "category_level": 5,
+    "gender": "male",
+    "region": "Spain",
+    "country": "Spain",
+    "federation": "RFEF",
+    "priority": 1,
+    "status": "integrated",
+    "primary_source": "futbolme",
+    "coverage_scope": "Equipos baleares del Grupo 11 en el playoff intergrupos de ascenso a 2a RFEF.",
+    "integration_notes": "Playoff al final de la fase regular de 3a RFEF Grupo 11. URL validada el 17 de mayo de 2026 con partidos activos.",
+    "references": [
+      {
+        "source_name": "futbolme",
+        "role": "primary",
+        "urls": [
+          "https://futbolme.com/resultados-directo/torneo/tercera-federacion-grupo-11-promocion-de-ascenso/3118/",
+          "https://futbolme.com/resultados-directo/torneo/tercera-federacion-grupo-11-promocion-de-ascenso/3118/calendario"
+        ],
+        "notes": "URL validada el 17 de mayo de 2026. Misma estructura HTML que la liga regular."
+      }
+    ],
+    "sources": {
+      "futbolme": {
+        "competition_id": "3118",
+        "enabled": true,
+        "urls": {
+          "matches": "https://futbolme.com/resultados-directo/torneo/tercera-federacion-grupo-11-promocion-de-ascenso/3118/calendario",
+          "standings": "https://futbolme.com/resultados-directo/torneo/tercera-federacion-grupo-11-promocion-de-ascenso/3118/"
+        },
+        "notes": "URL validada el 17 de mayo de 2026."
+      }
+    }
+  },
+  {
+    "code": "segunda_rfef_g3_playoff_ascenso",
+    "name": "2a RFEF Promocion de Ascenso",
+    "editorial_name": "Playoff Ascenso 2a RFEF (equipos baleares)",
+    "competition_type": "playoff",
+    "playoff_type": "ascenso",
+    "parent_competition": "segunda_rfef_g3_baleares",
+    "aliases": [
+      "Segunda Federacion Promocion de Ascenso",
+      "SEGUNDA FEDERACION - Promocion de Ascenso"
+    ],
+    "category_level": 4,
+    "gender": "male",
+    "region": "Spain",
+    "country": "Spain",
+    "federation": "RFEF",
+    "priority": 2,
+    "status": "integrated",
+    "primary_source": "futbolme",
+    "coverage_scope": "Equipos baleares del Grupo 3 en el playoff intergrupos de ascenso a 1a RFEF.",
+    "integration_notes": "Playoff nacional al final de la fase regular de 2a RFEF. Solo cobertura editorial de los equipos baleares. URL validada el 17 de mayo de 2026.",
+    "tracked_teams": [
+      "UD Poblense",
+      "Atletico Baleares",
+      "CD Ibiza Islas Pitiusas",
+      "CE Andratx",
+      "UE Porreres"
+    ],
+    "references": [
+      {
+        "source_name": "futbolme",
+        "role": "primary",
+        "urls": [
+          "https://futbolme.com/resultados-directo/torneo/segunda-federacion-promocion-de-ascenso/3127/",
+          "https://futbolme.com/resultados-directo/torneo/segunda-federacion-promocion-de-ascenso/3127/calendario"
+        ],
+        "notes": "URL validada el 17 de mayo de 2026. Partidos activos mayo 2026."
+      }
+    ],
+    "sources": {
+      "futbolme": {
+        "competition_id": "3127",
+        "enabled": true,
+        "urls": {
+          "matches": "https://futbolme.com/resultados-directo/torneo/segunda-federacion-promocion-de-ascenso/3127/calendario",
+          "standings": "https://futbolme.com/resultados-directo/torneo/segunda-federacion-promocion-de-ascenso/3127/"
+        },
+        "notes": "URL validada el 17 de mayo de 2026."
+      }
+    }
+  },
+  {
+    "code": "segunda_rfef_g3_playoff_permanencia",
+    "name": "2a RFEF Promocion de Permanencia",
+    "editorial_name": "Playoff Permanencia 2a RFEF (equipos baleares)",
+    "competition_type": "playoff",
+    "playoff_type": "permanencia",
+    "parent_competition": "segunda_rfef_g3_baleares",
+    "aliases": [
+      "Segunda Federacion Promocion de Permanencia",
+      "SEGUNDA FEDERACION - Promocion de Permanencia"
+    ],
+    "category_level": 4,
+    "gender": "male",
+    "region": "Spain",
+    "country": "Spain",
+    "federation": "RFEF",
+    "priority": 2,
+    "status": "integrated",
+    "primary_source": "futbolme",
+    "coverage_scope": "Equipos baleares del Grupo 3 en el playoff de permanencia en 2a RFEF.",
+    "integration_notes": "Playoff nacional de permanencia al final de la fase regular de 2a RFEF. Solo cobertura editorial de los equipos baleares. URL validada el 17 de mayo de 2026.",
+    "tracked_teams": [
+      "UD Poblense",
+      "Atletico Baleares",
+      "CD Ibiza Islas Pitiusas",
+      "CE Andratx",
+      "UE Porreres"
+    ],
+    "references": [
+      {
+        "source_name": "futbolme",
+        "role": "primary",
+        "urls": [
+          "https://futbolme.com/resultados-directo/torneo/segunda-federacion-promocion-de-permanencia/3128/",
+          "https://futbolme.com/resultados-directo/torneo/segunda-federacion-promocion-de-permanencia/3128/calendario"
+        ],
+        "notes": "URL validada el 17 de mayo de 2026."
+      }
+    ],
+    "sources": {
+      "futbolme": {
+        "competition_id": "3128",
+        "enabled": true,
+        "urls": {
+          "matches": "https://futbolme.com/resultados-directo/torneo/segunda-federacion-promocion-de-permanencia/3128/calendario",
+          "standings": "https://futbolme.com/resultados-directo/torneo/segunda-federacion-promocion-de-permanencia/3128/"
+        },
+        "notes": "URL validada el 17 de mayo de 2026."
+      }
+    }
+  },
+  {
+    "code": "primera_rfef_playoff_ascenso",
+    "name": "Primera Federacion Promocion de Ascenso",
+    "editorial_name": "Playoff Ascenso 1a RFEF (UD Ibiza)",
+    "competition_type": "playoff",
+    "playoff_type": "ascenso",
+    "parent_competition": "primera_rfef_baleares",
+    "aliases": [
+      "Primera Federacion Promocion de Ascenso",
+      "PRIMERA FEDERACION - Promocion de Ascenso"
+    ],
+    "category_level": 3,
+    "gender": "male",
+    "region": "Spain",
+    "country": "Spain",
+    "federation": "RFEF",
+    "priority": 2,
+    "status": "integrated",
+    "primary_source": "futbolme",
+    "coverage_scope": "Solo UD Ibiza si clasifica. Playoff nacional de ascenso a Segunda Division.",
+    "integration_notes": "Playoff nacional al final de la fase regular de 1a RFEF. Solo cobertura editorial de UD Ibiza. URL validada el 17 de mayo de 2026.",
+    "tracked_teams": [
+      "UD Ibiza"
+    ],
+    "references": [
+      {
+        "source_name": "futbolme",
+        "role": "primary",
+        "urls": [
+          "https://futbolme.com/resultados-directo/torneo/primera-federacion-promocion-de-ascenso/3137/",
+          "https://futbolme.com/resultados-directo/torneo/primera-federacion-promocion-de-ascenso/3137/calendario"
+        ],
+        "notes": "URL validada el 17 de mayo de 2026. Fase final/semifinal activa."
+      }
+    ],
+    "sources": {
+      "futbolme": {
+        "competition_id": "3137",
+        "enabled": true,
+        "urls": {
+          "matches": "https://futbolme.com/resultados-directo/torneo/primera-federacion-promocion-de-ascenso/3137/calendario",
+          "standings": "https://futbolme.com/resultados-directo/torneo/primera-federacion-promocion-de-ascenso/3137/"
+        },
+        "notes": "URL validada el 17 de mayo de 2026."
+      }
+    }
+  },
+  {
+    "code": "tercera_femenina_g11_playoff",
+    "name": "Tercera Federacion Femenina Grupo 11 Promocion de Ascenso",
+    "editorial_name": "Playoff Ascenso 3a Federacion Femenina Baleares",
+    "competition_type": "playoff",
+    "playoff_type": "ascenso",
+    "parent_competition": "tercera_federacion_femenina_g11",
+    "aliases": [
+      "Tercera Federacion Femenina Promocion de Ascenso",
+      "TERCERA FEDERACION FEMENINA - Promocion de Ascenso"
+    ],
+    "category_level": 3,
+    "gender": "female",
+    "region": "Spain",
+    "country": "Spain",
+    "federation": "RFEF",
+    "priority": 2,
+    "status": "integrated",
+    "primary_source": "futbolme",
+    "coverage_scope": "Equipos baleares en el playoff de ascenso a 2a Federacion Femenina.",
+    "integration_notes": "Playoff femenino al final de la fase regular. URL validada el 17 de mayo de 2026. Finales jugadas los dias 9-10 de mayo de 2026.",
+    "references": [
+      {
+        "source_name": "futbolme",
+        "role": "primary",
+        "urls": [
+          "https://futbolme.com/resultados-directo/torneo/tercera-federacion-femenina-promocion-de-ascenso/3235/",
+          "https://futbolme.com/resultados-directo/torneo/tercera-federacion-femenina-promocion-de-ascenso/3235/calendario"
+        ],
+        "notes": "URL validada el 17 de mayo de 2026."
+      }
+    ],
+    "sources": {
+      "futbolme": {
+        "competition_id": "3235",
+        "enabled": true,
+        "urls": {
+          "matches": "https://futbolme.com/resultados-directo/torneo/tercera-federacion-femenina-promocion-de-ascenso/3235/calendario",
+          "standings": "https://futbolme.com/resultados-directo/torneo/tercera-federacion-femenina-promocion-de-ascenso/3235/"
+        },
+        "notes": "URL validada el 17 de mayo de 2026."
+      }
+    }
+  },
+  {
+    "code": "division_honor_ibiza_playoff",
+    "name": "Division Honor Ibiza y Formentera Promocion Previa Ascenso",
+    "editorial_name": "Playoff Ascenso Division Honor Ibiza",
+    "competition_type": "playoff",
+    "playoff_type": "ascenso",
+    "parent_competition": "division_honor_ibiza_form",
+    "aliases": [
+      "Division Honor Ibiza y Formentera Promocion Previa Ascenso",
+      "DIVISION HONOR IBIZA Y FORMENTERA - Promocion Previa Ascenso"
+    ],
+    "category_level": 6,
+    "gender": "male",
+    "region": "Ibiza y Formentera",
+    "country": "Spain",
+    "federation": "FFIB",
+    "priority": 3,
+    "status": "integrated",
+    "primary_source": "futbolme",
+    "coverage_scope": "Playoff local de ascenso a 3a Federacion desde Division Honor Ibiza.",
+    "integration_notes": "Playoff regional FFIB. Semifinal disputada el 3 de mayo de 2026. URL validada el 17 de mayo de 2026.",
+    "references": [
+      {
+        "source_name": "futbolme",
+        "role": "primary",
+        "urls": [
+          "https://futbolme.com/resultados-directo/torneo/division-honor-ibiza-y-formentera-promocion-previa-ascenso/3156/",
+          "https://futbolme.com/resultados-directo/torneo/division-honor-ibiza-y-formentera-promocion-previa-ascenso/3156/calendario"
+        ],
+        "notes": "URL validada el 17 de mayo de 2026."
+      }
+    ],
+    "sources": {
+      "futbolme": {
+        "competition_id": "3156",
+        "enabled": true,
+        "urls": {
+          "matches": "https://futbolme.com/resultados-directo/torneo/division-honor-ibiza-y-formentera-promocion-previa-ascenso/3156/calendario",
+          "standings": "https://futbolme.com/resultados-directo/torneo/division-honor-ibiza-y-formentera-promocion-previa-ascenso/3156/"
+        },
+        "notes": "URL validada el 17 de mayo de 2026."
+      }
+    }
+  },
+  {
+    "code": "division_honor_menorca_playoff",
+    "name": "Division Honor Menorca Promocion Previa Ascenso",
+    "editorial_name": "Playoff Ascenso Division Honor Menorca",
+    "competition_type": "playoff",
+    "playoff_type": "ascenso",
+    "parent_competition": "division_honor_menorca",
+    "aliases": [
+      "Division Honor Menorca Promocion Previa Ascenso",
+      "DIVISION HONOR MENORCA - Promocion Previa Ascenso"
+    ],
+    "category_level": 6,
+    "gender": "male",
+    "region": "Menorca",
+    "country": "Spain",
+    "federation": "FFIB",
+    "priority": 3,
+    "status": "integrated",
+    "primary_source": "futbolme",
+    "coverage_scope": "Playoff local de ascenso a 3a Federacion desde Division Honor Menorca.",
+    "integration_notes": "Playoff regional FFIB. URL validada el 17 de mayo de 2026 con semifinal activa.",
+    "references": [
+      {
+        "source_name": "futbolme",
+        "role": "primary",
+        "urls": [
+          "https://futbolme.com/resultados-directo/torneo/division-honor-menorca-promocion-previa-ascenso/3160/",
+          "https://futbolme.com/resultados-directo/torneo/division-honor-menorca-promocion-previa-ascenso/3160/calendario"
+        ],
+        "notes": "URL validada el 17 de mayo de 2026."
+      }
+    ],
+    "sources": {
+      "futbolme": {
+        "competition_id": "3160",
+        "enabled": true,
+        "urls": {
+          "matches": "https://futbolme.com/resultados-directo/torneo/division-honor-menorca-promocion-previa-ascenso/3160/calendario",
+          "standings": "https://futbolme.com/resultados-directo/torneo/division-honor-menorca-promocion-previa-ascenso/3160/"
+        },
+        "notes": "URL validada el 17 de mayo de 2026."
+      }
+    }
+  },
+  {
+    "code": "division_honor_mallorca_playoff",
+    "name": "Division Honor Mallorca Eliminatorias de Ascenso",
+    "editorial_name": "Playoff Ascenso Division Honor Mallorca",
+    "competition_type": "playoff",
+    "playoff_type": "ascenso",
+    "parent_competition": "division_honor_mallorca",
+    "aliases": [
+      "Division Honor Mallorca Eliminatorias de Ascenso",
+      "Division Honor Mallorca Promocion de Ascenso"
+    ],
+    "category_level": 6,
+    "gender": "male",
+    "region": "Mallorca",
+    "country": "Spain",
+    "federation": "FFIB",
+    "priority": 1,
+    "status": "deferred",
+    "primary_source": "futbolme",
+    "coverage_scope": "Playoff local de ascenso a 3a Federacion desde Division Honor Mallorca.",
+    "integration_notes": "La pagina de Division Honor Mallorca (4018) menciona eliminatorias de ascenso pero no expone el ID de competicion del playoff. Pendiente de localizar el competition_id correcto en futbolme.",
+    "references": [],
+    "sources": {}
+  },
+  {
     "code": "juvenil_division_honor_g3",
     "name": "Division de Honor Juvenil Grupo 3",
     "editorial_name": "Juvenil Division de Honor con equipos baleares",

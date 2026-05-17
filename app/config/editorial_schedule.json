@@ -146,6 +146,41 @@
         "competition_slug": "division_honor_menorca",
         "content_type": "standings_roundup",
         "priority": 67
+      },
+      {
+        "competition_slug": "tercera_rfef_g11_playoff",
+        "content_type": "results_roundup",
+        "priority": 100
+      },
+      {
+        "competition_slug": "segunda_rfef_g3_playoff_ascenso",
+        "content_type": "results_roundup",
+        "priority": 99
+      },
+      {
+        "competition_slug": "segunda_rfef_g3_playoff_permanencia",
+        "content_type": "results_roundup",
+        "priority": 98
+      },
+      {
+        "competition_slug": "primera_rfef_playoff_ascenso",
+        "content_type": "results_roundup",
+        "priority": 97
+      },
+      {
+        "competition_slug": "tercera_femenina_g11_playoff",
+        "content_type": "results_roundup",
+        "priority": 96
+      },
+      {
+        "competition_slug": "division_honor_ibiza_playoff",
+        "content_type": "results_roundup",
+        "priority": 75
+      },
+      {
+        "competition_slug": "division_honor_menorca_playoff",
+        "content_type": "results_roundup",
+        "priority": 74
       }
     ],
     "miercoles": [
@@ -230,6 +265,26 @@
         "competition_slug": "primera_rfef_baleares",
         "content_type": "match_impact_scenario",
         "priority": 86
+      },
+      {
+        "competition_slug": "tercera_rfef_g11_playoff",
+        "content_type": "featured_match_preview",
+        "priority": 95
+      },
+      {
+        "competition_slug": "segunda_rfef_g3_playoff_ascenso",
+        "content_type": "featured_match_preview",
+        "priority": 94
+      },
+      {
+        "competition_slug": "primera_rfef_playoff_ascenso",
+        "content_type": "featured_match_preview",
+        "priority": 93
+      },
+      {
+        "competition_slug": "segunda_rfef_g3_playoff_permanencia",
+        "content_type": "featured_match_preview",
+        "priority": 92
       }
     ],
     "domingo": [

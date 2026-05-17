@@ -35,8 +35,8 @@ def test_system_check_reports_missing_and_ready_competitions() -> None:
 
         report = SystemCheckService(session, settings=build_settings()).editorial_readiness()
 
-        assert report.integrated_catalog_count == 7
-        assert report.seeded_integrated_count == 7
+        assert report.integrated_catalog_count == 14
+        assert report.seeded_integrated_count == 14
         assert report.export_base_ready is True
         assert report.export_base_path.endswith("exports\\export_base.json") or report.export_base_path.endswith("exports/export_base.json")
         rows = {row.code: row for row in report.rows}

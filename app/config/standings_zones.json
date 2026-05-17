@@ -26,5 +26,33 @@
   "division_honor_menorca": {
     "playoff_positions": [],
     "relegation_positions": []
+  },
+  "tercera_rfef_g11_playoff": {
+    "playoff_positions": [],
+    "relegation_positions": []
+  },
+  "segunda_rfef_g3_playoff_ascenso": {
+    "playoff_positions": [],
+    "relegation_positions": []
+  },
+  "segunda_rfef_g3_playoff_permanencia": {
+    "playoff_positions": [],
+    "relegation_positions": []
+  },
+  "primera_rfef_playoff_ascenso": {
+    "playoff_positions": [],
+    "relegation_positions": []
+  },
+  "tercera_femenina_g11_playoff": {
+    "playoff_positions": [],
+    "relegation_positions": []
+  },
+  "division_honor_ibiza_playoff": {
+    "playoff_positions": [],
+    "relegation_positions": []
+  },
+  "division_honor_menorca_playoff": {
+    "playoff_positions": [],
+    "relegation_positions": []
   }
 }
