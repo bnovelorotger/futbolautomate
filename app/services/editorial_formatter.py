@@ -802,10 +802,13 @@ class EditorialFormatterService:
         lines.extend(insight_lines)
         if not compact_title:
             lines.append("")
+        # When insight lines already carry @mentions, suppress them in the match
+        # list to avoid the same handle appearing twice in the same tweet.
+        list_mention_limit = 0 if insight_lines else mention_limit
         for match in matches:
             home_team = self._string(match.get("home_team")) or "-"
             away_team = self._string(match.get("away_team")) or "-"
-            mention_map = self._mention_map([home_team, away_team], competition_slug, limit=mention_limit)
+            mention_map = self._mention_map([home_team, away_team], competition_slug, limit=list_mention_limit)
             lines.append(
                 f"{self._render_team_label(home_team, mention_map)} {int(match.get('home_score') or 0)}-"
                 f"{int(match.get('away_score') or 0)} {self._render_team_label(away_team, mention_map)}"
