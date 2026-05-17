@@ -228,3 +228,7 @@ def run_daily_pipeline(dry_run: bool = False) -> list[dict]:
     for source in (SourceName.FFIB, SourceName.DIARIO_MALLORCA, SourceName.ULTIMA_HORA):
         results.append(run_source_pipeline(source=source, target=TargetType.NEWS, dry_run=dry_run))
     return results
+
+
+if __name__ == "__main__":
+    app()

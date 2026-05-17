@@ -62,61 +62,64 @@ tests/
 
 ## Running the CLI
 
-All commands go through:
+Each command group is its own module under `app/pipelines/`. Invoke with:
 ```bash
-python -m app.pipelines.runner <command> [options]
+python -m app.pipelines.<module> <subcommand> [options]
 ```
+
+`app.pipelines.runner` is the exception: it aggregates `match_events`,
+`pipeline_metrics`, `pipeline_summary`, and `top_scorer` as sub-commands.
 
 ### Data ingestion
 ```bash
 # Scrape one source for one competition
-python -m app.pipelines.runner run_source --source futbolme --competition tercera_rfef_g11 --target matches
+python -m app.pipelines.run_source --source futbolme --competition tercera_rfef_g11 --target matches
 
 # Daily refresh (all integrated competitions)
-python -m app.pipelines.runner run_daily
+python -m app.pipelines.run_daily
 ```
 
 ### Editorial pipeline
 ```bash
 # Generate daily content (previews, roundups)
-python -m app.pipelines.runner editorial_ops preview-day --date 2026-05-12
+python -m app.pipelines.editorial_ops preview-day --date 2026-05-12
 
 # Full daily editorial pipeline
-python -m app.pipelines.runner editorial_ops run-daily
+python -m app.pipelines.editorial_ops run-daily
 
 # Quality checks (dry-run)
-python -m app.pipelines.runner editorial_quality_checks dry-run --date 2026-05-12
+python -m app.pipelines.editorial_quality_checks dry-run --date 2026-05-12
 
 # Approval (dry-run)
-python -m app.pipelines.runner editorial_approval dry-run --date 2026-05-12
+python -m app.pipelines.editorial_approval dry-run --date 2026-05-12
 
 # Release and export
-python -m app.pipelines.runner editorial_release run --date 2026-05-12
-python -m app.pipelines.runner editorial_release dry-run --date 2026-05-12
+python -m app.pipelines.editorial_release run --date 2026-05-12
+python -m app.pipelines.editorial_release dry-run --date 2026-05-12
 ```
 
 ### Content generation (individual)
 ```bash
-python -m app.pipelines.runner results_roundup generate --competition tercera_rfef_g11
-python -m app.pipelines.runner standings_roundup generate --competition tercera_rfef_g11
-python -m app.pipelines.runner standings_events generate --competition tercera_rfef_g11
-python -m app.pipelines.runner team_form generate --competition tercera_rfef_g11
-python -m app.pipelines.runner match_importance generate --competition tercera_rfef_g11
-python -m app.pipelines.runner story_importance rank-pending
+python -m app.pipelines.results_roundup generate --competition tercera_rfef_g11
+python -m app.pipelines.standings_roundup generate --competition tercera_rfef_g11
+python -m app.pipelines.standings_events generate --competition tercera_rfef_g11
+python -m app.pipelines.team_form generate --competition tercera_rfef_g11
+python -m app.pipelines.match_importance generate --competition tercera_rfef_g11
+python -m app.pipelines.story_importance rank-pending
 ```
 
 ### Export
 ```bash
-python -m app.pipelines.runner export_base generate --date 2026-05-12
+python -m app.pipelines.export_base generate --date 2026-05-12
 ```
 
 ### Publishing (browser — default)
 ```bash
 # Capture/renew X session (opens interactive browser for login)
-python -m app.pipelines.runner x_browser_auth capture
+python -m app.pipelines.x_publish browser-auth-capture
 
 # Publish all pending candidates via browser (Playwright + Chromium)
-python -m app.pipelines.runner editorial_release run --publish-browser
+python -m app.pipelines.editorial_release run --publish-browser
 
 # Diagnose browser session
 python scripts/debug_browser_publish.py
@@ -124,8 +127,16 @@ python scripts/debug_browser_publish.py
 
 ### Publishing (X API — optional, requires API credentials)
 ```bash
-python -m app.pipelines.runner x_auth start-auth
-python -m app.pipelines.runner x_publish --id <candidate_id>
+python -m app.pipelines.x_auth start-auth
+python -m app.pipelines.x_publish publish --id <candidate_id>
+```
+
+### Runner sub-commands (match_events, pipeline_metrics, pipeline_summary, top_scorer)
+```bash
+python -m app.pipelines.runner match_events enrich --competition tercera_rfef_g11
+python -m app.pipelines.runner pipeline_summary show --date 2026-05-12
+python -m app.pipelines.runner pipeline_metrics show --date 2026-05-12
+python -m app.pipelines.runner top_scorer list --competition tercera_rfef_g11
 ```
 
 ---
