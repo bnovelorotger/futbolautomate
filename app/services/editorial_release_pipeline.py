@@ -162,11 +162,15 @@ class EditorialReleasePipelineService:
                 self.x_browser_publication_service.mark_pre_browser_published()
             # Publish standings_roundup candidates as a single thread; remaining individually.
             # publish_pending skips candidates that already have external_publication_ref set.
+            # bypass_schedule=True: when publication is explicitly requested, skip the day-of-week
+            # filter so old unpublished candidates are rescued regardless of when the pipeline runs.
             standings_result = self.x_browser_publication_service.publish_standings_thread(
                 dry_run=export_dry_run,
+                bypass_schedule=True,
             )
             remaining_result = self.x_browser_publication_service.publish_pending(
                 dry_run=export_dry_run,
+                bypass_schedule=True,
             )
             combined_rows = standings_result.rows + remaining_result.rows
             browser_publish_result = XBrowserBatchResult(

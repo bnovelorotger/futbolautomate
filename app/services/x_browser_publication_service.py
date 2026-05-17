@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from sqlalchemy import case, func, select, update
@@ -31,11 +31,24 @@ from app.utils.time import utcnow
 logger = logging.getLogger(__name__)
 
 
+_MIN_STAGGER_BYPASS_SECONDS = 900
+
+
 def _excerpt(text: str, limit: int = 90) -> str:
     compact = " ".join(text.split())
     if len(compact) <= limit:
         return compact
     return f"{compact[: limit - 3]}..."
+
+
+def _is_future_scheduled(candidate: ContentCandidate, *, now: datetime) -> bool:
+    if candidate.scheduled_at is None:
+        return False
+    sched = candidate.scheduled_at
+    if sched.tzinfo is None:
+        sched = sched.replace(tzinfo=UTC)
+    norm_now = now.astimezone(UTC) if now.tzinfo is not None else now.replace(tzinfo=UTC)
+    return sched.astimezone(UTC) > norm_now
 
 
 @dataclass
@@ -230,6 +243,11 @@ class XBrowserPublicationService:
             if self.window_service.matches_release_window(candidate, reference_date=reference_date)
         ]
 
+    def _candidates_bypassing_schedule(self, candidates: list[ContentCandidate]) -> list[ContentCandidate]:
+        """Bypass day-of-week schedule but exclude candidates with a future scheduled_at."""
+        now = self.scheduler.current_local_time()
+        return [c for c in candidates if not _is_future_scheduled(c, now=now)]
+
     def list_pending(self, *, limit: int = 50) -> list[XPublicationCandidateView]:
         rows = self.scheduler.filter_candidates(self._fresh_candidates(self._pending_candidates()))
         return [self._row_to_view(row) for row in rows[:limit]]
@@ -347,13 +365,17 @@ class XBrowserPublicationService:
         self,
         *,
         dry_run: bool = False,
+        bypass_schedule: bool = False,
     ) -> XBrowserBatchResult:
         all_pending = self._pending_candidates()
         standings_candidates = [c for c in all_pending if c.content_type == str(ContentType.STANDINGS_ROUNDUP)]
-        standings_candidates = self.scheduler.filter_candidates(self._fresh_candidates(standings_candidates))
+        if bypass_schedule:
+            standings_candidates = self._candidates_bypassing_schedule(standings_candidates)
+        else:
+            standings_candidates = self.scheduler.filter_candidates(self._fresh_candidates(standings_candidates))
 
         if len(standings_candidates) < 2:
-            return self.publish_pending(dry_run=dry_run)
+            return self.publish_pending(dry_run=dry_run, bypass_schedule=bypass_schedule)
 
         tweets: list[tuple[str, Path | None]] = []
         valid_candidates: list[ContentCandidate] = []
@@ -368,7 +390,7 @@ class XBrowserPublicationService:
             valid_candidates.append(candidate)
 
         if len(valid_candidates) < 2:
-            return self.publish_pending(dry_run=dry_run)
+            return self.publish_pending(dry_run=dry_run, bypass_schedule=bypass_schedule)
 
         rows: list[XBrowserPublicationResult] = []
         attempted_at = utcnow()
@@ -402,7 +424,7 @@ class XBrowserPublicationService:
                 "Thread publish failed (%s), falling back to individual publishing for standings candidates",
                 exc,
             )
-            return self.publish_pending(dry_run=dry_run)
+            return self.publish_pending(dry_run=dry_run, bypass_schedule=bypass_schedule)
 
         published_at = response.published_at or utcnow()
         for candidate in valid_candidates:
@@ -443,14 +465,21 @@ class XBrowserPublicationService:
         limit: int = 20,
         dry_run: bool = False,
         stagger_seconds: int | None = None,
+        bypass_schedule: bool = False,
     ) -> XBrowserBatchResult:
         if stagger_seconds is None:
             stagger_seconds = self.settings.x_browser_stagger_seconds
+        if bypass_schedule:
+            stagger_seconds = max(stagger_seconds, _MIN_STAGGER_BYPASS_SECONDS)
 
         if not dry_run:
             self.mark_pre_browser_published()
 
-        candidates = self.scheduler.filter_candidates(self._fresh_candidates(self._pending_candidates()))
+        pending = self._pending_candidates()
+        if bypass_schedule:
+            candidates = self._candidates_bypassing_schedule(pending)
+        else:
+            candidates = self.scheduler.filter_candidates(self._fresh_candidates(pending))
         candidates = candidates[:limit]
         rows: list[XBrowserPublicationResult] = []
         published_count = 0

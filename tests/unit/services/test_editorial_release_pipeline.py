@@ -629,7 +629,8 @@ def test_editorial_release_pipeline_publish_flags_use_browser_service_once(tmp_p
         assert result.x_publish_enabled is True
         assert result.x_published_count == 4
         x_publication_service.publish_candidates.assert_not_called()
-        x_browser_publication_service.publish_pending.assert_called_once_with(dry_run=False)
+        x_browser_publication_service.publish_standings_thread.assert_called_once_with(dry_run=False, bypass_schedule=True)
+        x_browser_publication_service.publish_pending.assert_called_once_with(dry_run=False, bypass_schedule=True)
         x_browser_publication_service.build_views_from_batch_result.assert_called_once()
     finally:
         session.close()

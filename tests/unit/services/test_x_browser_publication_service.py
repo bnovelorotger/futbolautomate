@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import Mock
 from zoneinfo import ZoneInfo
@@ -24,7 +24,7 @@ def test_x_browser_publication_service_lists_and_publishes_with_x_channel() -> N
         publisher = Mock()
         publisher.publish_text.return_value = XBrowserPublishResponse(
             text="RESULTADO FINAL",
-            published_at=datetime(2026, 3, 15, 10, 5, tzinfo=timezone.utc),
+            published_at=datetime(2026, 3, 15, 10, 5, tzinfo=UTC),
             dry_run=False,
         )
         service = XBrowserPublicationService(
@@ -162,12 +162,12 @@ def test_x_browser_publication_service_publish_pending_respects_schedule_and_ret
         publisher.publish_text.side_effect = [
             XBrowserPublishResponse(
                 text="RESULTADO FINAL",
-                published_at=datetime(2026, 3, 16, 9, 5, tzinfo=timezone.utc),
+                published_at=datetime(2026, 3, 16, 9, 5, tzinfo=UTC),
                 dry_run=False,
             ),
             XBrowserPublishResponse(
                 text="SEGUNDO INTENTO",
-                published_at=datetime(2026, 3, 16, 9, 6, tzinfo=timezone.utc),
+                published_at=datetime(2026, 3, 16, 9, 6, tzinfo=UTC),
                 dry_run=False,
             ),
         ]
@@ -204,7 +204,7 @@ def test_x_browser_publication_service_publish_pending_respects_schedule_and_ret
 
 
 def _make_standings_candidate(tmp_path: Path, candidate_id: int = 42) -> tuple[ContentCandidate, Path]:
-    now = datetime(2026, 3, 17, 10, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 3, 17, 10, 0, tzinfo=UTC)
     image_dir = tmp_path / "exports" / "images" / "tercera_rfef_g11" / "2026-03-17"
     image_dir.mkdir(parents=True)
     image_file = image_dir / f"standings_roundup_{candidate_id}.png"
@@ -247,7 +247,7 @@ def test_publish_standings_thread_falls_back_when_single_candidate() -> None:
         publisher = Mock()
         publisher.publish_text.return_value = XBrowserPublishResponse(
             text="Clasificación actualizada.",
-            published_at=datetime(2026, 3, 16, 10, 5, tzinfo=timezone.utc),
+            published_at=datetime(2026, 3, 16, 10, 5, tzinfo=UTC),
             dry_run=False,
         )
         service = XBrowserPublicationService(
@@ -271,7 +271,7 @@ def test_list_all_unpublished_ignores_window() -> None:
     session = build_session()
     try:
         seed_candidates(session)
-        three_days_ago = datetime(2026, 3, 13, 10, 0, tzinfo=timezone.utc)
+        three_days_ago = datetime(2026, 3, 13, 10, 0, tzinfo=UTC)
         session.add(
             ContentCandidate(
                 id=10,
@@ -296,7 +296,7 @@ def test_list_all_unpublished_ignores_window() -> None:
         session.commit()
 
         # current_time is 3 days after the candidate's published_at — outside the 48h cutoff
-        current_time = datetime(2026, 3, 16, 10, 0, tzinfo=timezone.utc)
+        current_time = datetime(2026, 3, 16, 10, 0, tzinfo=UTC)
         service = XBrowserPublicationService(
             session,
             scheduler=build_scheduler(current_time=current_time),
@@ -310,6 +310,157 @@ def test_list_all_unpublished_ignores_window() -> None:
 
         assert 10 in all_ids, "Stranded candidate must appear in list_all_unpublished"
         assert 10 not in pending_ids, "Stranded candidate must NOT appear in list_pending (outside 48h window)"
+    finally:
+        session.close()
+
+
+def test_publish_pending_bypass_schedule_publishes_on_non_scheduled_day() -> None:
+    """bypass_schedule=True must publish results_roundup on a Saturday (not in publication_schedule)."""
+    session = build_session()
+    try:
+        # Saturday 2026-03-14 — not in publication_schedule (only Monday is for results_roundup)
+        saturday = datetime(2026, 3, 14, 10, 0, tzinfo=ZoneInfo("Europe/Madrid"))
+        # Candidate published yesterday (Friday), scheduled_at also in the past → no future-schedule block
+        friday = datetime(2026, 3, 13, 10, 0, tzinfo=UTC)
+        session.add(
+            ContentCandidate(
+                id=50,
+                competition_slug="segunda_rfef_g3_baleares",
+                content_type="results_roundup",
+                priority=99,
+                text_draft="RESULTADO DEL VIERNES",
+                payload_json=build_results_payload(reference_date="2026-03-13", match_date="2026-03-13"),
+                source_summary_hash="hash-50",
+                scheduled_at=friday,
+                status="published",
+                published_at=friday,
+                created_at=friday,
+                updated_at=friday,
+            )
+        )
+        session.commit()
+
+        publisher = Mock()
+        publisher.publish_text.return_value = XBrowserPublishResponse(
+            text="RESULTADO DEL VIERNES",
+            published_at=datetime(2026, 3, 14, 10, 5, tzinfo=UTC),
+            dry_run=False,
+        )
+        window_service = Mock()
+        window_service.matches_release_window.return_value = True
+        service = XBrowserPublicationService(
+            session,
+            publisher=publisher,
+            scheduler=build_scheduler(current_time=saturday),
+            window_service=window_service,
+        )
+
+        normal_result = service.publish_pending(limit=10, dry_run=True, stagger_seconds=0)
+        bypass_result = service.publish_pending(limit=10, dry_run=True, stagger_seconds=0, bypass_schedule=True)
+
+        assert normal_result.published_count == 0, "Saturday must yield 0 without bypass"
+        assert bypass_result.published_count >= 1, "bypass_schedule=True must publish despite Saturday"
+        assert any(r.candidate_id == 50 for r in bypass_result.rows)
+    finally:
+        session.close()
+
+
+def test_publish_pending_bypass_schedule_excludes_future_scheduled() -> None:
+    """bypass_schedule=True must not publish candidates whose scheduled_at is in the future."""
+    session = build_session()
+    try:
+        now = datetime(2026, 3, 14, 10, 0, tzinfo=ZoneInfo("Europe/Madrid"))
+        future_time = datetime(2026, 3, 15, 10, 0, tzinfo=ZoneInfo("Europe/Madrid"))
+        session.add_all(
+            [
+                ContentCandidate(
+                    id=20,
+                    competition_slug="segunda_rfef_g3_baleares",
+                    content_type="results_roundup",
+                    priority=99,
+                    text_draft="PASADO — sin scheduled_at",
+                    payload_json=build_results_payload(reference_date="2026-03-14", match_date="2026-03-13"),
+                    source_summary_hash="hash-20",
+                    status="published",
+                    published_at=now,
+                    created_at=now,
+                    updated_at=now,
+                ),
+                ContentCandidate(
+                    id=21,
+                    competition_slug="segunda_rfef_g3_baleares",
+                    content_type="results_roundup",
+                    priority=98,
+                    text_draft="FUTURO — scheduled_at mañana",
+                    payload_json=build_results_payload(reference_date="2026-03-15", match_date="2026-03-14"),
+                    source_summary_hash="hash-21",
+                    scheduled_at=future_time,
+                    status="published",
+                    published_at=now,
+                    created_at=now,
+                    updated_at=now,
+                ),
+            ]
+        )
+        session.commit()
+
+        service = XBrowserPublicationService(
+            session,
+            publisher=Mock(),
+            scheduler=build_scheduler(current_time=now),
+        )
+
+        result = service.publish_pending(limit=10, dry_run=True, stagger_seconds=0, bypass_schedule=True)
+
+        published_ids = [row.candidate_id for row in result.rows]
+        assert 20 in published_ids, "Past candidate (no scheduled_at) must be included"
+        assert 21 not in published_ids, "Future scheduled_at must be excluded even with bypass"
+    finally:
+        session.close()
+
+
+def test_publish_pending_bypass_schedule_enforces_minimum_stagger() -> None:
+    """bypass_schedule=True enforces at least 900s stagger regardless of the explicit value."""
+    from unittest.mock import patch
+
+    session = build_session()
+    try:
+        now = datetime(2026, 3, 14, 10, 0, tzinfo=ZoneInfo("Europe/Madrid"))
+        for i, cid in enumerate([30, 31]):
+            session.add(
+                ContentCandidate(
+                    id=cid,
+                    competition_slug="segunda_rfef_g3_baleares",
+                    content_type="results_roundup",
+                    priority=99 - i,
+                    text_draft=f"POST {cid}",
+                    payload_json=build_results_payload(reference_date="2026-03-14", match_date="2026-03-13"),
+                    source_summary_hash=f"hash-{cid}",
+                    status="published",
+                    published_at=now,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+        session.commit()
+
+        publisher = Mock()
+        publisher.publish_text.return_value = XBrowserPublishResponse(
+            text="POST",
+            published_at=datetime(2026, 3, 14, 10, 5, tzinfo=UTC),
+            dry_run=False,
+        )
+        service = XBrowserPublicationService(
+            session,
+            publisher=publisher,
+            scheduler=build_scheduler(current_time=now),
+        )
+
+        with patch("app.services.x_browser_publication_service.time") as mock_time:
+            service.publish_pending(limit=10, dry_run=False, stagger_seconds=0, bypass_schedule=True)
+            # Must have slept for at least 900s between the two posts
+            sleep_calls = [call.args[0] for call in mock_time.sleep.call_args_list]
+            assert any(s >= 900 for s in sleep_calls), f"Expected sleep ≥900s; got {sleep_calls}"
     finally:
         session.close()
 
