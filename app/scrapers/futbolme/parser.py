@@ -166,6 +166,10 @@ def _parse_page_metadata(soup: BeautifulSoup) -> FutbolmePageMetadata:
 
 def _parse_round_heading(match_card: Tag) -> tuple[str | None, str | None]:
     heading = match_card.find_previous("div", class_="contenedorTitularTorneoCalendario")
+    if heading is None:
+        # Playoff/cup pages omit contenedorTitularTorneoCalendario and use
+        # div.nombreDiaPartido instead, which carries the date but no round number.
+        heading = match_card.find_previous("div", class_="nombreDiaPartido")
     heading_text = _text(heading)
     if not heading_text:
         return None, None

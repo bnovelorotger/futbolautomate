@@ -1,6 +1,7 @@
 CENTRAL_CONTENT_SELECTOR = "#contenedorCentral"
 TOURNAMENT_HEADER_SELECTOR = "#cabeceraTorneo"
 CALENDAR_HEADING_SELECTOR = ".contenedorTitularTorneoCalendario"
+CALENDAR_DAY_DATE_SELECTOR = ".nombreDiaPartido"
 MATCH_CARD_SELECTOR = ".cajaPartido"
 STANDINGS_TABLE_SELECTOR = "#latabla"
 STANDINGS_ROW_SELECTOR = "#latabla tr"
