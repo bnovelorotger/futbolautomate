@@ -6,10 +6,14 @@ $ps = "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
 $user = $env:USERNAME
 
 function Register-FutbolTask {
-    param($Name, $Script, $TimeStr, [string[]]$Days)
+    param($Name, $Script, $TimeStr, [string[]]$Days, [string]$ScriptArguments = "")
+    $fullArgument = "-NonInteractive -ExecutionPolicy Bypass -File `"$project\$Script`""
+    if (-not [string]::IsNullOrWhiteSpace($ScriptArguments)) {
+        $fullArgument = "$fullArgument $ScriptArguments"
+    }
     $action = New-ScheduledTaskAction `
         -Execute $ps `
-        -Argument "-NonInteractive -ExecutionPolicy Bypass -File `"$project\$Script`"" `
+        -Argument $fullArgument `
         -WorkingDirectory $project
     $triggers = $Days | ForEach-Object {
         New-ScheduledTaskTrigger -Weekly -DaysOfWeek $_ -At $TimeStr
@@ -69,8 +73,12 @@ Register-FutbolTask "futbol_release_fri"        "scripts\windows\editorial_relea
 # Resto de dias: release estandar
 Register-FutbolTask "futbol_release_other"      "scripts\windows\editorial_release.ps1" "10:30" @("Tuesday","Thursday","Saturday")
 
+# --- Agenda Telegram de la jornada ---
+Register-FutbolTask "futbol_editorial_day_plan" "scripts\windows\editorial_day_plan.ps1" "09:00" @("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday") "-SendTelegram"
+
 # --- Resumen operativo diario ---
 Register-FutbolTask "futbol_summary"            "scripts\windows\daily_summary.ps1"     "21:00" @("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday")
+Register-FutbolTask "futbol_editorial_digest"   "scripts\windows\editorial_daily_digest.ps1" "22:00" @("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday") "-SendTelegram"
 
 # --- Engagement diario (like a tweets del timeline) ---
 Register-FutbolTask "futbol_engagement"         "scripts\windows\daily_engagement.ps1"  "12:30" @("Monday","Tuesday","Wednesday","Thursday","Friday")

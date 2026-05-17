@@ -2,7 +2,11 @@
 # Ejecuta pipeline_summary con ventana de 1 dia y loggea el resultado.
 # Si hay alertas activas (exit code 1), loggea a nivel ERROR.
 # Schedule: diario a las 21:00 via Task Scheduler.
-param([switch]$DryRun)
+param(
+    [string]$Date,
+    [int]$Days = 1,
+    [switch]$DryRun
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
@@ -14,7 +18,10 @@ Initialize-Runtime -LogName "cron_summary.log" -SlotName "cron_summary"
 try {
     Write-Log -Level "INFO" -Message "=== daily_summary.ps1 ==="
 
-    $arguments = @("--days", "1")
+    $arguments = @("--days", $Days.ToString())
+    if (-not [string]::IsNullOrWhiteSpace($Date)) {
+        $arguments += @("--date", $Date)
+    }
     if ($DryRun.IsPresent) {
         Write-Log -Level "INFO" -Message "Modo dry-run: pipeline_summary solo consulta, no modifica nada."
     }

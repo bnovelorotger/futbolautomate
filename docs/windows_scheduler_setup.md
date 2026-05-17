@@ -23,6 +23,8 @@ Ruta: `scripts/windows/`
 | `readiness_check.ps1` | `competition_catalog status` + `system_check editorial-readiness` |
 | `run_editorial_day.ps1` | `preview-day` + `run-daily` (generacion de contenido editorial) |
 | `editorial_release.ps1` | Quality checks + aprobacion + dispatch + export + publicacion en X via navegador |
+| `editorial_day_plan.ps1` | Agenda editorial diaria para Telegram a las 09:00 con lo previsto del dia |
+| `editorial_daily_digest.ps1` | Resumen editorial diario para Telegram a las 22:00 con lo publicado y ratios |
 | `daily_engagement.ps1` | Likes diarios en el timeline de X para humanizar la cuenta (3 likes/dia por defecto) |
 | `backup_db.ps1` | Backup diario de PostgreSQL en `backups/` |
 | `auto_publish_browser.ps1` | Reintento batch canonico de publicacion via navegador, desacoplado del release |
@@ -51,6 +53,8 @@ Todas las tareas usan `-LogonType Interactive`: requieren sesion de Windows abie
 | `futbol_release_wed` | — | — | 19:30 | — | — | — | — |
 | `futbol_release_fri` | — | — | — | — | 09:00 | — | — |
 | `futbol_release_other` | — | 10:30 | — | 10:30 | — | 10:30 | — |
+| `futbol_editorial_day_plan` | 09:00 | 09:00 | 09:00 | 09:00 | 09:00 | 09:00 | 09:00 |
+| `futbol_editorial_digest` | 22:00 | 22:00 | 22:00 | 22:00 | 22:00 | 22:00 | 22:00 |
 | `futbol_engagement` | 12:30 | 12:30 | 12:30 | 12:30 | 12:30 | — | — |
 | `futbol_backup` | 03:00 | 03:00 | 03:00 | 03:00 | 03:00 | 03:00 | 03:00 |
 | `futbol_log_cleanup` | — | — | — | — | — | — | 04:00 |
@@ -61,6 +65,7 @@ Todas las tareas usan `-LogonType Interactive`: requieren sesion de Windows abie
 - Miercoles: refresh a las 07:00 → editorial a las 18:30 → release (+ publicacion en X) a las 19:30
 - Viernes: refresh a las 07:00 → editorial a las 08:00 → release (+ publicacion en X) a las 09:00
 - Martes/jueves/sabado: solo refresh matutino + release estandar a las 10:30
+- todos los dias: agenda Telegram a las 09:00 y digest Telegram a las 22:00
 
 ---
 
@@ -149,6 +154,8 @@ X_ENGAGEMENT_DAILY_LIKES=3
 | `logs\cron_readiness.log` | readiness_check |
 | `logs\cron_editorial.log` | run_editorial_day |
 | `logs\cron_release.log` | editorial_release |
+| `logs\editorial_day_plan.log` | editorial_day_plan |
+| `logs\editorial_daily_digest.log` | editorial_daily_digest |
 | `logs\cron_engagement.log` | daily_engagement |
 | `logs\cron_backup.log` | backup_db |
 | `logs\cron_session_check.log` | check_browser_session |
@@ -268,6 +275,27 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\windows\auto_
 # Diagnostico de sesion del navegador
 python scripts/debug_browser_publish.py
 ```
+
+---
+
+## Telegram, agenda y digest diario
+
+La operativa de Telegram tiene tres piezas distintas:
+
+- notificaciones de evento (`inicio`, `fin`, `error`) emitidas por las tareas ya existentes
+- una agenda editorial a las `09:00`
+- un digest diario a las `22:00`
+
+Reglas operativas:
+
+- no crear una tarea separada solo para `inicio`/`fin`/`error`; esas notificaciones deben salir desde el wrapper de cada tarea critica
+- la agenda editorial debe programarse a las `09:00` y enviarse por Telegram con `scripts/windows/editorial_day_plan.ps1 -SendTelegram`
+- el digest diario debe programarse a las `22:00` y enviarse por Telegram con `scripts/windows/editorial_daily_digest.ps1 -SendTelegram`
+- usar el mismo patron operativo de `common.ps1`: `.env`, logs y lock file
+
+Referencia de mensajes, ratios y prueba manual:
+
+- ver [telegram_notifications_runbook.md](C:/Users/bnove/Documents/futbolbalear/docs/telegram_notifications_runbook.md)
 
 ---
 

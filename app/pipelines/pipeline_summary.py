@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import time
 from datetime import date as date_type
 
 import typer
@@ -9,7 +10,9 @@ from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.db.session import init_db, session_scope
 from app.services.pipeline_summary_service import PipelineSummaryReport, PipelineSummaryService
+from app.services.telegram_event_notifier import TelegramEventNotifier
 from app.services.telegram_notification_service import TelegramNotificationService
+from app.utils.time import utcnow
 
 app = typer.Typer(
     add_completion=False,
@@ -120,6 +123,69 @@ def _build_telegram_alert(report: PipelineSummaryReport) -> str:
     return "\n".join(lines)
 
 
+def _notify_task_started(
+    *,
+    task_name: str,
+    mode: str,
+    summary_metrics: dict[str, object] | None = None,
+) -> tuple[TelegramEventNotifier, object, float]:
+    notifier = TelegramEventNotifier()
+    started_at = utcnow()
+    started_monotonic = time.monotonic()
+    if notifier.is_configured():
+        notifier.task_started(
+            task_name=task_name,
+            mode=mode,
+            started_at=started_at,
+            summary_metrics=summary_metrics,
+        )
+    return notifier, started_at, started_monotonic
+
+
+def _notify_task_finished(
+    notifier: TelegramEventNotifier,
+    *,
+    task_name: str,
+    mode: str,
+    started_at,
+    started_monotonic: float,
+    status: str = "ok",
+    summary_metrics: dict[str, object] | None = None,
+) -> None:
+    if not notifier.is_configured():
+        return
+    notifier.task_finished(
+        task_name=task_name,
+        mode=mode,
+        started_at=started_at,
+        duration_seconds=time.monotonic() - started_monotonic,
+        status=status,
+        summary_metrics=summary_metrics,
+    )
+
+
+def _notify_task_failed(
+    notifier: TelegramEventNotifier,
+    *,
+    task_name: str,
+    mode: str,
+    started_at,
+    started_monotonic: float,
+    error_message: str,
+    summary_metrics: dict[str, object] | None = None,
+) -> None:
+    if not notifier.is_configured():
+        return
+    notifier.task_failed(
+        task_name=task_name,
+        mode=mode,
+        started_at=started_at,
+        duration_seconds=time.monotonic() - started_monotonic,
+        error_message=error_message[:200],
+        summary_metrics=summary_metrics,
+    )
+
+
 @app.callback(invoke_without_command=True)
 def run(
     date_str: str | None = typer.Option(None, "--date", help="Fecha de referencia YYYY-MM-DD (default: hoy)"),
@@ -137,20 +203,65 @@ def run(
     init_db()
 
     parsed_date = date_type.fromisoformat(date_str) if date_str else None
+    notifier, started_at, started_monotonic = _notify_task_started(
+        task_name="pipeline_summary",
+        mode=f"window_{days}d",
+        summary_metrics={"days": days},
+    )
 
-    with session_scope() as session:
-        report = PipelineSummaryService(
-            session,
-            rejection_alert_threshold=rejection_threshold,
-        ).summary(reference_date=parsed_date, window_days=days)
+    try:
+        with session_scope() as session:
+            report = PipelineSummaryService(
+                session,
+                rejection_alert_threshold=rejection_threshold,
+            ).summary(reference_date=parsed_date, window_days=days)
 
-    typer.echo(_render(report))
+        typer.echo(_render(report))
 
-    if report.has_alerts:
-        tg = TelegramNotificationService(settings=settings)
-        if tg.is_configured():
-            tg.send_message(_build_telegram_alert(report))
-        raise typer.Exit(code=1)
+        if report.has_alerts:
+            tg = TelegramNotificationService(settings=settings)
+            if tg.is_configured():
+                tg.send_message(_build_telegram_alert(report))
+            _notify_task_finished(
+                notifier,
+                task_name="pipeline_summary",
+                mode=f"window_{days}d",
+                started_at=started_at,
+                started_monotonic=started_monotonic,
+                status="alerts",
+                summary_metrics={
+                    "alerts": len(report.alerts),
+                    "blocked": report.blocked.draft_count + report.blocked.rejected_count,
+                    "publication_errors": report.publication.publication_errors,
+                },
+            )
+            raise typer.Exit(code=1)
+
+        _notify_task_finished(
+            notifier,
+            task_name="pipeline_summary",
+            mode=f"window_{days}d",
+            started_at=started_at,
+            started_monotonic=started_monotonic,
+            summary_metrics={
+                "alerts": len(report.alerts),
+                "blocked": report.blocked.draft_count + report.blocked.rejected_count,
+                "publication_errors": report.publication.publication_errors,
+            },
+        )
+    except typer.Exit:
+        raise
+    except Exception as exc:
+        _notify_task_failed(
+            notifier,
+            task_name="pipeline_summary",
+            mode=f"window_{days}d",
+            started_at=started_at,
+            started_monotonic=started_monotonic,
+            error_message=str(exc),
+            summary_metrics={"days": days},
+        )
+        raise
 
 
 if __name__ == "__main__":

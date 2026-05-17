@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 
 import typer
 
@@ -12,6 +13,8 @@ from app.core.logging import configure_logging
 from app.core.run_context import set_run_id
 from app.db.repositories.scraper_runs import ScraperRunRepository
 from app.db.session import init_db, session_scope
+from app.pipelines.editorial_daily_digest import app as editorial_daily_digest_app
+from app.pipelines.editorial_day_plan import app as editorial_day_plan_app
 from app.pipelines.match_events import app as match_events_app
 from app.pipelines.pipeline_metrics import app as pipeline_metrics_app
 from app.pipelines.pipeline_summary import app as pipeline_summary_app
@@ -21,6 +24,7 @@ from app.scrapers.registry import build_scraper
 from app.services.ingest_matches import ingest_matches
 from app.services.ingest_news import ingest_news
 from app.services.ingest_standings import ingest_standings
+from app.services.telegram_event_notifier import TelegramEventNotifier
 from app.services.telegram_notification_service import TelegramNotificationService
 from app.utils.time import utcnow
 
@@ -32,6 +36,8 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(match_events_app, name="match_events")
+app.add_typer(editorial_day_plan_app, name="editorial_day_plan")
+app.add_typer(editorial_daily_digest_app, name="editorial_daily_digest")
 app.add_typer(pipeline_metrics_app, name="pipeline_metrics")
 app.add_typer(pipeline_summary_app, name="pipeline_summary")
 app.add_typer(top_scorer_app, name="top_scorer")
@@ -144,6 +150,76 @@ def format_run_summary(
     )
 
 
+def _task_mode(dry_run: bool) -> str:
+    return "dry_run" if dry_run else "live"
+
+
+def _task_notifier() -> TelegramEventNotifier:
+    return TelegramEventNotifier()
+
+
+def _notify_task_started(
+    notifier: TelegramEventNotifier,
+    *,
+    task_name: str,
+    mode: str,
+    started_at,
+    summary_metrics: dict[str, object] | None = None,
+) -> None:
+    if not notifier.is_configured():
+        return
+    notifier.task_started(
+        task_name=task_name,
+        mode=mode,
+        started_at=started_at,
+        summary_metrics=summary_metrics,
+    )
+
+
+def _notify_task_finished(
+    notifier: TelegramEventNotifier,
+    *,
+    task_name: str,
+    mode: str,
+    started_at,
+    duration_seconds: float,
+    summary_metrics: dict[str, object] | None = None,
+    status: str = "ok",
+) -> None:
+    if not notifier.is_configured():
+        return
+    notifier.task_finished(
+        task_name=task_name,
+        mode=mode,
+        started_at=started_at,
+        duration_seconds=duration_seconds,
+        status=status,
+        summary_metrics=summary_metrics,
+    )
+
+
+def _notify_task_failed(
+    notifier: TelegramEventNotifier,
+    *,
+    task_name: str,
+    mode: str,
+    started_at,
+    duration_seconds: float,
+    error_message: str,
+    summary_metrics: dict[str, object] | None = None,
+) -> None:
+    if not notifier.is_configured():
+        return
+    notifier.task_failed(
+        task_name=task_name,
+        mode=mode,
+        started_at=started_at,
+        duration_seconds=duration_seconds,
+        error_message=error_message[:200],
+        summary_metrics=summary_metrics,
+    )
+
+
 def run_source_pipeline(
     source: SourceName,
     target: TargetType,
@@ -226,50 +302,119 @@ def run_competition_pipeline(
     target: TargetType | None = None,
     dry_run: bool = False,
 ) -> list[dict]:
+    notifier = _task_notifier()
+    started_at = utcnow()
+    started_monotonic = time.monotonic()
+    mode = _task_mode(dry_run)
+    _notify_task_started(
+        notifier,
+        task_name="run_competition_pipeline",
+        mode=mode,
+        started_at=started_at,
+        summary_metrics={"competition": competition_code},
+    )
     competition = load_competition_catalog()[competition_code]
     results: list[dict] = []
-    for source_name, mapping in competition.sources.items():
-        if not mapping.enabled:
-            continue
-        targets = [target] if target else list(mapping.urls.keys())
-        for current_target in targets:
-            if current_target is None:
+    try:
+        for source_name, mapping in competition.sources.items():
+            if not mapping.enabled:
                 continue
-            results.append(
-                run_source_pipeline(
-                    source=source_name,
-                    target=current_target,
-                    competition_code=competition_code,
-                    dry_run=dry_run,
+            targets = [target] if target else list(mapping.urls.keys())
+            for current_target in targets:
+                if current_target is None:
+                    continue
+                results.append(
+                    run_source_pipeline(
+                        source=source_name,
+                        target=current_target,
+                        competition_code=competition_code,
+                        dry_run=dry_run,
+                    )
                 )
-            )
-    if not results:
-        raise ConfigurationError(f"La competicion {competition_code} no tiene fuentes automaticas habilitadas")
-    return results
+        if not results:
+            raise ConfigurationError(f"La competicion {competition_code} no tiene fuentes automaticas habilitadas")
+        _notify_task_finished(
+            notifier,
+            task_name="run_competition_pipeline",
+            mode=mode,
+            started_at=started_at,
+            duration_seconds=time.monotonic() - started_monotonic,
+            summary_metrics={"competition": competition_code, "runs": len(results)},
+        )
+        return results
+    except Exception as exc:
+        _notify_task_failed(
+            notifier,
+            task_name="run_competition_pipeline",
+            mode=mode,
+            started_at=started_at,
+            duration_seconds=time.monotonic() - started_monotonic,
+            error_message=str(exc),
+            summary_metrics={"competition": competition_code, "runs": len(results)},
+        )
+        raise
 
 
 def run_daily_pipeline(dry_run: bool = False) -> list[dict]:
     set_run_id()
+    notifier = _task_notifier()
+    started_at = utcnow()
+    started_monotonic = time.monotonic()
+    mode = _task_mode(dry_run)
+    _notify_task_started(
+        notifier,
+        task_name="run_daily_pipeline",
+        mode=mode,
+        started_at=started_at,
+    )
     results: list[dict] = []
-    competition_catalog = load_competition_catalog()
-    for competition in sorted(competition_catalog.values(), key=lambda item: item.priority):
-        if competition.status != CompetitionIntegrationStatus.INTEGRATED:
-            continue
-        for source_name, mapping in competition.sources.items():
-            if not mapping.enabled:
+    competitions_processed = 0
+    try:
+        competition_catalog = load_competition_catalog()
+        for competition in sorted(competition_catalog.values(), key=lambda item: item.priority):
+            if competition.status != CompetitionIntegrationStatus.INTEGRATED:
                 continue
-            for target in mapping.urls:
-                results.append(
-                    run_source_pipeline(
-                        source=source_name,
-                        target=target,
-                        competition_code=competition.code,
-                        dry_run=dry_run,
+            competitions_processed += 1
+            for source_name, mapping in competition.sources.items():
+                if not mapping.enabled:
+                    continue
+                for target in mapping.urls:
+                    results.append(
+                        run_source_pipeline(
+                            source=source_name,
+                            target=target,
+                            competition_code=competition.code,
+                            dry_run=dry_run,
+                        )
                     )
-                )
-    for source in (SourceName.FFIB, SourceName.DIARIO_MALLORCA, SourceName.ULTIMA_HORA):
-        results.append(run_source_pipeline(source=source, target=TargetType.NEWS, dry_run=dry_run))
-    return results
+        for source in (SourceName.FFIB, SourceName.DIARIO_MALLORCA, SourceName.ULTIMA_HORA):
+            results.append(run_source_pipeline(source=source, target=TargetType.NEWS, dry_run=dry_run))
+        _notify_task_finished(
+            notifier,
+            task_name="run_daily_pipeline",
+            mode=mode,
+            started_at=started_at,
+            duration_seconds=time.monotonic() - started_monotonic,
+            summary_metrics={
+                "competitions": competitions_processed,
+                "runs": len(results),
+            },
+        )
+        return results
+    except Exception as exc:
+        _notify_task_failed(
+            notifier,
+            task_name="run_daily_pipeline",
+            mode=mode,
+            started_at=started_at,
+            duration_seconds=time.monotonic() - started_monotonic,
+            error_message=str(exc),
+            summary_metrics={
+                "competitions": competitions_processed,
+                "runs": len(results),
+            },
+        )
+        raise
 
 
 if __name__ == "__main__":
