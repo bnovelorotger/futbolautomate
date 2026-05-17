@@ -617,8 +617,8 @@ def test_export_base_service_uses_viral_preview_text_with_team_handle_in_key_mat
         assert result.total_items == 1
         assert preview_row["id"] == 11
         assert preview_row["selected_text_source"] == "viral_formatted_text"
-        assert "Partidos:\nAtlético Baleares vs UE Porreres" in preview_row["text"]
-        assert "Partido clave:\n@atleticbalears vs UE Porreres" in preview_row["text"]
+        assert "Partidos: Atlético Baleares vs UE Porreres" in preview_row["text"]
+        assert "Partido clave: @atleticbalears vs UE Porreres" in preview_row["text"]
         assert preview_row["text"].count("@atleticbalears") == 1
     finally:
         session.close()
