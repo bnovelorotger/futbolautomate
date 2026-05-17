@@ -87,6 +87,8 @@ class RaceNarrativeService:
 
         selected_zones = zones or self.zones_map.get(competition_slug, DEFAULT_ZONES)
         rounds_remaining = self._rounds_remaining(ordered, season_context)
+        if rounds_remaining is None or rounds_remaining < 1:
+            return []
 
         rows: list[RaceNarrativeCandidateView] = []
         title_row = self._title_race_row(
@@ -140,6 +142,7 @@ class RaceNarrativeService:
     ) -> RaceNarrativeCandidateView | None:
         leader_points = standings[0].points
         contenders = [row for row in standings if leader_points - row.points <= self.config.title_max_gap_points]
+        contenders = contenders[:4]
         if len(contenders) < self.config.min_title_teams:
             return None
 
@@ -183,7 +186,10 @@ class RaceNarrativeService:
         if cutoff_row is None:
             return None
 
-        contenders = [row for row in standings if abs(row.points - cutoff_row.points) <= self.config.playoff_max_gap_points]
+        contenders = [
+            row for row in standings if abs(row.points - cutoff_row.points) <= self.config.playoff_max_gap_points
+        ]
+        contenders = contenders[:5]
         inside_zone = [row for row in contenders if row.position in zones.playoff_positions]
         outside_zone = [row for row in contenders if row.position > target_position]
         if len(contenders) < self.config.min_playoff_teams or not inside_zone or not outside_zone:
@@ -239,7 +245,10 @@ class RaceNarrativeService:
         if safe_row is None:
             return None
 
-        contenders = [row for row in standings if abs(row.points - safe_row.points) <= self.config.relegation_max_gap_points]
+        contenders = [
+            row for row in standings if abs(row.points - safe_row.points) <= self.config.relegation_max_gap_points
+        ]
+        contenders = contenders[:5]
         safe_teams = [row for row in contenders if row.position == safe_position]
         relegation_teams = [row for row in contenders if row.position in zones.relegation_positions]
         if len(contenders) < self.config.min_relegation_teams or not safe_teams or not relegation_teams:
@@ -375,8 +384,7 @@ class RaceNarrativeService:
             if target_row is not None:
                 target_points = target_row.points
         team_snapshots = [
-            self._snapshot(row, target_points=target_points, rounds_remaining=rounds_remaining)
-            for row in standings
+            self._snapshot(row, target_points=target_points, rounds_remaining=rounds_remaining) for row in standings
         ]
         source_payload = {
             "narrative_type": str(narrative_type),
@@ -426,7 +434,7 @@ class RaceNarrativeService:
             _NormalizedStanding(
                 team=row.team,
                 position=row.position,
-                points=int(row.points or 0),
+                points=row.points or 0,
                 goal_difference=row.goal_difference,
                 played=row.played,
             )
@@ -583,7 +591,10 @@ class RaceNarrativeService:
     def _append_rounds(self, text: str, rounds_remaining: int | None) -> str:
         if rounds_remaining is None:
             return text
-        return f"{text} Quedan {rounds_remaining} jornadas."
+        suffix = f" Quedan {rounds_remaining} jornadas."
+        if len(text) + len(suffix) > 240:
+            return text
+        return f"{text}{suffix}"
 
     def _points_text(self, points_span: int) -> str:
         return f"{points_span} punto" if points_span == 1 else f"{points_span} puntos"

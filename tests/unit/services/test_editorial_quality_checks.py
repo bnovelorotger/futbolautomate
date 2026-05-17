@@ -126,7 +126,9 @@ def test_quality_precheck_passes_for_strong_race_narrative_draft() -> None:
         session.close()
 
 
-def test_quality_precheck_blocks_manual_only_race_narrative_variant() -> None:
+def test_quality_precheck_blocks_alive_math_exceeding_rounds_threshold() -> None:
+    # alive_mathematics is now auto-approvable, but max_rounds_remaining=6.
+    # rounds_remaining=8 should trigger the threshold violation.
     session = build_session()
     try:
         seed_narratives_data(session)
@@ -134,26 +136,25 @@ def test_quality_precheck_blocks_manual_only_race_narrative_variant() -> None:
             competition_slug="tercera_rfef_g11",
             content_type="race_narrative",
             priority=79,
-            text_draft="Cinco equipos mantienen opciones matematicas de alcanzar la 4a plaza de playoff.",
+            text_draft="Cuatro equipos mantienen opciones matematicas de alcanzar el liderato.",
             payload_json={
-                "content_key": "race_narrative:alive_mathematics:tercera_rfef_g11:4",
+                "content_key": "race_narrative:alive_mathematics:tercera_rfef_g11:1:too-early",
                 "source_payload": {
                     "narrative_type": "alive_mathematics",
-                    "target_label": "4a plaza de playoff",
-                    "target_position": 4,
-                    "team_count": 5,
-                    "points_span": 3,
-                    "rounds_remaining": 6,
+                    "target_label": "liderato",
+                    "target_position": 1,
+                    "team_count": 4,
+                    "points_span": 8,
+                    "rounds_remaining": 8,
                     "teams": [
-                        {"team": "CD Llosetense", "position": 3, "points": 51, "gap_to_target": -1},
-                        {"team": "CD Manacor", "position": 4, "points": 50, "gap_to_target": 0},
-                        {"team": "CE Mercadal", "position": 5, "points": 49, "gap_to_target": 1},
-                        {"team": "SD Portmany", "position": 6, "points": 48, "gap_to_target": 2},
-                        {"team": "CD Binissalem", "position": 7, "points": 47, "gap_to_target": 3},
+                        {"team": "CD Llosetense", "position": 1, "points": 55, "gap_to_target": 0},
+                        {"team": "SD Portmany", "position": 2, "points": 50, "gap_to_target": 5},
+                        {"team": "CE Mercadal", "position": 3, "points": 48, "gap_to_target": 7},
+                        {"team": "CD Manacor", "position": 4, "points": 47, "gap_to_target": 8},
                     ],
                 },
             },
-            source_summary_hash="quality-race-manual-only",
+            source_summary_hash="quality-race-alive-math-too-early",
             status="draft",
             created_at=datetime(2026, 3, 18, 10, 5, tzinfo=timezone.utc),
             updated_at=datetime(2026, 3, 18, 10, 5, tzinfo=timezone.utc),
@@ -169,7 +170,7 @@ def test_quality_precheck_blocks_manual_only_race_narrative_variant() -> None:
 
         assert result.failed_count == 1
         assert result.rows[0].passed is False
-        assert "race_narrative_manual_only_type:alive_mathematics" in result.rows[0].errors
+        assert "race_narrative_rounds_remaining>6" in result.rows[0].errors
     finally:
         session.close()
 

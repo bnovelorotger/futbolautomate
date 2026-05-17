@@ -18,9 +18,9 @@ class RaceNarrativeConfig(BaseModel):
     min_title_teams: int = 2
     min_playoff_teams: int = 3
     min_relegation_teams: int = 3
-    title_max_gap_points: int = 3
-    playoff_max_gap_points: int = 3
-    relegation_max_gap_points: int = 3
+    title_max_gap_points: int = 2
+    playoff_max_gap_points: int = 2
+    relegation_max_gap_points: int = 2
     alive_math_min_teams: int = 3
     alive_math_max_teams: int | None = 6
     alive_math_min_rounds_remaining: int = 2

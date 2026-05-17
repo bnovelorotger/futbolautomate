@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
-from datetime import date, datetime, time, timedelta, timezone
 import re
+from collections.abc import Iterable
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -13,6 +13,7 @@ from app.core.config import Settings, get_settings
 from app.core.enums import ContentCandidateStatus, ContentType, NarrativeMetricType, ViralStoryType
 from app.core.exceptions import ConfigurationError, InvalidStateTransitionError
 from app.db.models import Competition, ContentCandidate, Match, Standing
+from app.normalizers.text import normalize_token
 from app.schemas.editorial_export import EditorialExportPolicy
 from app.schemas.editorial_quality_checks import (
     EditorialQualityCheckBatchResult,
@@ -20,8 +21,8 @@ from app.schemas.editorial_quality_checks import (
     EditorialQualityCheckCandidateView,
     EditorialQualityCheckResult,
 )
-from app.services.editorial_narratives import METRIC_NARRATIVE_THRESHOLDS
 from app.services.editorial_formatter import normalize_team_identity_value
+from app.services.editorial_narratives import METRIC_NARRATIVE_THRESHOLDS
 from app.services.editorial_text_selector import EditorialTextSelectorService
 from app.services.editorial_viral_stories import VIRAL_STORY_THRESHOLDS
 from app.services.top_scorer_tracker import (
@@ -29,7 +30,6 @@ from app.services.top_scorer_tracker import (
     MIN_TOP_SCORER_LEADER_GOALS,
     MIN_TOP_SCORER_SCORER_MATCHES,
 )
-from app.normalizers.text import normalize_token
 from app.utils.time import utcnow
 
 _TEAM_KEYS = {"team", "teams", "home_team", "away_team", "runner_up_team"}
@@ -56,6 +56,13 @@ _RACE_NARRATIVE_AUTO_RULES: dict[str, dict[str, int]] = {
         "max_team_count": 5,
         "max_points_span": 2,
         "max_rounds_remaining": 8,
+    },
+    "alive_mathematics": {
+        "min_priority": 70,
+        "min_team_count": 2,
+        "max_team_count": 8,
+        "max_points_span": 20,
+        "max_rounds_remaining": 6,
     },
 }
 _HANDLE_PATTERN = re.compile(r"(?<!\w)@[A-Za-z0-9_]{1,15}")
@@ -163,11 +170,15 @@ class EditorialQualityChecksService:
                 failed_count=0,
                 rows=[],
             )
-        rows = self.session.execute(
-            select(ContentCandidate)
-            .where(ContentCandidate.id.in_(ids))
-            .order_by(ContentCandidate.priority.desc(), ContentCandidate.created_at.asc())
-        ).scalars().all()
+        rows = (
+            self.session.execute(
+                select(ContentCandidate)
+                .where(ContentCandidate.id.in_(ids))
+                .order_by(ContentCandidate.priority.desc(), ContentCandidate.created_at.asc())
+            )
+            .scalars()
+            .all()
+        )
         row_by_id = {row.id: row for row in rows}
         result_rows: list[EditorialQualityCheckCandidateView] = []
         passed_count = 0
@@ -303,7 +314,9 @@ class EditorialQualityChecksService:
             errors.append("text_excessive_blank_lines")
         max_line_breaks = self.policy.max_line_breaks
         if content_type == ContentType.RESULTS_ROUNDUP:
-            selected_matches_count = source_payload.get("selected_matches_count") if isinstance(source_payload, dict) else None
+            selected_matches_count = (
+                source_payload.get("selected_matches_count") if isinstance(source_payload, dict) else None
+            )
             if isinstance(selected_matches_count, int) and selected_matches_count > 0:
                 max_line_breaks = max(max_line_breaks, selected_matches_count + 9)
         if content_type in {ContentType.STANDINGS, ContentType.STANDINGS_ROUNDUP}:
@@ -342,9 +355,7 @@ class EditorialQualityChecksService:
         if len(set(normalized_hashtags)) != len(normalized_hashtags):
             errors.append("text_hashtags_duplicated")
 
-        competition = self.session.scalar(
-            select(Competition).where(Competition.code == candidate.competition_slug)
-        )
+        competition = self.session.scalar(select(Competition).where(Competition.code == candidate.competition_slug))
         if competition is None:
             errors.append("competition_missing")
             return sorted(set(errors)), warnings
@@ -398,9 +409,10 @@ class EditorialQualityChecksService:
         if numeric_errors:
             errors.append(f"metric_values_invalid:{','.join(sorted(numeric_errors))}")
 
-        if content_type == ContentType.STAT_NARRATIVE:
-            if "played_matches" not in source_payload or "average_goals_per_played_match" not in source_payload:
-                errors.append("stat_narrative_payload_incomplete")
+        if content_type == ContentType.STAT_NARRATIVE and (
+            "played_matches" not in source_payload or "average_goals_per_played_match" not in source_payload
+        ):
+            errors.append("stat_narrative_payload_incomplete")
         if content_type == ContentType.RESULTS_ROUNDUP:
             matches = source_payload.get("matches")
             if not isinstance(matches, list) or not matches:
@@ -439,15 +451,11 @@ class EditorialQualityChecksService:
         first_line = selected_text.splitlines()[0].strip() if selected_text.splitlines() else ""
 
         if content_type == ContentType.RESULTS_ROUNDUP:
-            if not (
-                _RESULTS_TITLE_PATTERN.match(first_line)
-                or _COMPACT_ROUNDUP_TITLE_PATTERN.match(first_line)
-            ):
+            if not (_RESULTS_TITLE_PATTERN.match(first_line) or _COMPACT_ROUNDUP_TITLE_PATTERN.match(first_line)):
                 errors.append("results_roundup_title_invalid")
             matches = source_payload.get("matches")
-            if isinstance(matches, list):
-                if source_payload.get("selected_matches_count") != len(matches):
-                    errors.append("results_roundup_selected_matches_count_mismatch")
+            if isinstance(matches, list) and source_payload.get("selected_matches_count") != len(matches):
+                errors.append("results_roundup_selected_matches_count_mismatch")
             part_total = source_payload.get("part_total")
             part_index = source_payload.get("part_index")
             if isinstance(part_total, int) and part_total > 1:
@@ -457,15 +465,15 @@ class EditorialQualityChecksService:
                     errors.append("results_roundup_partition_title_missing")
 
         if content_type in {ContentType.STANDINGS, ContentType.STANDINGS_ROUNDUP}:
-            if not (
-                _STANDINGS_TITLE_PATTERN.match(first_line)
-                or _COMPACT_ROUNDUP_TITLE_PATTERN.match(first_line)
-            ):
+            if not (_STANDINGS_TITLE_PATTERN.match(first_line) or _COMPACT_ROUNDUP_TITLE_PATTERN.match(first_line)):
                 errors.append("standings_title_invalid")
             rows = source_payload.get("rows")
-            if isinstance(rows, list) and source_payload.get("selected_rows_count") is not None:
-                if source_payload.get("selected_rows_count") != len(rows):
-                    errors.append("standings_selected_rows_count_mismatch")
+            if (
+                isinstance(rows, list)
+                and source_payload.get("selected_rows_count") is not None
+                and source_payload.get("selected_rows_count") != len(rows)
+            ):
+                errors.append("standings_selected_rows_count_mismatch")
             if content_type == ContentType.STANDINGS_ROUNDUP:
                 part_total = source_payload.get("part_total")
                 part_index = source_payload.get("part_index")
@@ -480,9 +488,11 @@ class EditorialQualityChecksService:
                     if isinstance(part_index, int) and f"({part_index}/{part_total})" not in first_line:
                         errors.append("standings_roundup_partition_title_missing")
 
-        if content_type in {ContentType.PREVIEW, ContentType.FEATURED_MATCH_PREVIEW}:
-            if not _PREVIEW_TITLE_PATTERN.match(first_line):
-                errors.append("preview_title_invalid")
+        if content_type in {
+            ContentType.PREVIEW,
+            ContentType.FEATURED_MATCH_PREVIEW,
+        } and not _PREVIEW_TITLE_PATTERN.match(first_line):
+            errors.append("preview_title_invalid")
 
         if content_type in {ContentType.RANKING, ContentType.FORM_RANKING}:
             if not _RANKING_TITLE_PATTERN.match(first_line):
@@ -510,16 +520,20 @@ class EditorialQualityChecksService:
     ) -> list[str]:
         candidate_timestamp = self._candidate_timestamp(candidate)
         cutoff = candidate_timestamp - timedelta(hours=self.policy.duplicate_window_hours)
-        recent_rows = self.session.execute(
-            select(ContentCandidate)
-            .where(
-                ContentCandidate.id != candidate.id,
-                ContentCandidate.competition_slug == candidate.competition_slug,
-                ContentCandidate.content_type == candidate.content_type,
-                ContentCandidate.status != str(ContentCandidateStatus.REJECTED),
+        recent_rows = (
+            self.session.execute(
+                select(ContentCandidate)
+                .where(
+                    ContentCandidate.id != candidate.id,
+                    ContentCandidate.competition_slug == candidate.competition_slug,
+                    ContentCandidate.content_type == candidate.content_type,
+                    ContentCandidate.status != str(ContentCandidateStatus.REJECTED),
+                )
+                .order_by(ContentCandidate.created_at.asc(), ContentCandidate.id.asc())
             )
-            .order_by(ContentCandidate.created_at.asc(), ContentCandidate.id.asc())
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         candidate_marker = self._candidate_marker(candidate)
         normalized_candidate_text = _normalized_text(selected_text)
@@ -543,10 +557,7 @@ class EditorialQualityChecksService:
             if _normalized_text(other_text) == normalized_candidate_text:
                 return ["duplicate_recent_text"]
             other_marker = self._candidate_marker(row)
-            if (
-                candidate_marker["content_key"]
-                and candidate_marker["content_key"] == other_marker["content_key"]
-            ):
+            if candidate_marker["content_key"] and candidate_marker["content_key"] == other_marker["content_key"]:
                 return ["duplicate_recent_content_key"]
             if (
                 candidate_marker["kind"]
@@ -559,15 +570,11 @@ class EditorialQualityChecksService:
 
     def _candidate_timestamp(self, candidate: ContentCandidate) -> datetime:
         value = (
-            candidate.created_at
-            or candidate.published_at
-            or candidate.approved_at
-            or candidate.reviewed_at
-            or utcnow()
+            candidate.created_at or candidate.published_at or candidate.approved_at or candidate.reviewed_at or utcnow()
         )
         if value.tzinfo is None:
-            return value.replace(tzinfo=timezone.utc)
-        return value.astimezone(timezone.utc)
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
 
     def _significance_errors(
         self,
@@ -775,9 +782,8 @@ class EditorialQualityChecksService:
                 for item in value:
                     walk(item, key=key)
                 return
-            if key in _TEAM_KEYS:
-                if isinstance(value, str) and value.strip():
-                    names.add(value.strip())
+            if key in _TEAM_KEYS and isinstance(value, str) and value.strip():
+                names.add(value.strip())
 
         walk(payload)
         return sorted(names)
@@ -842,6 +848,6 @@ class EditorialQualityChecksService:
         start_local = datetime.combine(target_date, time.min, tzinfo=ZoneInfo(self.settings.timezone))
         end_local = start_local + timedelta(days=1)
         return (
-            start_local.astimezone(timezone.utc),
-            end_local.astimezone(timezone.utc),
+            start_local.astimezone(UTC),
+            end_local.astimezone(UTC),
         )

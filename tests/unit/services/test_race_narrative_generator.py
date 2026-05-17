@@ -73,12 +73,12 @@ def test_race_narrative_service_detects_title_playoff_relegation_and_alive_math(
     assert "pelean por el liderato" in title_row.text_draft
 
     assert playoff_row.target_position == 5
-    assert playoff_row.team_count == 4
+    assert playoff_row.team_count == 3
     assert playoff_row.source_payload["target_points"] == 53
     assert "ultima plaza de playoff" in playoff_row.text_draft
 
     assert relegation_row.target_position == 9
-    assert relegation_row.team_count == 4
+    assert relegation_row.team_count == 3
     assert "salir del descenso" in relegation_row.text_draft
 
     assert alive_row.target_position == 1
