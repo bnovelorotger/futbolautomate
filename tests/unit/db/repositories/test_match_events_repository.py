@@ -329,6 +329,235 @@ def test_match_event_repository_sync_updates_existing_rows_and_deletes_missing_o
         session.close()
 
 
+def _seed_match_with_events(
+    session,
+    *,
+    competition_code: str = "tercera_rfef_g11",
+    has_scorers: bool = True,
+    events: list[dict] | None = None,
+) -> None:
+    """Seed a competition, two teams, one match and optional goal events."""
+    from datetime import date as _date, datetime as _datetime, time as _time, timezone as _timezone
+
+    from app.db.models import Competition, Match, MatchEvent, Team
+
+    competition = session.scalar(
+        __import__("sqlalchemy", fromlist=["select"]).select(Competition).where(
+            Competition.code == competition_code
+        )
+    )
+    if competition is None:
+        competition = Competition(
+            code=competition_code,
+            name="Test Competition",
+            normalized_name=f"{competition_code}-test-normalized",
+            category_level=4,
+            gender="male",
+            region="Baleares",
+            country="Spain",
+            federation="RFEF",
+            source_name="futbolme",
+            source_competition_id=competition_code,
+        )
+        session.add(competition)
+        session.flush()
+
+    home = Team(
+        name=f"Home {competition_code}",
+        normalized_name=f"home-{competition_code}",
+        gender="male",
+    )
+    away = Team(
+        name=f"Away {competition_code}",
+        normalized_name=f"away-{competition_code}",
+        gender="male",
+    )
+    session.add_all([home, away])
+    session.flush()
+
+    match = Match(
+        external_id=f"ext-{competition_code}-halfgoals",
+        source_name="futbolme",
+        source_url=f"https://example.com/{competition_code}",
+        competition_id=competition.id,
+        season="2025-26",
+        group_name="Grupo test",
+        round_name="Jornada 1",
+        raw_match_date="2026-03-15",
+        raw_match_time="18:00",
+        match_date=_date(2026, 3, 15),
+        match_time=_time(18, 0),
+        kickoff_datetime=_datetime(2026, 3, 15, 18, 0, tzinfo=_timezone.utc),
+        home_team_id=home.id,
+        away_team_id=away.id,
+        home_team_raw=home.name,
+        away_team_raw=away.name,
+        home_score=2,
+        away_score=1,
+        status="finished",
+        venue=None,
+        has_lineups=False,
+        has_scorers=has_scorers,
+        scraped_at=_datetime(2026, 3, 15, 21, 0, tzinfo=_timezone.utc),
+        content_hash=f"{competition_code}-halfgoals",
+        extra_data=None,
+    )
+    session.add(match)
+    session.flush()
+
+    for idx, event_def in enumerate(events or [], start=1):
+        session.add(
+            MatchEvent(
+                match_id=match.id,
+                team_id=home.id,
+                team_side="home",
+                event_type=event_def.get("event_type", "goal"),
+                period=event_def.get("period", "Primer Tiempo"),
+                minute_raw=str(event_def["minute"]) if event_def.get("minute") is not None else None,
+                minute=event_def.get("minute"),
+                minute_extra=None,
+                player_raw=event_def.get("player_raw", f"Player{idx}"),
+                player_source_url=None,
+                sort_order=idx,
+                source_event_key=f"event-{competition_code}-{idx}",
+                raw_payload={},
+            )
+        )
+    session.commit()
+
+
+def test_goals_by_half_counts_first_and_second_half_correctly() -> None:
+    """Goals with minute <= 45 are first half; > 45 are second half."""
+    session = build_session()
+    try:
+        _seed_match_with_events(
+            session,
+            competition_code="tercera_rfef_g11",
+            has_scorers=True,
+            events=[
+                {"event_type": "goal", "minute": 10},
+                {"event_type": "goal", "minute": 45},
+                {"event_type": "goal", "minute": 46},
+                {"event_type": "goal", "minute": 88},
+            ],
+        )
+        repo = MatchEventRepository(session)
+        result = repo.goals_by_half_for_competition("tercera_rfef_g11")
+        assert result["first_half"] == 2
+        assert result["second_half"] == 2
+        assert result["unknown_half"] == 0
+    finally:
+        session.close()
+
+
+def test_goals_by_half_unknown_half_for_none_minute() -> None:
+    """Events with minute=None are counted in unknown_half."""
+    session = build_session()
+    try:
+        _seed_match_with_events(
+            session,
+            competition_code="tercera_rfef_g11",
+            has_scorers=True,
+            events=[
+                {"event_type": "goal", "minute": 30},
+                {"event_type": "goal", "minute": None},
+            ],
+        )
+        repo = MatchEventRepository(session)
+        result = repo.goals_by_half_for_competition("tercera_rfef_g11")
+        assert result["first_half"] == 1
+        assert result["second_half"] == 0
+        assert result["unknown_half"] == 1
+    finally:
+        session.close()
+
+
+def test_goals_by_half_excludes_matches_without_has_scorers() -> None:
+    """Matches with has_scorers=False must not be counted."""
+    session = build_session()
+    try:
+        _seed_match_with_events(
+            session,
+            competition_code="tercera_rfef_g11",
+            has_scorers=False,
+            events=[
+                {"event_type": "goal", "minute": 20},
+                {"event_type": "goal", "minute": 70},
+            ],
+        )
+        repo = MatchEventRepository(session)
+        result = repo.goals_by_half_for_competition("tercera_rfef_g11")
+        assert result["first_half"] == 0
+        assert result["second_half"] == 0
+        assert result["unknown_half"] == 0
+    finally:
+        session.close()
+
+
+def test_goals_by_half_filters_by_competition_slug() -> None:
+    """Goals from a different competition must not be included."""
+    session = build_session()
+    try:
+        _seed_match_with_events(
+            session,
+            competition_code="tercera_rfef_g11",
+            has_scorers=True,
+            events=[{"event_type": "goal", "minute": 15}],
+        )
+        _seed_match_with_events(
+            session,
+            competition_code="division_honor_mallorca",
+            has_scorers=True,
+            events=[
+                {"event_type": "goal", "minute": 60},
+                {"event_type": "goal", "minute": 80},
+            ],
+        )
+        repo = MatchEventRepository(session)
+        result = repo.goals_by_half_for_competition("tercera_rfef_g11")
+        assert result["first_half"] == 1
+        assert result["second_half"] == 0
+        result_other = repo.goals_by_half_for_competition("division_honor_mallorca")
+        assert result_other["first_half"] == 0
+        assert result_other["second_half"] == 2
+    finally:
+        session.close()
+
+
+def test_goals_by_half_excludes_non_goal_event_types() -> None:
+    """Yellow cards and red cards must not be counted as goals."""
+    session = build_session()
+    try:
+        _seed_match_with_events(
+            session,
+            competition_code="tercera_rfef_g11",
+            has_scorers=True,
+            events=[
+                {"event_type": "goal", "minute": 30},
+                {"event_type": "yellow_card", "minute": 25},
+                {"event_type": "red_card", "minute": 55},
+            ],
+        )
+        repo = MatchEventRepository(session)
+        result = repo.goals_by_half_for_competition("tercera_rfef_g11")
+        assert result["first_half"] == 1
+        assert result["second_half"] == 0
+        assert result["unknown_half"] == 0
+    finally:
+        session.close()
+
+
+def test_goals_by_half_returns_zeros_when_no_data() -> None:
+    """When no enriched matches exist, all counts are zero."""
+    session = build_session()
+    try:
+        repo = MatchEventRepository(session)
+        result = repo.goals_by_half_for_competition("nonexistent_competition")
+        assert result == {"first_half": 0, "second_half": 0, "unknown_half": 0}
+    finally:
+        session.close()
+
+
 def test_acquire_match_lock_called_for_postgresql() -> None:
     """_acquire_match_lock executes pg_advisory_xact_lock for postgresql dialect."""
     mock_session = MagicMock()

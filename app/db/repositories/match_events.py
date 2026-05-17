@@ -4,12 +4,12 @@ import json
 from dataclasses import dataclass
 from collections.abc import Sequence
 
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.exc import IntegrityError
 
-from app.db.models import MatchEvent
+from app.db.models import Match, MatchEvent
 from app.db.repositories.base import BaseRepository
 
 
@@ -39,6 +39,85 @@ class MatchEventRepository(BaseRepository[MatchEvent]):
         "sort_order",
         "raw_payload",
     )
+
+    def goals_by_half_for_competition(
+        self,
+        competition_slug: str,
+        season: str | None = None,
+    ) -> dict[str, int]:
+        """Return {"first_half": N, "second_half": N, "unknown_half": N}.
+
+        Counts goal events split by minute: <= 45 is first half, > 45 is second
+        half, and None is unknown_half. Only matches with has_scorers=True are
+        included so partial-coverage matches don't skew the counts.
+        """
+        query = (
+            select(MatchEvent.minute)
+            .join(Match, Match.id == MatchEvent.match_id)
+            .where(
+                Match.competition.has(code=competition_slug),
+                Match.has_scorers.is_(True),
+                MatchEvent.event_type == "goal",
+            )
+        )
+        if season is not None:
+            query = query.where(Match.season == season)
+
+        rows = self.session.execute(query).all()
+        first_half = 0
+        second_half = 0
+        unknown_half = 0
+        for (minute,) in rows:
+            if minute is None:
+                unknown_half += 1
+            elif int(minute) <= 45:
+                first_half += 1
+            else:
+                second_half += 1
+        return {
+            "first_half": first_half,
+            "second_half": second_half,
+            "unknown_half": unknown_half,
+        }
+
+    def top_scorers_for_competition(
+        self,
+        competition_slug: str,
+        *,
+        season: str | None = None,
+        goal_event_types: tuple[str, ...] = ("goal",),
+        limit: int = 10,
+    ) -> list[tuple[str, int]]:
+        """Return (player_name, goal_count) pairs sorted descending by goals.
+
+        Only includes matches where has_scorers=True (closed scorer coverage).
+        player_raw values are stripped and title-cased; blank names are excluded.
+        """
+        query = (
+            select(
+                MatchEvent.player_raw,
+                func.count(MatchEvent.id).label("goal_count"),
+            )
+            .join(Match, Match.id == MatchEvent.match_id)
+            .where(
+                Match.competition.has(code=competition_slug),
+                Match.has_scorers.is_(True),
+                MatchEvent.event_type.in_(goal_event_types),
+                MatchEvent.player_raw.is_not(None),
+                func.trim(MatchEvent.player_raw) != "",
+            )
+            .group_by(MatchEvent.player_raw)
+            .order_by(func.count(MatchEvent.id).desc(), MatchEvent.player_raw.asc())
+            .limit(limit)
+        )
+        if season is not None:
+            query = query.where(Match.season == season)
+        rows = self.session.execute(query).all()
+        return [
+            (str(player_raw).strip().title(), goal_count)
+            for player_raw, goal_count in rows
+            if str(player_raw).strip()
+        ]
 
     def replace_for_match(self, match_id: int, payloads: Sequence[dict]) -> tuple[int, int]:
         existing = self.session.scalars(

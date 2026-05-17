@@ -314,3 +314,45 @@ def test_match_event_enricher_isolates_failed_match_persistence_and_continues_ba
         assert len(successful_events) == 3
     finally:
         session.close()
+
+
+ALL_INTEGRATED_COMPETITION_SLUGS = [
+    "tercera_rfef_g11",
+    "segunda_rfef_g3_baleares",
+    "primera_rfef_baleares",
+    "division_honor_mallorca",
+    "tercera_federacion_femenina_g11",
+    "division_honor_ibiza_form",
+    "division_honor_menorca",
+]
+
+
+def test_match_event_enricher_processes_all_seven_competition_slugs() -> None:
+    """enrich_pending with competition_slug filters correctly for each of the 7 integrated
+    competitions.  A match seeded under each slug is picked up and enriched — confirming the
+    enricher is not restricted to any subset of competitions."""
+    session = build_session()
+    try:
+        for idx, slug in enumerate(ALL_INTEGRATED_COMPETITION_SLUGS):
+            _seed_finished_match(
+                session,
+                competition_code=slug,
+                external_id=f"200000{idx}",
+                home_team=f"Home Team {idx}",
+                away_team=f"Away Team {idx}",
+                home_score=1,
+                away_score=0,
+            )
+
+        service = MatchEventEnricherService(
+            session,
+            settings=build_settings(),
+            fetch_html=lambda url: read_fixture("futbolme_match_detail_multiple_goals.html"),
+        )
+
+        for slug in ALL_INTEGRATED_COMPETITION_SLUGS:
+            result = service.enrich_pending(limit=1, competition_slug=slug)
+            assert result.checked_count == 1, f"No match picked up for competition slug '{slug}'"
+            assert result.enriched_count == 1, f"Match not enriched for competition slug '{slug}'"
+    finally:
+        session.close()

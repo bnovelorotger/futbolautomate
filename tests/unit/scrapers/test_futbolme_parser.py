@@ -226,3 +226,44 @@ def test_futbolme_parser_returns_empty_event_list_for_scoreless_match() -> None:
     )
 
     assert records == []
+
+
+def test_futbolme_parser_extracts_halftime_score_when_present() -> None:
+    parser = FutbolmeParser()
+
+    ht_home, ht_away = parser.parse_halftime_score(
+        read_fixture("futbolme_match_detail_with_halftime.html"),
+    )
+
+    assert ht_home == 1
+    assert ht_away == 0
+
+
+def test_futbolme_parser_returns_none_halftime_scores_when_element_absent() -> None:
+    parser = FutbolmeParser()
+
+    ht_home, ht_away = parser.parse_halftime_score(
+        read_fixture("futbolme_match_detail_nil_nil.html"),
+    )
+
+    assert ht_home is None
+    assert ht_away is None
+
+
+def test_futbolme_parser_returns_none_halftime_scores_for_match_without_ht_data() -> None:
+    parser = FutbolmeParser()
+    html = """
+    <html>
+      <head><title>Match without HT</title></head>
+      <body>
+        <div id="contenedorCentral">
+          <div class="marcadorDescanso">Descanso</div>
+        </div>
+      </body>
+    </html>
+    """
+
+    ht_home, ht_away = parser.parse_halftime_score(html)
+
+    assert ht_home is None
+    assert ht_away is None

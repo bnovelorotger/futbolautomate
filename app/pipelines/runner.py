@@ -12,8 +12,10 @@ from app.core.logging import configure_logging
 from app.core.run_context import set_run_id
 from app.db.repositories.scraper_runs import ScraperRunRepository
 from app.db.session import init_db, session_scope
+from app.pipelines.match_events import app as match_events_app
 from app.pipelines.pipeline_metrics import app as pipeline_metrics_app
 from app.pipelines.pipeline_summary import app as pipeline_summary_app
+from app.pipelines.top_scorer import app as top_scorer_app
 from app.schemas.common import ScrapeContext
 from app.scrapers.registry import build_scraper
 from app.services.ingest_matches import ingest_matches
@@ -29,8 +31,10 @@ app = typer.Typer(
     help="Runner principal del sistema de pipelines de futbol balear.",
     no_args_is_help=True,
 )
+app.add_typer(match_events_app, name="match_events")
 app.add_typer(pipeline_metrics_app, name="pipeline_metrics")
 app.add_typer(pipeline_summary_app, name="pipeline_summary")
+app.add_typer(top_scorer_app, name="top_scorer")
 
 telegram_app = typer.Typer(
     add_completion=False,

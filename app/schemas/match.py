@@ -25,6 +25,8 @@ class MatchRecord(BaseModel):
     away_team: str
     home_score: int | None = None
     away_score: int | None = None
+    halftime_home_score: int | None = None
+    halftime_away_score: int | None = None
     status_raw: str | None = None
     status: MatchStatus = MatchStatus.UNKNOWN
     venue: str | None = None

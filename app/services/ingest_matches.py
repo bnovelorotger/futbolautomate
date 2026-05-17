@@ -118,6 +118,8 @@ def ingest_matches(session: Session, records: list[MatchRecord], dry_run: bool =
             "away_team_raw": record.away_team,
             "home_score": record.home_score,
             "away_score": record.away_score,
+            "halftime_home_score": record.halftime_home_score,
+            "halftime_away_score": record.halftime_away_score,
             "status": str(record.status),
             "venue": record.venue,
             "has_lineups": record.has_lineups,

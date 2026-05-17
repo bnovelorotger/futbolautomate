@@ -18,6 +18,7 @@ from app.utils.time import utcnow
 _SEASON_PATTERN = re.compile(r"Temporada\s+(\d{4}-\d{2})", re.IGNORECASE)
 _ROUND_PATTERN = re.compile(r"(Jornada\s+\d+)", re.IGNORECASE)
 _SCORE_PATTERN = re.compile(r"^\s*(\d+)\s*-\s*(\d+)\s*$")
+_HALFTIME_SCORE_PATTERN = re.compile(r"(\d+)\s*-\s*(\d+)")
 _TIME_PATTERN = re.compile(r"^\s*\d{1,2}:\d{2}\s*$")
 _MATCH_ID_PATTERN = re.compile(r"/partido/[^/]+/(\d+)")
 _MINUTE_PATTERN = re.compile(r"^\s*(\d+)(?:\+(\d+))?\s*$")
@@ -111,6 +112,23 @@ def _parse_minute_value(value: str | None) -> tuple[int | None, int | None]:
     minute = int(match.group(1))
     minute_extra = int(match.group(2)) if match.group(2) is not None else None
     return minute, minute_extra
+
+
+def _parse_halftime_score(soup: BeautifulSoup) -> tuple[int | None, int | None]:
+    """Extract half-time score from a match detail page.
+
+    Looks for the ".marcadorDescanso" element whose text contains a "X-Y" pattern
+    (e.g. "Descanso 1-0" or "1-0"). Returns (None, None) when the element is absent
+    or contains no parseable score — safe for matches without HT data.
+    """
+    node = soup.select_one(selectors.MATCH_HALFTIME_SCORE_SELECTOR)
+    if node is None:
+        return None, None
+    text = _text(node)
+    match = _HALFTIME_SCORE_PATTERN.search(text)
+    if match is None:
+        return None, None
+    return int(match.group(1)), int(match.group(2))
 
 
 def _parse_page_metadata(soup: BeautifulSoup) -> FutbolmePageMetadata:
@@ -278,6 +296,16 @@ class FutbolmeParser:
         if not records:
             raise SelectorDriftError("No se encontro clasificacion en Futbolme")
         return records
+
+    def parse_halftime_score(self, html: str) -> tuple[int | None, int | None]:
+        """Return (halftime_home_score, halftime_away_score) from a match detail page.
+
+        Returns (None, None) when the page contains no half-time score — this is
+        expected for scheduled matches, live matches, and amateur games where the
+        data source does not record interval scores.
+        """
+        soup = BeautifulSoup(html, "html.parser")
+        return _parse_halftime_score(soup)
 
     def parse_match_events(
         self,

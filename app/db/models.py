@@ -97,6 +97,8 @@ class Match(Base, TimestampMixin):
     away_team_raw: Mapped[str] = mapped_column(String(255))
     home_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     away_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    halftime_home_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    halftime_away_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(String(30), index=True)
     venue: Mapped[str | None] = mapped_column(String(255), nullable=True)
     has_lineups: Mapped[bool] = mapped_column(Boolean, default=False)

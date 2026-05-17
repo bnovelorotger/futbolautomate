@@ -22,6 +22,7 @@ from app.schemas.results_roundup import (
     ResultsRoundupMatchView,
     ResultsRoundupPreviewResult,
 )
+from app.db.repositories.match_events import MatchEventRepository
 from app.services.competition_queries import CompetitionQueryService
 from app.services.editorial_formatter import EditorialFormatterService
 from app.services.standings_events import StandingsEventsService
@@ -72,6 +73,7 @@ class ResultsRoundupService:
         self.settings = settings or get_settings()
         self.queries = CompetitionQueryService(session)
         self.repository = ContentCandidateRepository(session)
+        self.match_event_repository = MatchEventRepository(session)
         self.catalog = load_competition_catalog()
         self.zones = load_standings_zones()
         self.max_characters = max_characters
@@ -133,6 +135,9 @@ class ResultsRoundupService:
             payload_matches = [match.model_dump(mode="json") for match in match_chunk]
             chunk_signature = stable_hash(payload_matches)[:12]
             content_key = f"results_roundup:{preview.group_label or 'results'}:{chunk_signature}:p{part_index}of{part_total}"
+            goals_by_half = self.match_event_repository.goals_by_half_for_competition(
+                preview.competition_slug,
+            )
             source_payload = {
                 "group_label": preview.group_label,
                 "reference_date": preview.reference_date.isoformat(),
@@ -143,6 +148,8 @@ class ResultsRoundupService:
                 "max_characters": preview.max_characters,
                 "part_index": part_index,
                 "part_total": part_total,
+                "first_half_goals": goals_by_half["first_half"],
+                "second_half_goals": goals_by_half["second_half"],
             }
             stable_source_payload = {key: value for key, value in source_payload.items() if key != "reference_date"}
             candidate = ContentCandidateDraft(

@@ -39,6 +39,12 @@ try {
         }
     }
 
+    Invoke-PythonModule -Label "enrich_match_events" -Module "app.pipelines.runner" -Arguments @(
+        "match_events",
+        "enrich-pending",
+        "--limit", "50"
+    )
+
     Sync-DraftTempSnapshot
     Complete-Script
     exit 0
