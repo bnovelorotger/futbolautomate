@@ -96,7 +96,9 @@ class GroqEditorialRewriteClient:
             headers={"Authorization": f"Bearer {self.settings.editorial_rewrite_api_key or ''}"},
         )
         if response.status_code >= 400:
-            raise LLMProviderError(f"Groq editorial rewrite failed with {response.status_code}: {self._error_detail(response)}")
+            raise LLMProviderError(
+                f"Groq editorial rewrite failed with {response.status_code}: {self._error_detail(response)}"
+            )
         body = response.json()
         rewritten_payload = self._output_payload(body)
         rewritten_text = str(rewritten_payload.get("rewritten_text") or "").strip()

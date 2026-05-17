@@ -527,9 +527,7 @@ class EditorialQualityChecksService:
 
         competition_teams = sorted(self._competition_team_names(candidate.competition_slug) | set(allowed_teams))
         allowed_markers = {
-            marker
-            for team in allowed_teams
-            for marker in self._team_markers(team, allow_ambiguous_identity=False)
+            marker for team in allowed_teams for marker in self._team_markers(team, allow_ambiguous_identity=False)
         }
         unauthorized = sorted(
             team
@@ -571,7 +569,9 @@ class EditorialQualityChecksService:
             errors.append(f"rewrite_numbers_unauthorized:{','.join(unauthorized_numbers)}")
 
         base_scores = Counter(self._normalize_score_token(token) for token in _SCORE_PATTERN.findall(base_text))
-        rewritten_scores = Counter(self._normalize_score_token(token) for token in _SCORE_PATTERN.findall(rewritten_text))
+        rewritten_scores = Counter(
+            self._normalize_score_token(token) for token in _SCORE_PATTERN.findall(rewritten_text)
+        )
         missing_scores = sorted(token for token, count in base_scores.items() if rewritten_scores[token] < count)
         if missing_scores:
             errors.append(f"rewrite_scores_missing:{','.join(missing_scores)}")

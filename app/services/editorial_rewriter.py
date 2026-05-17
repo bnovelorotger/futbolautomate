@@ -33,6 +33,7 @@ ALLOWED_REWRITE_STATUSES = {
 
 logger = logging.getLogger(__name__)
 
+
 class EditorialRewriteMode(StrEnum):
     STRICT_DATA = "strict_data"
     HUMANIZED_LOCAL = "humanized_local"
@@ -56,13 +57,9 @@ Invariantes duras:
 """
 
 STRICT_DATA_TONE_GUIDANCE = (
-    "Tono sobrio, periodistico, limpio y breve. "
-    "Prioriza claridad verificable, lectura rapida y compresion editorial."
+    "Tono sobrio, periodistico, limpio y breve. Prioriza claridad verificable, lectura rapida y compresion editorial."
 )
-LEGACY_TONE_GUIDANCE = (
-    "Tono directo, periodistico, limpio y breve. "
-    "Texto apto para X y para exportacion local."
-)
+LEGACY_TONE_GUIDANCE = "Tono directo, periodistico, limpio y breve. Texto apto para X y para exportacion local."
 HUMANIZED_LOCAL_TONE_GUIDANCE = (
     "Tono cercano y natural, con una capa ligera de calidez local solo cuando encaje con el tipo. "
     "Mantener voz periodistica, breve y apta para X, sin folklore forzado."

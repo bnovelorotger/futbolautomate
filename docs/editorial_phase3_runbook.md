@@ -181,3 +181,71 @@ Revisar solo el subset elegible de fase 3 con esta checklist:
 3. revisar `logs/draft_temp_phase3.json`
 4. si todo queda limpio, mantener activacion limitada a `PREVIEW` y `VIRAL_STORY`
 5. no abrir fase 4 hasta recomputar baseline de `RACE_NARRATIVE` y `MILESTONE_STORY`
+
+---
+
+## Checklist de revision del lunes (fase 3 en produccion)
+
+Ejecutar el dia siguiente al primer lunes con fase 3 activa.
+
+### 1. Metricas de rewrite (automatico)
+
+```bash
+python scripts/editorial_rewrite_daily_metrics.py --days 1 --output logs/editorial_rewrite_daily_metrics.json
+```
+
+Valores de referencia:
+
+| Metrica | Umbral aceptable |
+|---------|-----------------|
+| `real_ratio` | > 0.5 (idealmente > 0.7) |
+| `fallback_ratio` | < 0.5; si supera 0.5 revisar cuota Groq |
+| `failed_ratio` | debe ser 0; cualquier valor > 0 es alerta |
+
+Si `failed_ratio > 0`: revisar logs con `LOG_JSON=true` buscando `editorial_rewrite_failed`.
+
+### 2. Muestra manual de piezas (10-15)
+
+```bash
+python scripts/editorial_phase3_readiness.py --output logs/draft_temp_phase3.json
+```
+
+Abrir `logs/draft_temp_phase3.json` y revisar 10-15 piezas de tipo `PREVIEW` y `VIRAL_STORY`.
+
+Para cada pieza comprobar:
+
+- [ ] El texto es coherente y no tiene datos inventados
+- [ ] Los `@handles` de equipos estan presentes y son correctos
+- [ ] Los `#hashtags` (#FutbolBalear, etc.) se conservan
+- [ ] El tono es local y natural, no forzado ni generico
+- [ ] No hay mezcla de idiomas (castellano/catalan) inesperada
+- [ ] La longitud no supera el limite de X (280 caracteres por tweet)
+
+### 3. Piezas varadas (stranded)
+
+```bash
+python -m app.pipelines.x_publish show-all-unpublished
+```
+
+Si hay piezas con `external_publication_ref=None` y `published_at` > 1 dia:
+
+```bash
+python -m app.pipelines.x_publish browser-pending --bypass-schedule --dry-run
+# Si el dry-run muestra las piezas correctas:
+python -m app.pipelines.x_publish browser-pending --bypass-schedule
+```
+
+### 4. Logs de release
+
+Revisar `logs/cron_release.log` buscando:
+
+- `editorial_rewrite_failed` — fallos de rewrite
+- `editorial_rewrite_failed_length` — textos rechazados por longitud tras rewrite
+- `XBrowserSessionError` — sesion de browser caducada (ejecutar `browser-auth-capture`)
+- `SelectorDriftError` — cambio de estructura HTML en scraper
+
+### 5. Decision de continuidad
+
+- Todo verde (`failed_ratio=0`, muestra manual OK): dejar correr fase 3 sin cambios.
+- `fallback_ratio > 0.5` durante 2+ dias: revisar cuota Groq o cambiar `EDITORIAL_REWRITE_PROVIDER`.
+- Cualquier `failed_ratio > 0`: rollback inmediato con `EDITORIAL_PHASE3_ROLLOUT_ENABLED=false`.

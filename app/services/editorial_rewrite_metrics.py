@@ -76,8 +76,7 @@ class EditorialRewriteMetricsService:
             payload["failed_ratio"] = round(payload["failed_count"] / total, 4)
             payload["other_ratio"] = round(payload["other_count"] / total, 4)
             payload["by_content_type"] = {
-                content_type: dict(counter)
-                for content_type, counter in sorted(payload["by_content_type"].items())
+                content_type: dict(counter) for content_type, counter in sorted(payload["by_content_type"].items())
             }
             days.append(payload)
 
@@ -96,7 +95,9 @@ class EditorialRewriteMetricsService:
             "fallback_ratio": round(overall_outcomes["fallback_base_text"] / total, 4) if total else 0.0,
             "failed_ratio": round(overall_outcomes["failed"] / total, 4) if total else 0.0,
             "other_ratio": round(overall_outcomes["other"] / total, 4) if total else 0.0,
-            "by_content_type": {content_type: dict(counter) for content_type, counter in sorted(overall_by_type.items())},
+            "by_content_type": {
+                content_type: dict(counter) for content_type, counter in sorted(overall_by_type.items())
+            },
             "days": days,
         }
 

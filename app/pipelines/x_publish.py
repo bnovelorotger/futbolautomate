@@ -71,6 +71,7 @@ def _run_browser_pending(
     dry_run: bool,
     stagger: int | None,
     as_json: bool,
+    bypass_schedule: bool = False,
 ) -> None:
     import dataclasses
 
@@ -83,6 +84,7 @@ def _run_browser_pending(
             limit=limit,
             dry_run=dry_run,
             stagger_seconds=effective_stagger,
+            bypass_schedule=bypass_schedule,
         )
         if as_json:
             _dump_json(dataclasses.asdict(result))
@@ -206,7 +208,7 @@ def publish_pending(
     """Alias legacy de browser-pending; usa el mismo backend browser."""
 
     _warn_legacy_alias("publish-pending", "browser-pending")
-    _run_browser_pending(limit=limit, dry_run=dry_run, stagger=stagger, as_json=as_json)
+    _run_browser_pending(limit=limit, dry_run=dry_run, stagger=stagger, as_json=as_json, bypass_schedule=False)
 
 
 @app.command("typefully-pending")
@@ -269,10 +271,17 @@ def browser_pending(
         None, "--stagger", help="Segundos entre tweets (por defecto: x_browser_stagger_seconds de settings)"
     ),
     as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
+    bypass_schedule: bool = typer.Option(
+        False,
+        "--bypass-schedule",
+        help="Omite el filtro de dia/hora y la ventana de jornada. Util para rescatar piezas varadas.",
+    ),
 ) -> None:
     """Publica piezas pendientes en X via automatizacion de browser (sin API key)."""
 
-    _run_browser_pending(limit=limit, dry_run=dry_run, stagger=stagger, as_json=as_json)
+    _run_browser_pending(
+        limit=limit, dry_run=dry_run, stagger=stagger, as_json=as_json, bypass_schedule=bypass_schedule
+    )
 
 
 @app.command("engage-daily")
