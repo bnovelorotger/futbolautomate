@@ -18,7 +18,6 @@ from app.utils.time import utcnow
 _SEASON_PATTERN = re.compile(r"Temporada\s+(\d{4}-\d{2})", re.IGNORECASE)
 _ROUND_PATTERN = re.compile(r"(Jornada\s+\d+)", re.IGNORECASE)
 _SCORE_PATTERN = re.compile(r"^\s*(\d+)\s*-\s*(\d+)\s*$")
-_HALFTIME_SCORE_PATTERN = re.compile(r"(\d+)\s*-\s*(\d+)")
 _TIME_PATTERN = re.compile(r"^\s*\d{1,2}:\d{2}\s*$")
 _MATCH_ID_PATTERN = re.compile(r"/partido/[^/]+/(\d+)")
 _MINUTE_PATTERN = re.compile(r"^\s*(\d+)(?:\+(\d+))?\s*$")
@@ -115,20 +114,43 @@ def _parse_minute_value(value: str | None) -> tuple[int | None, int | None]:
 
 
 def _parse_halftime_score(soup: BeautifulSoup) -> tuple[int | None, int | None]:
-    """Extract half-time score from a match detail page.
+    """Derive half-time score by counting goals in the "Primer Tiempo" section.
 
-    Looks for the ".marcadorDescanso" element whose text contains a "X-Y" pattern
-    (e.g. "Descanso 1-0" or "1-0"). Returns (None, None) when the element is absent
-    or contains no parseable score — safe for matches without HT data.
+    futbolme.com does not expose a dedicated halftime score element; goals are
+    listed under h3.subtitulo period headings ("Primer Tiempo" / "Segundo Tiempo").
+    Returns (None, None) when no first-half section is found — safe for scheduled
+    or data-incomplete matches.
     """
-    node = soup.select_one(selectors.MATCH_HALFTIME_SCORE_SELECTOR)
-    if node is None:
+    ht_home = 0
+    ht_away = 0
+    found_first_half = False
+
+    for table in soup.select(selectors.MATCH_EVENT_TABLE_SELECTOR):
+        in_first_half = False
+        for row in table.select("tr"):
+            heading = row.select_one(selectors.MATCH_EVENT_PERIOD_HEADING_SELECTOR)
+            if heading is not None:
+                heading_text = (_text(heading) or "").lower()
+                in_first_half = "primer" in heading_text
+                if in_first_half:
+                    found_first_half = True
+                continue
+            if not in_first_half:
+                continue
+            if row.select_one(selectors.MATCH_EVENT_GOAL_ICON_SELECTOR) is None:
+                continue
+            cells = row.find_all("td")
+            if len(cells) < 2:
+                continue
+            team_side = "home" if _text(cells[0]) else "away" if _text(cells[1]) else None
+            if team_side == "home":
+                ht_home += 1
+            elif team_side == "away":
+                ht_away += 1
+
+    if not found_first_half:
         return None, None
-    text = _text(node)
-    match = _HALFTIME_SCORE_PATTERN.search(text)
-    if match is None:
-        return None, None
-    return int(match.group(1)), int(match.group(2))
+    return ht_home, ht_away
 
 
 def _parse_page_metadata(soup: BeautifulSoup) -> FutbolmePageMetadata:

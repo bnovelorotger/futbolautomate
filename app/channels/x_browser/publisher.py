@@ -208,7 +208,9 @@ class XBrowserPublisher:
                     slot_text, slot_image = tweets[slot_index]
                     add_button = page.locator('[data-testid="addButton"]')
                     add_button.wait_for(state="visible", timeout=10_000)
-                    add_button.click(timeout=10_000)
+                    # force=True bypasses overlay divs that intercept pointer events
+                    # without blocking the click (same pattern used for textarea slots)
+                    add_button.click(force=True, timeout=10_000)
                     # Wait for a new textarea slot to appear
                     page.wait_for_function(
                         f"() => document.querySelectorAll('[data-testid^=\"tweetTextarea\"]').length > {slot_index}",
