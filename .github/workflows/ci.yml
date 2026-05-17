@@ -16,22 +16,24 @@ jobs:
   lint-and-test:
     name: Lint and Unit Tests
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
     steps:
       # 1. Check out the repository at the commit that triggered the workflow.
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # 2. Install the exact Python version the project targets (>=3.11).
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
       # 3. Cache the pip download cache keyed on pyproject.toml so that
       #    dependency downloads are skipped when nothing has changed.
       - name: Cache pip dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}

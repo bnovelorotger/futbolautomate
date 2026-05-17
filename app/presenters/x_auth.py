@@ -10,7 +10,7 @@ def render_x_authorization_start(payload: XAuthorizationStart) -> str:
             payload.authorization_url,
             "",
             "Next step:",
-            "python -m app.pipelines.x_auth exchange-code --callback-url \"<FULL_CALLBACK_URL>\"",
+            'python -m app.pipelines.x_auth exchange-code --callback-url "<FULL_CALLBACK_URL>"',
             "",
             f"state={payload.state}",
             f"expires_at={payload.expires_at.isoformat()}",

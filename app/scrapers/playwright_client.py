@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from playwright.sync_api import sync_playwright
 
@@ -30,5 +30,5 @@ class PlaywrightClient:
             content=html,
             status_code=200,
             content_type="text/html",
-            fetched_at=datetime.now(timezone.utc),
+            fetched_at=datetime.now(UTC),
         )

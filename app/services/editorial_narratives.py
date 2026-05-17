@@ -209,9 +209,15 @@ class EditorialNarrativesService:
 
         try:
             standings = self.queries.current_standings(competition_code)
-            best_attack = next(iter(self.relevance.top_scoring_teams_from_standings(competition_code, standings, limit=1)), None)
-            best_defense = next(iter(self.relevance.best_defense_teams_from_standings(competition_code, standings, limit=1)), None)
-            most_wins = next(iter(self.relevance.most_wins_teams_from_standings(competition_code, standings, limit=1)), None)
+            best_attack = next(
+                iter(self.relevance.top_scoring_teams_from_standings(competition_code, standings, limit=1)), None
+            )
+            best_defense = next(
+                iter(self.relevance.best_defense_teams_from_standings(competition_code, standings, limit=1)), None
+            )
+            most_wins = next(
+                iter(self.relevance.most_wins_teams_from_standings(competition_code, standings, limit=1)), None
+            )
         except ConfigurationError:
             best_attack = None
             best_defense = None
@@ -271,8 +277,7 @@ class EditorialNarrativesService:
                     priority=_NARRATIVE_PRIORITY[NarrativeMetricType.MOST_WINS],
                     content_key=f"metric:most_wins:{most_wins.team}",
                     text_draft=(
-                        f"{most_wins.team} es el equipo con mas victorias de {competition_name}: "
-                        f"{most_wins.value}."
+                        f"{most_wins.team} es el equipo con mas victorias de {competition_name}: {most_wins.value}."
                     ),
                     source_payload={
                         "narrative_type": str(NarrativeMetricType.MOST_WINS),
@@ -420,12 +425,8 @@ class EditorialNarrativesService:
             Match.match_date <= reference_date,
         ]
         goals_expr = func.coalesce(Match.home_score, 0) + func.coalesce(Match.away_score, 0)
-        total_goals = self.session.scalar(
-            select(func.coalesce(func.sum(goals_expr), 0)).where(*filters)
-        ) or 0
-        played_matches = self.session.scalar(
-            select(func.count()).select_from(Match).where(*filters)
-        ) or 0
+        total_goals = self.session.scalar(select(func.coalesce(func.sum(goals_expr), 0)).where(*filters)) or 0
+        played_matches = self.session.scalar(select(func.count()).select_from(Match).where(*filters)) or 0
         average_goals = round(total_goals / played_matches, 2) if played_matches else 0.0
         return {
             "total_goals": int(total_goals),

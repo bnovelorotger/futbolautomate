@@ -71,22 +71,30 @@ class SocialIdentityService:
             return {}
 
         if competition_slug is not None:
-            row = self.session.execute(
-                select(TeamSocial).where(
-                    TeamSocial.team_name == normalized_name,
-                    TeamSocial.competition_slug == competition_slug,
-                    TeamSocial.is_active.is_(True),
+            row = (
+                self.session.execute(
+                    select(TeamSocial).where(
+                        TeamSocial.team_name == normalized_name,
+                        TeamSocial.competition_slug == competition_slug,
+                        TeamSocial.is_active.is_(True),
+                    )
                 )
-            ).scalars().first()
+                .scalars()
+                .first()
+            )
             if row is not None and _normalize_handle(row.x_handle) is not None:
                 return self._team_social_payload(row)
 
-        rows = self.session.execute(
-            select(TeamSocial).where(
-                TeamSocial.team_name == normalized_name,
-                TeamSocial.is_active.is_(True),
+        rows = (
+            self.session.execute(
+                select(TeamSocial).where(
+                    TeamSocial.team_name == normalized_name,
+                    TeamSocial.is_active.is_(True),
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         rows = [row for row in rows if _normalize_handle(row.x_handle) is not None]
         if rows:
             rows.sort(
@@ -114,12 +122,16 @@ class SocialIdentityService:
         competition_slug: str | None,
     ) -> dict[str, Any] | None:
         if competition_slug is not None:
-            row = self.session.execute(
-                select(TeamMention).where(
-                    TeamMention.team_name == team_name,
-                    TeamMention.competition_slug == competition_slug,
+            row = (
+                self.session.execute(
+                    select(TeamMention).where(
+                        TeamMention.team_name == team_name,
+                        TeamMention.competition_slug == competition_slug,
+                    )
                 )
-            ).scalars().first()
+                .scalars()
+                .first()
+            )
             if row is not None and _normalize_handle(row.twitter_handle) is not None:
                 return {
                     "team_name": row.team_name,
@@ -132,9 +144,7 @@ class SocialIdentityService:
                     "source": "team_mentions",
                 }
 
-        row = self.session.execute(
-            select(TeamMention).where(TeamMention.team_name == team_name)
-        ).scalars().first()
+        row = self.session.execute(select(TeamMention).where(TeamMention.team_name == team_name)).scalars().first()
         if row is None or _normalize_handle(row.twitter_handle) is None:
             return self._legacy_identity_match(team_name, competition_slug)
         return {
@@ -154,9 +164,7 @@ class SocialIdentityService:
         competition_slug: str | None,
     ) -> dict[str, Any] | None:
         identity = _normalized_identity(team_name)
-        rows = self.session.execute(
-            select(TeamSocial).where(TeamSocial.is_active.is_(True))
-        ).scalars().all()
+        rows = self.session.execute(select(TeamSocial).where(TeamSocial.is_active.is_(True))).scalars().all()
         matches = [
             row
             for row in rows

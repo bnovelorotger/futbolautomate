@@ -150,9 +150,7 @@ class MatchZoneCalculator:
         simulated_zone = self._zone_for_row(competition_code, simulated_row)
         simulated_position = simulated_row.position if simulated_row is not None else None
         position_change = (
-            0
-            if current_position is None or simulated_position is None
-            else current_position - simulated_position
+            0 if current_position is None or simulated_position is None else current_position - simulated_position
         )
         crosses_into, crosses_out_of = self._zone_transition(current_zone, simulated_zone)
         return TeamZoneScenario(
@@ -201,10 +199,7 @@ class MatchZoneCalculator:
                 row.team,
             ),
         )
-        return [
-            row.model_copy(update={"position": index})
-            for index, row in enumerate(adjusted, start=1)
-        ]
+        return [row.model_copy(update={"position": index}) for index, row in enumerate(adjusted, start=1)]
 
     def _gaps_for_row(
         self,
@@ -250,18 +245,14 @@ class MatchZoneCalculator:
             ),
             points_to_safety=(
                 max((safe_row.points or 0) - row.points, 0)
-                if safe_row is not None
-                and safe_row.points is not None
-                and current_zone == "relegation"
+                if safe_row is not None and safe_row.points is not None and current_zone == "relegation"
                 else 0
                 if current_zone != "relegation" and safe_row is not None
                 else None
             ),
             margin_above_relegation=(
                 row.points - (relegation_row.points or 0)
-                if relegation_row is not None
-                and relegation_row.points is not None
-                and current_zone != "relegation"
+                if relegation_row is not None and relegation_row.points is not None and current_zone != "relegation"
                 else None
             ),
         )
@@ -309,17 +300,9 @@ class MatchZoneCalculator:
             return f"{subject} lo sacaria del descenso"
         if current_zone != "relegation" and simulated_zone == "relegation":
             return f"{subject} lo meteria en descenso"
-        if (
-            current_position is not None
-            and simulated_position is not None
-            and simulated_position < current_position
-        ):
+        if current_position is not None and simulated_position is not None and simulated_position < current_position:
             return f"{subject} lo subiria al puesto {simulated_position}"
-        if (
-            current_position is not None
-            and simulated_position is not None
-            and simulated_position > current_position
-        ):
+        if current_position is not None and simulated_position is not None and simulated_position > current_position:
             return f"{subject} lo bajaria al puesto {simulated_position}"
         return None
 

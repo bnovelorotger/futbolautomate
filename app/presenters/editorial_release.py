@@ -28,7 +28,9 @@ def render_release_result(result: EditorialReleaseResult) -> str:
     if result.dispatched_rows:
         lines.extend(["", "[dispatch]", render_dispatch_rows(result.dispatched_rows)])
     if result.x_publication_rows:
-        lines.extend(["", "[x_publish]", f"published_count={result.x_published_count}", render_x_rows(result.x_publication_rows)])
+        lines.extend(
+            ["", "[x_publish]", f"published_count={result.x_published_count}", render_x_rows(result.x_publication_rows)]
+        )
     lines.extend(
         [
             "",

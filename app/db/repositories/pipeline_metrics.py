@@ -17,11 +17,7 @@ class PipelineMetricRepository:
         pipeline_name: str,
         **fields,
     ) -> PipelineMetric:
-        existing = (
-            self._session.query(PipelineMetric)
-            .filter_by(run_date=run_date, pipeline_name=pipeline_name)
-            .first()
-        )
+        existing = self._session.query(PipelineMetric).filter_by(run_date=run_date, pipeline_name=pipeline_name).first()
         if existing:
             for k, v in fields.items():
                 setattr(existing, k, v)
@@ -31,8 +27,10 @@ class PipelineMetricRepository:
         return metric
 
     def get_recent(self, days: int = 30) -> list[PipelineMetric]:
-        from app.utils.time import utcnow
         from datetime import timedelta
+
+        from app.utils.time import utcnow
+
         cutoff = (utcnow() - timedelta(days=days)).date()
         return (
             self._session.query(PipelineMetric)

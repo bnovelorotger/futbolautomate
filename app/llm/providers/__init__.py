@@ -21,4 +21,3 @@ def editorial_rewrite_provider_ready(settings: Settings) -> bool:
     if provider == "openai":
         return all(openai_editorial_rewrite_config_presence(settings).values())
     return False
-

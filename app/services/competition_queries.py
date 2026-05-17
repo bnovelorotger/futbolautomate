@@ -34,9 +34,7 @@ class CompetitionQueryService:
         self.relevance = CompetitionRelevanceService()
 
     def _get_competition(self, competition_code: str) -> Competition:
-        competition = self.session.scalar(
-            select(Competition).where(Competition.code == competition_code)
-        )
+        competition = self.session.scalar(select(Competition).where(Competition.code == competition_code))
         if competition is None:
             raise ConfigurationError(f"Competicion desconocida o no sembrada: {competition_code}")
         return competition
@@ -66,9 +64,12 @@ class CompetitionQueryService:
         )
 
     def _standing_query(self, competition_id: int):
-        has_rows = self.session.scalar(
-            select(func.count()).select_from(Standing).where(Standing.competition_id == competition_id)
-        ) or 0
+        has_rows = (
+            self.session.scalar(
+                select(func.count()).select_from(Standing).where(Standing.competition_id == competition_id)
+            )
+            or 0
+        )
         if has_rows == 0:
             raise ConfigurationError("No hay clasificacion disponible para esta competicion")
         return (
@@ -113,10 +114,7 @@ class CompetitionQueryService:
             return WindowBounds(start_date=tomorrow, end_date=tomorrow)
 
         weekday = today.weekday()
-        if weekday >= 5:
-            days_until_saturday = 12 - weekday
-        else:
-            days_until_saturday = 5 - weekday
+        days_until_saturday = 12 - weekday if weekday >= 5 else 5 - weekday
         saturday = today + timedelta(days=days_until_saturday)
         sunday = saturday + timedelta(days=1)
         return WindowBounds(start_date=saturday, end_date=sunday)
@@ -243,11 +241,7 @@ class CompetitionQueryService:
         else:
             selected = [anchor]
 
-        selected = [
-            match
-            for match in selected
-            if match.match_date is None or match.match_date <= max_allowed_date
-        ]
+        selected = [match for match in selected if match.match_date is None or match.match_date <= max_allowed_date]
         if limit is not None:
             selected = selected[:limit]
         return selected
@@ -299,10 +293,7 @@ class CompetitionQueryService:
             .limit(limit)
         )
         rows = self.session.execute(query).all()
-        return [
-            TeamRankingView(team=row.team, value=row.goals_for, position=row.position)
-            for row in rows
-        ]
+        return [TeamRankingView(team=row.team, value=row.goals_for, position=row.position) for row in rows]
 
     def best_defense_teams(self, competition_code: str, limit: int = 5) -> list[TeamRankingView]:
         competition = self._get_competition(competition_code)
@@ -312,10 +303,7 @@ class CompetitionQueryService:
             .limit(limit)
         )
         rows = self.session.execute(query).all()
-        return [
-            TeamRankingView(team=row.team, value=row.goals_against, position=row.position)
-            for row in rows
-        ]
+        return [TeamRankingView(team=row.team, value=row.goals_against, position=row.position) for row in rows]
 
     def most_wins_teams(self, competition_code: str, limit: int = 5) -> list[TeamRankingView]:
         competition = self._get_competition(competition_code)
@@ -325,10 +313,7 @@ class CompetitionQueryService:
             .limit(limit)
         )
         rows = self.session.execute(query).all()
-        return [
-            TeamRankingView(team=row.team, value=row.wins, position=row.position)
-            for row in rows
-        ]
+        return [TeamRankingView(team=row.team, value=row.wins, position=row.position) for row in rows]
 
     def matches_in_window(
         self,
@@ -368,16 +353,16 @@ class CompetitionQueryService:
     def relevant_matches_count(self, competition_code: str) -> int:
         competition = self._get_competition(competition_code)
         if not self.relevance.has_tracked_teams(competition_code):
-            return self.session.scalar(
-                select(func.count()).select_from(Match).where(Match.competition_id == competition.id)
-            ) or 0
-        query = (
-            self._match_view_query(competition.id)
-            .order_by(
-                Match.match_date.asc().nullslast(),
-                Match.match_time.asc().nullslast(),
-                Match.id.asc(),
+            return (
+                self.session.scalar(
+                    select(func.count()).select_from(Match).where(Match.competition_id == competition.id)
+                )
+                or 0
             )
+        query = self._match_view_query(competition.id).order_by(
+            Match.match_date.asc().nullslast(),
+            Match.match_time.asc().nullslast(),
+            Match.id.asc(),
         )
         return len(
             self._match_views(
@@ -389,26 +374,31 @@ class CompetitionQueryService:
 
     def summary(self, competition_code: str) -> CompetitionSummaryView:
         competition = self._get_competition(competition_code)
-        total_matches = self.session.scalar(
-            select(func.count()).select_from(Match).where(Match.competition_id == competition.id)
-        ) or 0
-        played_matches = self.session.scalar(
-            select(func.count())
-            .select_from(Match)
-            .where(Match.competition_id == competition.id, Match.status == "finished")
-        ) or 0
+        total_matches = (
+            self.session.scalar(select(func.count()).select_from(Match).where(Match.competition_id == competition.id))
+            or 0
+        )
+        played_matches = (
+            self.session.scalar(
+                select(func.count())
+                .select_from(Match)
+                .where(Match.competition_id == competition.id, Match.status == "finished")
+            )
+            or 0
+        )
 
-        total_teams = self.session.scalar(
-            select(func.count()).select_from(Standing).where(Standing.competition_id == competition.id)
-        ) or 0
+        total_teams = (
+            self.session.scalar(
+                select(func.count()).select_from(Standing).where(Standing.competition_id == competition.id)
+            )
+            or 0
+        )
         if total_teams == 0:
             teams_subquery = union_all(
                 select(Match.home_team_raw.label("team_name")).where(Match.competition_id == competition.id),
                 select(Match.away_team_raw.label("team_name")).where(Match.competition_id == competition.id),
             ).subquery()
-            total_teams = self.session.scalar(
-                select(func.count(func.distinct(teams_subquery.c.team_name)))
-            ) or 0
+            total_teams = self.session.scalar(select(func.count(func.distinct(teams_subquery.c.team_name)))) or 0
 
         return CompetitionSummaryView(
             competition_code=competition.code,

@@ -14,5 +14,4 @@ class LLMProviderError(RuntimeError):
 
 
 class EditorialRewriteProvider(Protocol):
-    def rewrite(self, request: EditorialRewriteLLMRequest) -> EditorialRewriteLLMResponse:
-        ...
+    def rewrite(self, request: EditorialRewriteLLMRequest) -> EditorialRewriteLLMResponse: ...

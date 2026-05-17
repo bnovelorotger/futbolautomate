@@ -11,9 +11,7 @@ class CompetitionRepository(BaseRepository[Competition]):
         return self.session.scalar(select(Competition).where(Competition.code == code))
 
     def get_by_normalized_name(self, normalized_name: str) -> Competition | None:
-        return self.session.scalar(
-            select(Competition).where(Competition.normalized_name == normalized_name)
-        )
+        return self.session.scalar(select(Competition).where(Competition.normalized_name == normalized_name))
 
     def create_or_update(self, **payload) -> Competition:
         competition = self.get_by_code(payload["code"])
@@ -27,4 +25,3 @@ class CompetitionRepository(BaseRepository[Competition]):
             setattr(competition, key, value)
         self.session.flush()
         return competition
-

@@ -30,4 +30,3 @@ class StandingRecord(BaseModel):
     form_text: str | None = None
     scraped_at: datetime
     raw_payload: dict[str, Any] = Field(default_factory=dict)
-

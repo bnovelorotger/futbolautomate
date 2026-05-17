@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
-from playwright.sync_api import sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
+from playwright.sync_api import sync_playwright
 
 from app.channels.x_browser.schemas import XBrowserPublishResponse
 
@@ -78,9 +78,7 @@ class XBrowserPublisher:
                 viewport={"width": 1280, "height": 900},
             )
             page = context.new_page()
-            page.add_init_script(
-                "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
-            )
+            page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
             try:
                 page.goto(self.COMPOSE_URL, wait_until="domcontentloaded", timeout=30_000)
                 if "/login" in page.url or "/i/flow/login" in page.url:
@@ -115,11 +113,11 @@ class XBrowserPublisher:
                         lambda url: "/compose/post" not in url,
                         timeout=15_000,
                     )
-                except PlaywrightTimeout:
+                except PlaywrightTimeout as exc:
                     error_els = page.locator('[data-testid="toast"], [role="alert"]').all()
                     errors = [el.inner_text()[:200] for el in error_els if el.is_visible()]
                     detail = "; ".join(errors) if errors else "page did not navigate away from compose after 15s"
-                    raise XBrowserPublishError(f"Post submission may have failed: {detail}")
+                    raise XBrowserPublishError(f"Post submission may have failed: {detail}") from exc
                 context.storage_state(path=str(self.state_file))
             except (XBrowserSessionError, XBrowserPublishError):
                 raise
@@ -133,7 +131,7 @@ class XBrowserPublisher:
         logger.info("Published via browser: %s…", text[:60])
         return XBrowserPublishResponse(
             text=text,
-            published_at=datetime.now(timezone.utc),
+            published_at=datetime.now(UTC),
             dry_run=False,
             image_path=str(resolved_image) if resolved_image is not None else None,
         )
@@ -150,9 +148,7 @@ class XBrowserPublisher:
             if not text or not text.strip():
                 raise XBrowserPublishError(f"Tweet slot {idx} text cannot be empty")
             if len(text) > MAX_POST_LENGTH:
-                raise XBrowserPublishError(
-                    f"Tweet slot {idx} text exceeds {MAX_POST_LENGTH} chars ({len(text)})"
-                )
+                raise XBrowserPublishError(f"Tweet slot {idx} text exceeds {MAX_POST_LENGTH} chars ({len(text)})")
 
         if dry_run:
             for idx, (text, image_path) in enumerate(tweets):
@@ -186,9 +182,7 @@ class XBrowserPublisher:
                 viewport={"width": 1280, "height": 900},
             )
             page = context.new_page()
-            page.add_init_script(
-                "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
-            )
+            page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
             try:
                 page.goto(self.COMPOSE_URL, wait_until="domcontentloaded", timeout=30_000)
                 if "/login" in page.url or "/i/flow/login" in page.url:
@@ -227,9 +221,7 @@ class XBrowserPublisher:
                             )
                             logger.info("Thread slot %d image attached: %s", slot_index, slot_image.name)
                         except Exception as exc:
-                            logger.warning(
-                                "Thread slot %d image attachment failed, continuing: %s", slot_index, exc
-                            )
+                            logger.warning("Thread slot %d image attachment failed, continuing: %s", slot_index, exc)
                     new_textarea = page.locator('[data-testid^="tweetTextarea"]').nth(slot_index)
                     new_textarea.scroll_into_view_if_needed(timeout=5_000)
                     new_textarea.click(force=True, timeout=10_000)
@@ -249,13 +241,11 @@ class XBrowserPublisher:
                         lambda url: "/compose/post" not in url,
                         timeout=15_000,
                     )
-                except PlaywrightTimeout:
+                except PlaywrightTimeout as exc:
                     error_els = page.locator('[data-testid="toast"], [role="alert"]').all()
                     errors = [el.inner_text()[:200] for el in error_els if el.is_visible()]
-                    detail = (
-                        "; ".join(errors) if errors else "page did not navigate away from compose after 15s"
-                    )
-                    raise XBrowserPublishError(f"Thread submission may have failed: {detail}")
+                    detail = "; ".join(errors) if errors else "page did not navigate away from compose after 15s"
+                    raise XBrowserPublishError(f"Thread submission may have failed: {detail}") from exc
                 context.storage_state(path=str(self.state_file))
             except (XBrowserSessionError, XBrowserPublishError):
                 raise
@@ -270,6 +260,6 @@ class XBrowserPublisher:
         logger.info("Published thread via browser (%d tweets)", len(tweets))
         return XBrowserPublishResponse(
             text=combined,
-            published_at=datetime.now(timezone.utc),
+            published_at=datetime.now(UTC),
             dry_run=False,
         )

@@ -202,9 +202,7 @@ def run_competition_pipeline(
                 )
             )
     if not results:
-        raise ConfigurationError(
-            f"La competicion {competition_code} no tiene fuentes automaticas habilitadas"
-        )
+        raise ConfigurationError(f"La competicion {competition_code} no tiene fuentes automaticas habilitadas")
     return results
 
 
@@ -218,7 +216,7 @@ def run_daily_pipeline(dry_run: bool = False) -> list[dict]:
         for source_name, mapping in competition.sources.items():
             if not mapping.enabled:
                 continue
-            for target in mapping.urls.keys():
+            for target in mapping.urls:
                 results.append(
                     run_source_pipeline(
                         source=source_name,

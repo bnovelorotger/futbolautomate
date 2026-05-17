@@ -38,9 +38,7 @@ def enrich(
     init_db()
     with session_scope() as session:
         stats = enrich_news_editorial(session, limit=limit, source_name=source)
-        typer.echo(
-            f"found={stats.found} inserted={stats.inserted} updated={stats.updated} errors={stats.errors}"
-        )
+        typer.echo(f"found={stats.found} inserted={stats.inserted} updated={stats.updated} errors={stats.errors}")
 
 
 @app.command("relevant")

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from sqlalchemy import case, func, select
@@ -13,7 +13,7 @@ from app.channels.typefully.client import TypefullyApiClient, TypefullyApiError
 from app.channels.typefully.publisher import TypefullyPublisher, TypefullyPublisherValidationError
 from app.channels.typefully.schemas import TypefullyPublishResponse
 from app.core.config import get_settings
-from app.core.enums import ContentCandidateStatus, ContentType
+from app.core.enums import ContentCandidateStatus
 from app.core.exceptions import ConfigurationError, InvalidStateTransitionError
 from app.db.models import ContentCandidate
 from app.services.editorial_text_selector import EditorialTextSelectorService
@@ -231,7 +231,12 @@ class TypefullyPublicationService:
         for index, candidate in enumerate(candidates):
             try:
                 result = self.publish_candidate(candidate.id, dry_run=dry_run, post_index=index)
-            except (TypefullyApiError, TypefullyPublisherValidationError, InvalidStateTransitionError, ConfigurationError):
+            except (
+                TypefullyApiError,
+                TypefullyPublisherValidationError,
+                InvalidStateTransitionError,
+                ConfigurationError,
+            ):
                 result_rows.append(self._row_to_view(candidate))
                 continue
             result_rows.append(result.candidate)

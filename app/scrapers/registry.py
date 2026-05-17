@@ -9,7 +9,6 @@ from app.scrapers.media.ib3 import IB3Scraper
 from app.scrapers.media.ultima_hora import UltimaHoraScraper
 from app.scrapers.soccerway.scraper import SoccerwayScraper
 
-
 SCRAPER_REGISTRY: dict[SourceName, type[BaseScraper]] = {
     SourceName.SOCCERWAY: SoccerwayScraper,
     SourceName.FUTBOLME: FutbolmeScraper,

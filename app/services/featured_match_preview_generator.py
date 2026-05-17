@@ -14,7 +14,7 @@ from app.schemas.reporting import CompetitionMatchView
 from app.schemas.team_analytics import TeamAnalyticsRowView
 from app.schemas.team_form import TeamFormEntryView
 from app.services.competition_queries import CompetitionQueryService
-from app.services.match_zone_calculator import MatchZoneContext, MatchZoneCalculator
+from app.services.match_zone_calculator import MatchZoneCalculator, MatchZoneContext
 from app.services.team_analytics import TeamAnalyticsService
 from app.services.team_form import DEFAULT_FORM_WINDOW, TeamFormService
 
@@ -369,9 +369,7 @@ class FeaturedMatchPreviewGenerator:
         return None
 
     def _competition(self, competition_code: str) -> Competition:
-        competition = self.session.scalar(
-            select(Competition).where(Competition.code == competition_code)
-        )
+        competition = self.session.scalar(select(Competition).where(Competition.code == competition_code))
         if competition is None:
             raise ConfigurationError(f"Competicion desconocida o no sembrada: {competition_code}")
         return competition

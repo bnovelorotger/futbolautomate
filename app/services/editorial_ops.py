@@ -118,10 +118,7 @@ class EditorialOperationsService:
 
     def _evaluate_day(self, target_date: date) -> list[_TaskEvaluation]:
         plan = self.planner.plan_for_date(target_date)
-        readiness = {
-            row.code: row
-            for row in self.system_check.editorial_readiness().rows
-        }
+        readiness = {row.code: row for row in self.system_check.editorial_readiness().rows}
         candidate_cache: dict[tuple[str, str], list[ContentCandidateDraft]] = {}
         evaluations: list[_TaskEvaluation] = []
 

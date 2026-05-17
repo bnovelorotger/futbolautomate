@@ -3,6 +3,7 @@ from __future__ import annotations
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
+from app.channels.x.auth import XAuthError
 from app.channels.x.client import XApiClient, XApiError
 from app.channels.x.publisher import XPublisher, XPublisherValidationError
 from app.core.config import get_settings
@@ -16,9 +17,8 @@ from app.schemas.x_publication import (
 )
 from app.services.editorial_candidate_window import EditorialCandidateWindowService
 from app.services.editorial_text_selector import EditorialTextSelectorService
-from app.services.x_publication_scheduler import XPublicationScheduler
 from app.services.x_auth_service import XAuthService
-from app.channels.x.auth import XAuthError
+from app.services.x_publication_scheduler import XPublicationScheduler
 from app.utils.time import utcnow
 
 

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
@@ -114,15 +114,11 @@ class MatchEventRepository(BaseRepository[MatchEvent]):
             query = query.where(Match.season == season)
         rows = self.session.execute(query).all()
         return [
-            (str(player_raw).strip().title(), goal_count)
-            for player_raw, goal_count in rows
-            if str(player_raw).strip()
+            (str(player_raw).strip().title(), goal_count) for player_raw, goal_count in rows if str(player_raw).strip()
         ]
 
     def replace_for_match(self, match_id: int, payloads: Sequence[dict]) -> tuple[int, int]:
-        existing = self.session.scalars(
-            select(MatchEvent).where(MatchEvent.match_id == match_id)
-        ).all()
+        existing = self.session.scalars(select(MatchEvent).where(MatchEvent.match_id == match_id)).all()
         deleted = len(existing)
         self.session.execute(delete(MatchEvent).where(MatchEvent.match_id == match_id))
 
@@ -211,23 +207,15 @@ class MatchEventRepository(BaseRepository[MatchEvent]):
             insert_statement = postgresql_insert(MatchEvent).values(payloads)
             return insert_statement.on_conflict_do_update(
                 constraint="uq_match_events_match_source_key",
-                set_={
-                    field: getattr(insert_statement.excluded, field)
-                    for field in self._UPSERT_FIELDS
-                },
+                set_={field: getattr(insert_statement.excluded, field) for field in self._UPSERT_FIELDS},
             )
         if dialect_name == "sqlite":
             insert_statement = sqlite_insert(MatchEvent).values(payloads)
             return insert_statement.on_conflict_do_update(
                 index_elements=[MatchEvent.match_id, MatchEvent.source_event_key],
-                set_={
-                    field: getattr(insert_statement.excluded, field)
-                    for field in self._UPSERT_FIELDS
-                },
+                set_={field: getattr(insert_statement.excluded, field) for field in self._UPSERT_FIELDS},
             )
-        raise NotImplementedError(
-            f"Dialecto no soportado para sync concurrente de match_events: {dialect_name}"
-        )
+        raise NotImplementedError(f"Dialecto no soportado para sync concurrente de match_events: {dialect_name}")
 
     def _delete_missing_events(self, match_id: int, payloads: Sequence[dict]) -> None:
         incoming_keys = {payload["source_event_key"] for payload in payloads}
@@ -302,11 +290,10 @@ class MatchEventRepository(BaseRepository[MatchEvent]):
         original = getattr(exc, "orig", None)
         message = str(original or exc)
         return (
-            getattr(original, "pgcode", None) == "23505"
-            and "uq_match_events_match_source_key" in message
-        ) or (
-            "UNIQUE constraint failed: match_events.match_id, match_events.source_event_key" in message
-        ) or (
-            "duplicate key value violates unique constraint" in message
-            and "uq_match_events_match_source_key" in message
+            (getattr(original, "pgcode", None) == "23505" and "uq_match_events_match_source_key" in message)
+            or ("UNIQUE constraint failed: match_events.match_id, match_events.source_event_key" in message)
+            or (
+                "duplicate key value violates unique constraint" in message
+                and "uq_match_events_match_source_key" in message
+            )
         )

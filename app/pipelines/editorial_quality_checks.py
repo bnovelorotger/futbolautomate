@@ -36,9 +36,7 @@ def _prefer_rewrite(
 ) -> bool:
     if use_draft and use_rewrite:
         _exit_error("No puedes usar --use-draft y --use-rewrite a la vez")
-    if use_draft:
-        return False
-    return True
+    return not use_draft
 
 
 @app.command("check")

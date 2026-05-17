@@ -18,4 +18,3 @@ class CompetitionSeed(BaseModel):
     federation: str | None = None
     source_name: str | None = None
     source_competition_id: str | None = None
-

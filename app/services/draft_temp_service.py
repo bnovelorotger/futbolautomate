@@ -94,14 +94,17 @@ class DraftTempService:
             )
             or 0
         )
-        pending_rows = self.session.execute(
-            select(ContentCandidate.external_publication_error)
-            .where(
-                ContentCandidate.status == str(ContentCandidateStatus.PUBLISHED),
-                ContentCandidate.external_publication_ref.is_(None),
-                func.length(func.trim(ContentCandidate.text_draft)) > 0,
+        pending_rows = (
+            self.session.execute(
+                select(ContentCandidate.external_publication_error).where(
+                    ContentCandidate.status == str(ContentCandidateStatus.PUBLISHED),
+                    ContentCandidate.external_publication_ref.is_(None),
+                    func.length(func.trim(ContentCandidate.text_draft)) > 0,
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         capacity_deferred_count = sum(
             1 for error in pending_rows if self._is_capacity_deferred_error_text(str(error or ""))
         )

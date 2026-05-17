@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.catalog import CompetitionDefinition, load_competition_catalog
 from app.core.enums import CompetitionIntegrationStatus
-from app.db.models import Competition, Match, Standing
+from app.db.models import Match, Standing
 from app.db.repositories.competitions import CompetitionRepository
 from app.normalizers.text import normalize_token
 from app.schemas.competition_catalog import (
@@ -120,9 +120,7 @@ class CompetitionCatalogService:
         definitions = list(self.catalog.values())
         if integrated_only:
             definitions = [
-                definition
-                for definition in definitions
-                if definition.status == CompetitionIntegrationStatus.INTEGRATED
+                definition for definition in definitions if definition.status == CompetitionIntegrationStatus.INTEGRATED
             ]
         if codes:
             requested = set(codes)
@@ -173,6 +171,9 @@ class CompetitionCatalogService:
         return self.session.scalar(query) or 0
 
     def _standings_count(self, competition_id: int) -> int:
-        return self.session.scalar(
-            select(func.count()).select_from(Standing).where(Standing.competition_id == competition_id)
-        ) or 0
+        return (
+            self.session.scalar(
+                select(func.count()).select_from(Standing).where(Standing.competition_id == competition_id)
+            )
+            or 0
+        )

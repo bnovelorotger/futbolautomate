@@ -79,16 +79,10 @@ class TeamAnalyticsRowView(BaseModel):
     last_ten: TeamAnalyticsFormWindowView = Field(default_factory=TeamAnalyticsFormWindowView)
     last_five: TeamAnalyticsFormWindowView = Field(default_factory=TeamAnalyticsFormWindowView)
     recent_trend: TeamAnalyticsTrendView = Field(default_factory=TeamAnalyticsTrendView)
-    home_split: TeamAnalyticsVenueSplitView = Field(
-        default_factory=lambda: TeamAnalyticsVenueSplitView(venue="home")
-    )
-    away_split: TeamAnalyticsVenueSplitView = Field(
-        default_factory=lambda: TeamAnalyticsVenueSplitView(venue="away")
-    )
+    home_split: TeamAnalyticsVenueSplitView = Field(default_factory=lambda: TeamAnalyticsVenueSplitView(venue="home"))
+    away_split: TeamAnalyticsVenueSplitView = Field(default_factory=lambda: TeamAnalyticsVenueSplitView(venue="away"))
     season_pace: TeamSeasonPaceView = Field(default_factory=TeamSeasonPaceView)
-    goal_difference_trend: TeamGoalDifferenceTrendView = Field(
-        default_factory=TeamGoalDifferenceTrendView
-    )
+    goal_difference_trend: TeamGoalDifferenceTrendView = Field(default_factory=TeamGoalDifferenceTrendView)
     defensive_solidity: TeamRecentOutputView = Field(default_factory=TeamRecentOutputView)
     attacking_efficiency: TeamRecentOutputView = Field(default_factory=TeamRecentOutputView)
 

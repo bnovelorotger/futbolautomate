@@ -24,4 +24,3 @@ def build_robot_parser(base_url: str) -> RobotFileParser:
 def is_allowed_by_robots(base_url: str, user_agent: str, url: str) -> bool:
     parser = build_robot_parser(base_url)
     return parser.can_fetch(user_agent, url)
-

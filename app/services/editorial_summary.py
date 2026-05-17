@@ -11,6 +11,7 @@ from app.core.config import get_settings
 from app.core.enums import MatchWindow
 from app.core.exceptions import ConfigurationError
 from app.db.models import Competition, Match
+from app.normalizers.text import normalize_token
 from app.schemas.editorial_summary import (
     CompetitionEditorialSummary,
     EditorialAggregateMetrics,
@@ -25,7 +26,6 @@ from app.services.competition_queries import CompetitionQueryService
 from app.services.competition_relevance import CompetitionRelevanceService
 from app.services.news_editorial_queries import NewsEditorialQueryService
 from app.utils.time import utcnow
-from app.normalizers.text import normalize_token
 
 
 def _has_club_overlap(clubs: set[str], team_names: set[str]) -> bool:
@@ -118,9 +118,7 @@ class CompetitionEditorialSummaryService:
     def _team_names(self, competition_id: int, competition_code: str, relevant_only: bool) -> set[str]:
         if relevant_only and self.relevance.has_tracked_teams(competition_code):
             return {
-                normalize_token(team_name)
-                for team_name in self.relevance.tracked_teams(competition_code)
-                if team_name
+                normalize_token(team_name) for team_name in self.relevance.tracked_teams(competition_code) if team_name
             }
         try:
             standings = self.competition_queries.current_standings(competition_code)
@@ -137,14 +135,19 @@ class CompetitionEditorialSummaryService:
         rows = self.session.execute(select(teams_subquery.c.team_name)).scalars().all()
         return {normalize_token(team_name) for team_name in rows if team_name}
 
-    def _aggregate_metrics(self, competition_id: int, played_matches: int, relevant_news_count: int) -> EditorialAggregateMetrics:
+    def _aggregate_metrics(
+        self, competition_id: int, played_matches: int, relevant_news_count: int
+    ) -> EditorialAggregateMetrics:
         goals_expr = func.coalesce(Match.home_score, 0) + func.coalesce(Match.away_score, 0)
-        total_goals = self.session.scalar(
-            select(func.coalesce(func.sum(goals_expr), 0)).where(
-                Match.competition_id == competition_id,
-                Match.status == "finished",
+        total_goals = (
+            self.session.scalar(
+                select(func.coalesce(func.sum(goals_expr), 0)).where(
+                    Match.competition_id == competition_id,
+                    Match.status == "finished",
+                )
             )
-        ) or 0
+            or 0
+        )
         average_goals = round(total_goals / played_matches, 2) if played_matches else None
         return EditorialAggregateMetrics(
             total_goals_scored=int(total_goals),

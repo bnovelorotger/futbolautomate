@@ -8,7 +8,13 @@ from sqlalchemy.orm import Session
 from app.core.catalog import load_competition_catalog
 from app.core.config import Settings, get_settings
 from app.core.editorial_schedule import load_editorial_schedule
-from app.core.enums import CompetitionIntegrationStatus, ContentCandidateStatus, EditorialPlanningContent, MatchEventType, MatchStatus
+from app.core.enums import (
+    CompetitionIntegrationStatus,
+    ContentCandidateStatus,
+    EditorialPlanningContent,
+    MatchEventType,
+    MatchStatus,
+)
 from app.db.models import ContentCandidate, Match, MatchEvent
 from app.db.repositories.scraper_runs import ScraperRunRepository
 from app.schemas.system_check import EditorialCompetitionReadinessRow, EditorialReadinessReport, ZeroRecordScraperRun
@@ -31,17 +37,16 @@ class SystemCheckService:
             for definition in self.catalog.values()
             if definition.status == CompetitionIntegrationStatus.INTEGRATED
         ]
-        catalog_rows = {
-            row.code: row
-            for row in self.competitions.status(integrated_only=True)
-        }
+        catalog_rows = {row.code: row for row in self.competitions.status(integrated_only=True)}
         planned_types = self._planned_types_by_competition()
         rows: list[EditorialCompetitionReadinessRow] = []
 
         for code in integrated_codes:
             catalog_row = catalog_rows[code]
             weekly_types = planned_types.get(code, [])
-            scorer_season, scorer_matches_count, goal_events_count, scorer_coverage_summary = self._scorer_coverage_stats(code)
+            scorer_season, scorer_matches_count, goal_events_count, scorer_coverage_summary = (
+                self._scorer_coverage_stats(code)
+            )
             readiness_row = EditorialCompetitionReadinessRow(
                 code=code,
                 name=catalog_row.name,
@@ -68,18 +73,24 @@ class SystemCheckService:
             ]
             planner_ready = catalog_row.seeded_in_db and bool(ready_types)
 
-            content_candidates_count = self.session.scalar(
-                select(func.count()).select_from(ContentCandidate).where(ContentCandidate.competition_slug == code)
-            ) or 0
-            pending_export_count = self.session.scalar(
-                select(func.count())
-                .select_from(ContentCandidate)
-                .where(
-                    ContentCandidate.competition_slug == code,
-                    ContentCandidate.status == str(ContentCandidateStatus.PUBLISHED),
-                    ContentCandidate.external_publication_ref.is_(None),
+            content_candidates_count = (
+                self.session.scalar(
+                    select(func.count()).select_from(ContentCandidate).where(ContentCandidate.competition_slug == code)
                 )
-            ) or 0
+                or 0
+            )
+            pending_export_count = (
+                self.session.scalar(
+                    select(func.count())
+                    .select_from(ContentCandidate)
+                    .where(
+                        ContentCandidate.competition_slug == code,
+                        ContentCandidate.status == str(ContentCandidateStatus.PUBLISHED),
+                        ContentCandidate.external_publication_ref.is_(None),
+                    )
+                )
+                or 0
+            )
 
             readiness_row.content_candidates_count = content_candidates_count
             readiness_row.pending_export_count = pending_export_count
@@ -87,17 +98,18 @@ class SystemCheckService:
             readiness_row.missing_dependencies = missing_dependencies
             rows.append(readiness_row)
 
-        content_candidates_total = self.session.scalar(
-            select(func.count()).select_from(ContentCandidate)
-        ) or 0
-        content_candidates_pending_export = self.session.scalar(
-            select(func.count())
-            .select_from(ContentCandidate)
-            .where(
-                ContentCandidate.status == str(ContentCandidateStatus.PUBLISHED),
-                ContentCandidate.external_publication_ref.is_(None),
+        content_candidates_total = self.session.scalar(select(func.count()).select_from(ContentCandidate)) or 0
+        content_candidates_pending_export = (
+            self.session.scalar(
+                select(func.count())
+                .select_from(ContentCandidate)
+                .where(
+                    ContentCandidate.status == str(ContentCandidateStatus.PUBLISHED),
+                    ContentCandidate.external_publication_ref.is_(None),
+                )
             )
-        ) or 0
+            or 0
+        )
 
         zero_record_runs = ScraperRunRepository(self.session).get_zero_record_runs(days=7)
 
@@ -152,14 +164,18 @@ class SystemCheckService:
         missing_dependencies: list[str] = []
         if not catalog_row.seeded_in_db:
             return ["competition_seed"]
-        if content_type in {
-            EditorialPlanningContent.LATEST_RESULTS,
-            EditorialPlanningContent.RESULTS_ROUNDUP,
-            EditorialPlanningContent.STAT_NARRATIVE,
-            EditorialPlanningContent.METRIC_NARRATIVE,
-            EditorialPlanningContent.MILESTONE_STORY,
-            EditorialPlanningContent.VIRAL_STORY,
-        } and catalog_row.finished_matches_count == 0:
+        if (
+            content_type
+            in {
+                EditorialPlanningContent.LATEST_RESULTS,
+                EditorialPlanningContent.RESULTS_ROUNDUP,
+                EditorialPlanningContent.STAT_NARRATIVE,
+                EditorialPlanningContent.METRIC_NARRATIVE,
+                EditorialPlanningContent.MILESTONE_STORY,
+                EditorialPlanningContent.VIRAL_STORY,
+            }
+            and catalog_row.finished_matches_count == 0
+        ):
             missing_dependencies.append("finished_matches")
         if content_type == EditorialPlanningContent.TOP_SCORER_UPDATE:
             if catalog_row.finished_matches_count == 0:
@@ -168,24 +184,32 @@ class SystemCheckService:
                 missing_dependencies.append("match_events")
             elif getattr(catalog_row, "scorer_matches_count", 0) < MIN_TOP_SCORER_SCORER_MATCHES:
                 missing_dependencies.append("scorer_coverage")
-        if content_type in {
-            EditorialPlanningContent.PREVIEW,
-            EditorialPlanningContent.MATCH_IMPACT_SCENARIO,
-        } and catalog_row.scheduled_matches_count == 0:
+        if (
+            content_type
+            in {
+                EditorialPlanningContent.PREVIEW,
+                EditorialPlanningContent.MATCH_IMPACT_SCENARIO,
+            }
+            and catalog_row.scheduled_matches_count == 0
+        ):
             missing_dependencies.append("scheduled_matches")
         if content_type == EditorialPlanningContent.FEATURED_MATCH_PREVIEW:
             if catalog_row.scheduled_matches_count == 0:
                 missing_dependencies.append("scheduled_matches")
             if catalog_row.standings_count == 0:
                 missing_dependencies.append("standings")
-        if content_type in {
-            EditorialPlanningContent.STANDINGS,
-            EditorialPlanningContent.STANDINGS_ROUNDUP,
-            EditorialPlanningContent.RANKING,
-            EditorialPlanningContent.METRIC_NARRATIVE,
-            EditorialPlanningContent.MATCH_IMPACT_SCENARIO,
-            EditorialPlanningContent.RACE_NARRATIVE,
-        } and catalog_row.standings_count == 0:
+        if (
+            content_type
+            in {
+                EditorialPlanningContent.STANDINGS,
+                EditorialPlanningContent.STANDINGS_ROUNDUP,
+                EditorialPlanningContent.RANKING,
+                EditorialPlanningContent.METRIC_NARRATIVE,
+                EditorialPlanningContent.MATCH_IMPACT_SCENARIO,
+                EditorialPlanningContent.RACE_NARRATIVE,
+            }
+            and catalog_row.standings_count == 0
+        ):
             missing_dependencies.append("standings")
         return missing_dependencies
 
@@ -210,48 +234,60 @@ class SystemCheckService:
         )
         if not season:
             return None, 0, 0, None
-        finished_matches_count = self.session.scalar(
-            select(func.count())
-            .select_from(Match)
-            .where(
-                Match.competition.has(code=competition_code),
-                Match.status == str(MatchStatus.FINISHED),
-                Match.season == season,
+        finished_matches_count = (
+            self.session.scalar(
+                select(func.count())
+                .select_from(Match)
+                .where(
+                    Match.competition.has(code=competition_code),
+                    Match.status == str(MatchStatus.FINISHED),
+                    Match.season == season,
+                )
             )
-        ) or 0
-        covered_matches_count = self.session.scalar(
-            select(func.count())
-            .select_from(Match)
-            .where(
-                Match.competition.has(code=competition_code),
-                Match.status == str(MatchStatus.FINISHED),
-                Match.season == season,
-                Match.has_scorers.is_(True),
+            or 0
+        )
+        covered_matches_count = (
+            self.session.scalar(
+                select(func.count())
+                .select_from(Match)
+                .where(
+                    Match.competition.has(code=competition_code),
+                    Match.status == str(MatchStatus.FINISHED),
+                    Match.season == season,
+                    Match.has_scorers.is_(True),
+                )
             )
-        ) or 0
-        scorer_matches_count = self.session.scalar(
-            select(func.count(func.distinct(MatchEvent.match_id)))
-            .select_from(MatchEvent)
-            .join(Match, Match.id == MatchEvent.match_id)
-            .where(
-                Match.competition.has(code=competition_code),
-                Match.status == str(MatchStatus.FINISHED),
-                Match.season == season,
-                Match.has_scorers.is_(True),
-                MatchEvent.event_type == str(MatchEventType.GOAL),
+            or 0
+        )
+        scorer_matches_count = (
+            self.session.scalar(
+                select(func.count(func.distinct(MatchEvent.match_id)))
+                .select_from(MatchEvent)
+                .join(Match, Match.id == MatchEvent.match_id)
+                .where(
+                    Match.competition.has(code=competition_code),
+                    Match.status == str(MatchStatus.FINISHED),
+                    Match.season == season,
+                    Match.has_scorers.is_(True),
+                    MatchEvent.event_type == str(MatchEventType.GOAL),
+                )
             )
-        ) or 0
-        goal_events_count = self.session.scalar(
-            select(func.count())
-            .select_from(MatchEvent)
-            .join(Match, Match.id == MatchEvent.match_id)
-            .where(
-                Match.competition.has(code=competition_code),
-                Match.status == str(MatchStatus.FINISHED),
-                Match.season == season,
-                MatchEvent.event_type == str(MatchEventType.GOAL),
+            or 0
+        )
+        goal_events_count = (
+            self.session.scalar(
+                select(func.count())
+                .select_from(MatchEvent)
+                .join(Match, Match.id == MatchEvent.match_id)
+                .where(
+                    Match.competition.has(code=competition_code),
+                    Match.status == str(MatchStatus.FINISHED),
+                    Match.season == season,
+                    MatchEvent.event_type == str(MatchEventType.GOAL),
+                )
             )
-        ) or 0
+            or 0
+        )
         scorer_backlog_count = max(finished_matches_count - covered_matches_count, 0)
         scorer_coverage_summary = (
             f"{season} ({covered_matches_count}/{finished_matches_count} covered, backlog={scorer_backlog_count})"

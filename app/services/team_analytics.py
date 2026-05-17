@@ -105,8 +105,7 @@ class TeamAnalyticsService:
             )
         )
         schedule_counts = {
-            row.team: row.total_matches
-            for row in self.standings_repository.team_schedule_counts(competition.id)
+            row.team: row.total_matches for row in self.standings_repository.team_schedule_counts(competition.id)
         }
         team_histories = self._team_match_histories(
             competition_code,
@@ -151,16 +150,8 @@ class TeamAnalyticsService:
         matches_remaining = max(matches_scheduled - played, 0)
         projected_additional_points = _round_metric(overall_ppg * matches_remaining)
         projected_final_points = _round_metric(points + projected_additional_points)
-        baseline_ppg = (
-            last_ten_view.points_per_game
-            if last_ten_view.matches_considered > 0
-            else overall_ppg
-        )
-        recent_ppg = (
-            last_five_view.points_per_game
-            if last_five_view.matches_considered > 0
-            else overall_ppg
-        )
+        baseline_ppg = last_ten_view.points_per_game if last_ten_view.matches_considered > 0 else overall_ppg
+        recent_ppg = last_five_view.points_per_game if last_five_view.matches_considered > 0 else overall_ppg
         trend_delta = _round_metric(recent_ppg - baseline_ppg)
         gd_trend = self._goal_difference_trend(history)
         return TeamAnalyticsRowView(
@@ -301,9 +292,7 @@ class TeamAnalyticsService:
         return split_map
 
     def _competition(self, competition_code: str) -> Competition:
-        competition = self.session.scalar(
-            select(Competition).where(Competition.code == competition_code)
-        )
+        competition = self.session.scalar(select(Competition).where(Competition.code == competition_code))
         if competition is None:
             raise ConfigurationError(f"Competicion desconocida o no sembrada: {competition_code}")
         return competition

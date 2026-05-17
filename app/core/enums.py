@@ -1,11 +1,6 @@
 from __future__ import annotations
 
-from enum import Enum
-
-
-class StrEnum(str, Enum):
-    def __str__(self) -> str:
-        return self.value
+from enum import StrEnum
 
 
 class SourceName(StrEnum):

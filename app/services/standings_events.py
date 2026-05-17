@@ -62,9 +62,7 @@ def _content_hash(
             "team": team,
             "current_snapshot_timestamp": current_snapshot_timestamp.isoformat(),
             "previous_snapshot_timestamp": (
-                previous_snapshot_timestamp.isoformat()
-                if previous_snapshot_timestamp is not None
-                else None
+                previous_snapshot_timestamp.isoformat() if previous_snapshot_timestamp is not None else None
             ),
         }
     )
@@ -235,12 +233,7 @@ class StandingsEventsService:
             previous_in_relegation = previous_row.position in relegation_positions
             current_in_relegation = current_row.position in relegation_positions
 
-            if (
-                playoff_positions
-                and current_in_playoff
-                and not previous_in_playoff
-                and previous_row.position != 1
-            ):
+            if playoff_positions and current_in_playoff and not previous_in_playoff and previous_row.position != 1:
                 events.append(
                     self._event_view(
                         competition_slug=current_snapshot.competition_slug,
@@ -253,12 +246,7 @@ class StandingsEventsService:
                         previous_snapshot_timestamp=previous_snapshot.snapshot_timestamp,
                     )
                 )
-            if (
-                playoff_positions
-                and previous_in_playoff
-                and not current_in_playoff
-                and current_row.position != 1
-            ):
+            if playoff_positions and previous_in_playoff and not current_in_playoff and current_row.position != 1:
                 events.append(
                     self._event_view(
                         competition_slug=current_snapshot.competition_slug,
@@ -369,11 +357,11 @@ class StandingsEventsService:
             if delta > best_delta:
                 best = candidate
                 continue
-            if delta == best_delta:
-                if current_row.position < best_current.position:
-                    best = candidate
-                elif current_row.position == best_current.position and current_row.team < best_current.team:
-                    best = candidate
+            if delta == best_delta and (
+                current_row.position < best_current.position
+                or (current_row.position == best_current.position and current_row.team < best_current.team)
+            ):
+                best = candidate
         if best is None:
             return None
         return best[1], best[2]
@@ -449,9 +437,7 @@ class StandingsEventsService:
         previous_position = _ordinal(payload.previous_position)
         current_position = _ordinal(payload.current_position)
         if payload.event_type == StandingsEventType.NEW_LEADER:
-            return (
-                f"Nuevo lider en {competition_name}: {team} pasa del {previous_position} al 1º."
-            )
+            return f"Nuevo lider en {competition_name}: {team} pasa del {previous_position} al 1º."
         if payload.event_type == StandingsEventType.ENTERED_PLAYOFF:
             return (
                 f"{team} entra en puestos de playoff en {competition_name} tras subir "
@@ -469,8 +455,7 @@ class StandingsEventsService:
             )
         if payload.event_type == StandingsEventType.LEFT_RELEGATION:
             return (
-                f"{team} sale del descenso en {competition_name} y sube "
-                f"del {previous_position} al {current_position}."
+                f"{team} sale del descenso en {competition_name} y sube del {previous_position} al {current_position}."
             )
         if payload.event_type == StandingsEventType.BIGGEST_POSITION_RISE:
             return (
@@ -483,9 +468,7 @@ class StandingsEventsService:
         )
 
     def _competition(self, competition_code: str) -> Competition:
-        competition = self.session.scalar(
-            select(Competition).where(Competition.code == competition_code)
-        )
+        competition = self.session.scalar(select(Competition).where(Competition.code == competition_code))
         if competition is None:
             raise ConfigurationError(f"Competicion desconocida o no sembrada: {competition_code}")
         return competition

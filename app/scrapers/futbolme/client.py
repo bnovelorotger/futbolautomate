@@ -15,4 +15,3 @@ class FutbolmeClient(HTTPClient):
             settings=settings,
             headers=source.headers,
         )
-

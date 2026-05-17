@@ -32,9 +32,15 @@ def dry_run(
     limit: int = typer.Option(200, min=1, help="Maximo de drafts a evaluar"),
     use_draft: bool = typer.Option(False, "--use-draft", help="Fuerza text_draft en la exportacion JSON"),
     use_rewrite: bool = typer.Option(False, "--use-rewrite", help="Prioriza rewritten_text en la exportacion JSON"),
-    publish_x: bool = typer.Option(False, "--publish-x", help="Simula tambien la publicacion en X de las piezas despachadas"),
-    publish_typefully: bool = typer.Option(False, "--publish-typefully", help="Simula tambien la publicacion en Typefully de las piezas despachadas"),
-    publish_browser: bool = typer.Option(False, "--publish-browser", help="Simula tambien la publicacion via browser en X de las piezas despachadas"),
+    publish_x: bool = typer.Option(
+        False, "--publish-x", help="Simula tambien la publicacion en X de las piezas despachadas"
+    ),
+    publish_typefully: bool = typer.Option(
+        False, "--publish-typefully", help="Simula tambien la publicacion en Typefully de las piezas despachadas"
+    ),
+    publish_browser: bool = typer.Option(
+        False, "--publish-browser", help="Simula tambien la publicacion via browser en X de las piezas despachadas"
+    ),
     as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
 ) -> None:
     set_run_id()
@@ -42,7 +48,7 @@ def dry_run(
     if use_draft and use_rewrite:
         raise typer.BadParameter("No puedes usar --use-draft y --use-rewrite a la vez")
     parsed_date = date_type.fromisoformat(reference_date) if reference_date else None
-    prefer_rewrite = False if use_draft else True
+    prefer_rewrite = not use_draft
     with session_scope() as session:
         result = EditorialReleasePipelineService(session).run(
             reference_date=parsed_date,
@@ -65,9 +71,15 @@ def run(
     limit: int = typer.Option(200, min=1, help="Maximo de drafts a evaluar"),
     use_draft: bool = typer.Option(False, "--use-draft", help="Fuerza text_draft en la exportacion JSON"),
     use_rewrite: bool = typer.Option(False, "--use-rewrite", help="Prioriza rewritten_text en la exportacion JSON"),
-    publish_x: bool = typer.Option(False, "--publish-x", help="Publica tambien en X las piezas despachadas en este run"),
-    publish_typefully: bool = typer.Option(False, "--publish-typefully", help="Publica tambien en Typefully las piezas despachadas en este run"),
-    publish_browser: bool = typer.Option(False, "--publish-browser", help="Publica tambien via browser en X las piezas despachadas en este run"),
+    publish_x: bool = typer.Option(
+        False, "--publish-x", help="Publica tambien en X las piezas despachadas en este run"
+    ),
+    publish_typefully: bool = typer.Option(
+        False, "--publish-typefully", help="Publica tambien en Typefully las piezas despachadas en este run"
+    ),
+    publish_browser: bool = typer.Option(
+        False, "--publish-browser", help="Publica tambien via browser en X las piezas despachadas en este run"
+    ),
     as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
 ) -> None:
     set_run_id()
@@ -75,7 +87,7 @@ def run(
     if use_draft and use_rewrite:
         raise typer.BadParameter("No puedes usar --use-draft y --use-rewrite a la vez")
     parsed_date = date_type.fromisoformat(reference_date) if reference_date else None
-    prefer_rewrite = False if use_draft else True
+    prefer_rewrite = not use_draft
     t_start = time.time()
     with session_scope() as session:
         result = EditorialReleasePipelineService(session).run(

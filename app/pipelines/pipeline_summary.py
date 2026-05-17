@@ -124,7 +124,9 @@ def _build_telegram_alert(report: PipelineSummaryReport) -> str:
 def run(
     date_str: str | None = typer.Option(None, "--date", help="Fecha de referencia YYYY-MM-DD (default: hoy)"),
     days: int = typer.Option(2, "--days", help="Ventana de dias a analizar (default: 2)"),
-    rejection_threshold: int = typer.Option(5, "--rejection-threshold", help="Umbral de rechazos para alerta (default: 5)"),
+    rejection_threshold: int = typer.Option(
+        5, "--rejection-threshold", help="Umbral de rechazos para alerta (default: 5)"
+    ),
 ) -> None:
     """Resumen operativo del pipeline: bloqueos, publicacion y alertas.
 

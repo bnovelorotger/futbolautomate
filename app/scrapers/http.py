@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -31,9 +31,7 @@ class HTTPClient:
         self.session.mount("https://", adapter)
 
     def get(self, url: str) -> FetchArtifact:
-        if self.settings.respect_robots_txt and not is_allowed_by_robots(
-            self.base_url, self.settings.user_agent, url
-        ):
+        if self.settings.respect_robots_txt and not is_allowed_by_robots(self.base_url, self.settings.user_agent, url):
             raise RobotsPolicyError(f"robots.txt no permite {url}")
         response = self.session.get(
             url,
@@ -49,6 +47,5 @@ class HTTPClient:
             content=response.text,
             status_code=response.status_code,
             content_type=response.headers.get("content-type"),
-            fetched_at=datetime.now(timezone.utc),
+            fetched_at=datetime.now(UTC),
         )
-

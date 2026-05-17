@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import UTC, timedelta
 from urllib.parse import parse_qs, urlparse
-from datetime import timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -15,7 +14,7 @@ from app.channels.x.auth import (
     generate_pkce_pair,
     generate_state,
 )
-from app.channels.x.client import XApiClient, XApiError
+from app.channels.x.client import XApiClient
 from app.core.config import Settings, get_settings
 from app.db.models import ChannelAuthSession, ChannelUserToken
 from app.schemas.x_auth import XAuthorizationStart, XAuthTokenStatus
@@ -28,7 +27,7 @@ def _aware_datetime(value):
     if value is None:
         return None
     if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
+        return value.replace(tzinfo=UTC)
     return value
 
 
@@ -148,21 +147,15 @@ class XAuthService:
         return auth_session
 
     def _token_row(self) -> ChannelUserToken | None:
-        return self.session.scalar(
-            select(ChannelUserToken).where(ChannelUserToken.provider == X_PROVIDER)
-        )
+        return self.session.scalar(select(ChannelUserToken).where(ChannelUserToken.provider == X_PROVIDER))
 
     def _get_valid_token(self) -> ChannelUserToken:
         token = self._token_row()
         if token is None:
-            raise XAuthError(
-                "No hay token de usuario de X. Ejecuta x_auth start-auth y luego exchange-code"
-            )
+            raise XAuthError("No hay token de usuario de X. Ejecuta x_auth start-auth y luego exchange-code")
         if self._needs_refresh(token):
             if not token.refresh_token:
-                raise XAuthError(
-                    "El token de X ha expirado y no hay refresh_token. Repite el flujo PKCE"
-                )
+                raise XAuthError("El token de X ha expirado y no hay refresh_token. Repite el flujo PKCE")
             refreshed = self.oauth_client.refresh_token(refresh_token=token.refresh_token)
             token = self._upsert_token(refreshed, existing=token)
         return token

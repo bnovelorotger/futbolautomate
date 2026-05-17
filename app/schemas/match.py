@@ -34,4 +34,3 @@ class MatchRecord(BaseModel):
     has_scorers: bool = False
     scraped_at: datetime
     raw_payload: dict[str, Any] = Field(default_factory=dict)
-

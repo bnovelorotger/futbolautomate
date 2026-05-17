@@ -14,9 +14,9 @@ from app.normalizers.teams import TeamNameNormalizer
 from app.schemas.common import IngestStats
 from app.schemas.competition import CompetitionSeed
 from app.schemas.match import MatchRecord
+from app.scrapers.futbolme.parser import build_detail_url
 from app.services.deduplication import match_content_hash
 from app.services.validation import validate_match_record
-from app.scrapers.futbolme.parser import build_detail_url
 from app.utils.time import utcnow
 
 
@@ -69,11 +69,7 @@ def ingest_matches(session: Session, records: list[MatchRecord], dry_run: bool =
             continue
 
         raw_payload = dict(record.raw_payload)
-        if (
-            str(record.source_name) == "futbolme"
-            and record.external_id
-            and not raw_payload.get("detail_url")
-        ):
+        if str(record.source_name) == "futbolme" and record.external_id and not raw_payload.get("detail_url"):
             raw_payload["detail_url"] = build_detail_url(
                 record.home_team,
                 record.away_team,

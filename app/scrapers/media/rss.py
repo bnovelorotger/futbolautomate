@@ -9,7 +9,6 @@ from app.normalizers.text import html_to_text
 from app.schemas.news import NewsRecord
 from app.utils.time import utcnow
 
-
 ATOM_NAMESPACE = "http://www.w3.org/2005/Atom"
 DC_NAMESPACE = "http://purl.org/dc/elements/1.1/"
 
@@ -93,9 +92,7 @@ class RSSParser:
             source_url = _pick_atom_link(entry) or _find_text(entry, "id", ATOM_NAMESPACE) or ""
             if not title or not source_url:
                 continue
-            updated = _find_text(entry, "updated", ATOM_NAMESPACE) or _find_text(
-                entry, "published", ATOM_NAMESPACE
-            )
+            updated = _find_text(entry, "updated", ATOM_NAMESPACE) or _find_text(entry, "published", ATOM_NAMESPACE)
             categories = _collect_atom_categories(entry)
             summary = html_to_text(_find_text(entry, "summary", ATOM_NAMESPACE))
             content = html_to_text(_find_text(entry, "content", ATOM_NAMESPACE))
@@ -106,9 +103,7 @@ class RSSParser:
                     title=title,
                     summary=summary or content,
                     raw_category=" | ".join(categories) if categories else None,
-                    published_at=datetime.fromisoformat(updated.replace("Z", "+00:00"))
-                    if updated
-                    else None,
+                    published_at=datetime.fromisoformat(updated.replace("Z", "+00:00")) if updated else None,
                     scraped_at=utcnow(),
                     news_type=NewsType.OTHER,
                     raw_payload={"categories": categories},

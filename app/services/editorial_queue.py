@@ -17,7 +17,6 @@ from app.schemas.editorial_queue import (
 )
 from app.utils.time import utcnow
 
-
 ALLOWED_STATUS_TRANSITIONS: dict[ContentCandidateStatus, set[ContentCandidateStatus]] = {
     ContentCandidateStatus.DRAFT: {
         ContentCandidateStatus.APPROVED,
@@ -61,9 +60,7 @@ class EditorialQueueService:
         if next_status == current_status:
             return
         if next_status not in ALLOWED_STATUS_TRANSITIONS[current_status]:
-            raise InvalidStateTransitionError(
-                f"Transicion no permitida: {current_status} -> {next_status}"
-            )
+            raise InvalidStateTransitionError(f"Transicion no permitida: {current_status} -> {next_status}")
 
     def _row_to_view(self, row: ContentCandidate) -> EditorialQueueCandidateView:
         return EditorialQueueCandidateView(
@@ -191,9 +188,7 @@ class EditorialQueueService:
         candidate = self._candidate(candidate_id)
         current_status = ContentCandidateStatus(candidate.status)
         if current_status not in {ContentCandidateStatus.DRAFT, ContentCandidateStatus.APPROVED}:
-            raise InvalidStateTransitionError(
-                f"No se puede programar un candidato en estado {current_status}"
-            )
+            raise InvalidStateTransitionError(f"No se puede programar un candidato en estado {current_status}")
         candidate.scheduled_at = scheduled_at
         self.session.add(candidate)
         self.session.flush()
@@ -206,19 +201,22 @@ class EditorialQueueService:
             .order_by(ContentCandidate.status)
         ).all()
         counts = {status: count for status, count in rows}
-        scheduled_pending = self.session.scalar(
-            select(func.count())
-            .select_from(ContentCandidate)
-            .where(
-                ContentCandidate.scheduled_at.is_not(None),
-                ContentCandidate.status.in_(
-                    [
-                        str(ContentCandidateStatus.DRAFT),
-                        str(ContentCandidateStatus.APPROVED),
-                    ]
-                ),
+        scheduled_pending = (
+            self.session.scalar(
+                select(func.count())
+                .select_from(ContentCandidate)
+                .where(
+                    ContentCandidate.scheduled_at.is_not(None),
+                    ContentCandidate.status.in_(
+                        [
+                            str(ContentCandidateStatus.DRAFT),
+                            str(ContentCandidateStatus.APPROVED),
+                        ]
+                    ),
+                )
             )
-        ) or 0
+            or 0
+        )
         return EditorialQueueSummary(
             total_drafts=counts.get(str(ContentCandidateStatus.DRAFT), 0),
             total_approved=counts.get(str(ContentCandidateStatus.APPROVED), 0),

@@ -643,10 +643,7 @@ class EditorialViralStoriesService:
         ranking.sort(key=lambda item: (-item["goals"], item["team"]))
         top = ranking[0]
         second_goals = ranking[1]["goals"] if len(ranking) > 1 else 0
-        if (
-            top["goals"] < _MIN_RECENT_SCORING_GOALS
-            or top["goals"] - second_goals < _MIN_RECENT_SCORING_MARGIN
-        ):
+        if top["goals"] < _MIN_RECENT_SCORING_GOALS or top["goals"] - second_goals < _MIN_RECENT_SCORING_MARGIN:
             return None
         team = top["team"]
         goals = top["goals"]
@@ -810,12 +807,8 @@ class EditorialViralStoriesService:
             Match.match_date <= reference_date,
         ]
         goals_expr = func.coalesce(Match.home_score, 0) + func.coalesce(Match.away_score, 0)
-        total_goals = self.session.scalar(
-            select(func.coalesce(func.sum(goals_expr), 0)).where(*filters)
-        ) or 0
-        season_matches = self.session.scalar(
-            select(func.count()).select_from(Match).where(*filters)
-        ) or 0
+        total_goals = self.session.scalar(select(func.coalesce(func.sum(goals_expr), 0)).where(*filters)) or 0
+        season_matches = self.session.scalar(select(func.count()).select_from(Match).where(*filters)) or 0
         recent_rows = self.session.execute(
             select(Match.home_score, Match.away_score)
             .where(*filters)

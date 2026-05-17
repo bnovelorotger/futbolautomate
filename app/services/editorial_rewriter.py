@@ -52,8 +52,7 @@ TYPE_SPECIFIC_GUIDANCE = {
         "No cambies marcadores, orden ni competicion, y evita anadir analisis."
     ),
     ContentType.STANDINGS: (
-        "Prioriza claridad y lectura rapida de posiciones y puntos. "
-        "No alteres ranking, orden, equipos ni puntos."
+        "Prioriza claridad y lectura rapida de posiciones y puntos. No alteres ranking, orden, equipos ni puntos."
     ),
     ContentType.STANDINGS_ROUNDUP: (
         "Resume la clasificacion en formato compacto y editorial. "
@@ -80,16 +79,11 @@ TYPE_SPECIFIC_GUIDANCE = {
         "No anadas hype ni razones no soportadas por el scoring."
     ),
     ContentType.PREVIEW: (
-        "Escribe en tono de previa, ordenado y concreto. "
-        "No inventes claves del partido ni contexto adicional."
+        "Escribe en tono de previa, ordenado y concreto. No inventes claves del partido ni contexto adicional."
     ),
-    ContentType.RANKING: (
-        "Resume rankings de forma compacta y clara. "
-        "No cambies categorias, equipos ni valores."
-    ),
+    ContentType.RANKING: ("Resume rankings de forma compacta y clara. No cambies categorias, equipos ni valores."),
     ContentType.STAT_NARRATIVE: (
-        "Manten una narrativa de dato corto y limpia. "
-        "No cambies cifras agregadas ni conclusiones implicitas."
+        "Manten una narrativa de dato corto y limpia. No cambies cifras agregadas ni conclusiones implicitas."
     ),
     ContentType.METRIC_NARRATIVE: (
         "Escribe como una narrativa social breve y fiable. "

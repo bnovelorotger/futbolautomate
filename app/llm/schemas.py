@@ -16,4 +16,3 @@ class EditorialRewriteLLMResponse(BaseModel):
     model: str
     rewritten_at: datetime
     raw_response: dict[str, Any] = Field(default_factory=dict)
-

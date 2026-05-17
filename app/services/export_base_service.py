@@ -333,7 +333,9 @@ class ExportBaseService:
             "team": source_payload.get("team"),
             "teams": source_payload.get("teams"),
             "featured_match": self._compact_match(source_payload.get("featured_match")),
-            "matches": [self._compact_match(match) for match in (source_payload.get("matches") or []) if isinstance(match, dict)],
+            "matches": [
+                self._compact_match(match) for match in (source_payload.get("matches") or []) if isinstance(match, dict)
+            ],
         }
         return (
             candidate.competition_slug,

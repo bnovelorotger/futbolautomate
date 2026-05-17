@@ -35,9 +35,7 @@ class TypefullyApiClient:
             headers={"X-API-KEY": f"Bearer {self.api_key}"},
         )
         if response.status_code >= 400:
-            raise TypefullyApiError(
-                f"Typefully API devolvio {response.status_code}: {self._error_detail(response)}"
-            )
+            raise TypefullyApiError(f"Typefully API devolvio {response.status_code}: {self._error_detail(response)}")
         body = response.json()
         return TypefullyPublishResponse(
             draft_id=str(body.get("id", "")),

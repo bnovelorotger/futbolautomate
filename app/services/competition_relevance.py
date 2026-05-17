@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import cache
 
 from app.core.catalog import load_competition_catalog, load_team_alias_catalog
 from app.core.exceptions import ConfigurationError
@@ -16,7 +16,7 @@ class CompetitionTrackingConfig:
     alias_to_canonical: dict[str, str]
 
 
-@lru_cache(maxsize=None)
+@cache
 def _tracking_config(competition_code: str) -> CompetitionTrackingConfig:
     competition = load_competition_catalog().get(competition_code)
     if competition is None:
@@ -82,11 +82,7 @@ class CompetitionRelevanceService:
         rows = list(matches)
         if not self.has_tracked_teams(competition_code):
             return rows
-        return [
-            match
-            for match in rows
-            if self.is_relevant_match(competition_code, match.home_team, match.away_team)
-        ]
+        return [match for match in rows if self.is_relevant_match(competition_code, match.home_team, match.away_team)]
 
     def filter_standing_views(
         self,
@@ -115,10 +111,7 @@ class CompetitionRelevanceService:
     ) -> list[TeamRankingView]:
         rows = [row for row in self.filter_standing_views(competition_code, standings) if row.goals_for is not None]
         ordered = sorted(rows, key=lambda row: (-int(row.goals_for or 0), row.position, row.team))
-        return [
-            TeamRankingView(team=row.team, value=row.goals_for, position=row.position)
-            for row in ordered[:limit]
-        ]
+        return [TeamRankingView(team=row.team, value=row.goals_for, position=row.position) for row in ordered[:limit]]
 
     def best_defense_teams_from_standings(
         self,
@@ -130,8 +123,7 @@ class CompetitionRelevanceService:
         rows = [row for row in self.filter_standing_views(competition_code, standings) if row.goals_against is not None]
         ordered = sorted(rows, key=lambda row: (int(row.goals_against or 0), row.position, row.team))
         return [
-            TeamRankingView(team=row.team, value=row.goals_against, position=row.position)
-            for row in ordered[:limit]
+            TeamRankingView(team=row.team, value=row.goals_against, position=row.position) for row in ordered[:limit]
         ]
 
     def most_wins_teams_from_standings(
@@ -143,10 +135,7 @@ class CompetitionRelevanceService:
     ) -> list[TeamRankingView]:
         rows = [row for row in self.filter_standing_views(competition_code, standings) if row.wins is not None]
         ordered = sorted(rows, key=lambda row: (-int(row.wins or 0), row.position, row.team))
-        return [
-            TeamRankingView(team=row.team, value=row.wins, position=row.position)
-            for row in ordered[:limit]
-        ]
+        return [TeamRankingView(team=row.team, value=row.wins, position=row.position) for row in ordered[:limit]]
 
     def tracked_teams_present(self, competition_code: str, team_names: Iterable[str]) -> list[str]:
         if not self.has_tracked_teams(competition_code):

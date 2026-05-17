@@ -22,10 +22,7 @@ def openai_editorial_rewrite_config_presence(settings: Settings) -> dict[str, bo
         "EDITORIAL_REWRITE_MODEL": settings.editorial_rewrite_model,
         "EDITORIAL_REWRITE_API_URL": settings.editorial_rewrite_api_url,
     }
-    return {
-        key: isinstance(value, str) and value.strip() != ""
-        for key, value in values.items()
-    }
+    return {key: isinstance(value, str) and value.strip() != "" for key, value in values.items()}
 
 
 def missing_openai_editorial_rewrite_config(settings: Settings) -> list[str]:
@@ -36,9 +33,7 @@ def missing_openai_editorial_rewrite_config(settings: Settings) -> list[str]:
 def validate_openai_editorial_rewrite_config(settings: Settings) -> None:
     missing = missing_openai_editorial_rewrite_config(settings)
     if missing:
-        raise LLMConfigurationError(
-            "Missing editorial rewrite configuration:\n" + "\n".join(missing)
-        )
+        raise LLMConfigurationError("Missing editorial rewrite configuration:\n" + "\n".join(missing))
 
 
 class OpenAIEditorialRewriteClient:

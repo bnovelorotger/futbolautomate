@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
+import re
+from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
-import re
 
 from sqlalchemy import case, select
 from sqlalchemy.orm import Session
@@ -14,9 +14,9 @@ from app.core.enums import ContentCandidateStatus, ContentType
 from app.db.models import ContentCandidate
 from app.schemas.export_json import ExportJsonBlockedSeries, ExportJsonEntry, ExportJsonResult
 from app.services.editorial_candidate_window import EditorialCandidateWindowService
+from app.services.editorial_formatter import EditorialFormatterService
 from app.services.editorial_quality_checks import EditorialQualityChecksService
 from app.services.editorial_text_selector import EditorialTextSelectorService
-from app.services.editorial_formatter import EditorialFormatterService
 
 _PARTITION_SUFFIX_PATTERN = re.compile(r"\((\d+)/(\d+)\)\s*$")
 _ROUND_TITLE_PATTERN = re.compile(r"\bJ\d+\b", re.IGNORECASE)
@@ -74,11 +74,15 @@ class ExportJsonService:
             for candidate in candidates
             if self.window.matches_release_window(candidate, reference_date=selected_date)
         ]
-        quality_rows = self.quality.check_candidates(
-            [candidate.id for candidate in filtered],
-            dry_run=True,
-            prefer_rewrite=rewrite_preference,
-        ).rows if filtered else []
+        quality_rows = (
+            self.quality.check_candidates(
+                [candidate.id for candidate in filtered],
+                dry_run=True,
+                prefer_rewrite=rewrite_preference,
+            ).rows
+            if filtered
+            else []
+        )
         passed_ids = {row.id for row in quality_rows if row.passed}
 
         blocked_series: list[ExportJsonBlockedSeries] = []
@@ -159,7 +163,9 @@ class ExportJsonService:
         selection = self.selector.select_text(candidate, prefer_rewrite=prefer_rewrite)
         payload_json = candidate.payload_json or {}
         source_payload = payload_json.get("source_payload", {}) if isinstance(payload_json, dict) else {}
-        competition_name = str(payload_json.get("competition_name") or self.formatter._competition_name(candidate.competition_slug))
+        competition_name = str(
+            payload_json.get("competition_name") or self.formatter._competition_name(candidate.competition_slug)
+        )
         competition = self.formatter._competition_title(candidate.competition_slug, competition_name)
         group = self.formatter._group_title(candidate.competition_slug, competition_name, source_payload) or ""
         match_date = self.window.candidate_match_date(candidate, reference_date=reference_date)
@@ -208,8 +214,14 @@ class ExportJsonService:
         if part_total <= 1:
             return None
 
-        competition_name = str(payload_json.get("competition_name") or self.formatter._competition_name(candidate.competition_slug))
-        group = entry.group or self.formatter._group_title(candidate.competition_slug, competition_name, source_payload) or ""
+        competition_name = str(
+            payload_json.get("competition_name") or self.formatter._competition_name(candidate.competition_slug)
+        )
+        group = (
+            entry.group
+            or self.formatter._group_title(candidate.competition_slug, competition_name, source_payload)
+            or ""
+        )
         round_label = self.formatter._round_title(source_payload) or self._round_from_title(self._entry_title(entry))
         series_key = (
             candidate.competition_slug,
@@ -245,9 +257,7 @@ class ExportJsonService:
         expected_total = max(part_totals) if part_totals else 0
         expected_parts = list(range(1, expected_total + 1))
         passed_parts = sorted(
-            part_index
-            for part_index, member in available_by_part.items()
-            if member.candidate.id in passed_ids
+            part_index for part_index, member in available_by_part.items() if member.candidate.id in passed_ids
         )
 
         if len(part_totals) != 1:
