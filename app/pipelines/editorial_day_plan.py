@@ -47,7 +47,9 @@ def _load_plan_service_class():
 
 def _invoke_supported(callable_obj, **kwargs):
     signature = inspect.signature(callable_obj)
-    supported_kwargs = {key: value for key, value in kwargs.items() if value is not None and key in signature.parameters}
+    supported_kwargs = {
+        key: value for key, value in kwargs.items() if value is not None and key in signature.parameters
+    }
     return callable_obj(**supported_kwargs)
 
 
@@ -188,4 +190,3 @@ def run(
 
 if __name__ == "__main__":
     app()
-

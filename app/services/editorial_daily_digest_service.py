@@ -175,8 +175,7 @@ class EditorialDailyDigestService:
             )
         if report.queue.top_quality_errors:
             lines.append(
-                "- quality top: "
-                + ", ".join(f"{item.code} ({item.count})" for item in report.queue.top_quality_errors)
+                "- quality top: " + ", ".join(f"{item.code} ({item.count})" for item in report.queue.top_quality_errors)
             )
 
         lines.extend(["", "Alertas"])

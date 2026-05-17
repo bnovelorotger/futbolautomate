@@ -41,4 +41,3 @@ class EditorialDayPlanReport(BaseModel):
     status: EditorialDayPlanStatusSummary
     by_content_type: list[EditorialDayPlanTypeItem] = Field(default_factory=list)
     entries: list[EditorialDayPlanEntry] = Field(default_factory=list)
-

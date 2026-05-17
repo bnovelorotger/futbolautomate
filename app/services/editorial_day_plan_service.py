@@ -158,7 +158,9 @@ class EditorialDayPlanService:
             ]
         )
         if report.by_content_type:
-            lines.append("- por tipo: " + ", ".join(f"{item.content_type} ({item.count})" for item in report.by_content_type[:4]))
+            lines.append(
+                "- por tipo: " + ", ".join(f"{item.content_type} ({item.count})" for item in report.by_content_type[:4])
+            )
 
         lines.extend(["", "Piezas"])
         if report.entries:
