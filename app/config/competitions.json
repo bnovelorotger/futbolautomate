@@ -427,8 +427,7 @@
         "competition_id": "3118",
         "enabled": true,
         "urls": {
-          "matches": "https://futbolme.com/resultados-directo/torneo/tercera-federacion-grupo-11-promocion-de-ascenso/3118/calendario",
-          "standings": "https://futbolme.com/resultados-directo/torneo/tercera-federacion-grupo-11-promocion-de-ascenso/3118/"
+          "matches": "https://futbolme.com/resultados-directo/torneo/tercera-federacion-grupo-11-promocion-de-ascenso/3118/calendario"
         },
         "notes": "URL validada el 17 de mayo de 2026."
       }
@@ -478,8 +477,7 @@
         "competition_id": "3127",
         "enabled": true,
         "urls": {
-          "matches": "https://futbolme.com/resultados-directo/torneo/segunda-federacion-promocion-de-ascenso/3127/calendario",
-          "standings": "https://futbolme.com/resultados-directo/torneo/segunda-federacion-promocion-de-ascenso/3127/"
+          "matches": "https://futbolme.com/resultados-directo/torneo/segunda-federacion-promocion-de-ascenso/3127/calendario"
         },
         "notes": "URL validada el 17 de mayo de 2026."
       }
@@ -529,8 +527,7 @@
         "competition_id": "3128",
         "enabled": true,
         "urls": {
-          "matches": "https://futbolme.com/resultados-directo/torneo/segunda-federacion-promocion-de-permanencia/3128/calendario",
-          "standings": "https://futbolme.com/resultados-directo/torneo/segunda-federacion-promocion-de-permanencia/3128/"
+          "matches": "https://futbolme.com/resultados-directo/torneo/segunda-federacion-promocion-de-permanencia/3128/calendario"
         },
         "notes": "URL validada el 17 de mayo de 2026."
       }
@@ -576,8 +573,7 @@
         "competition_id": "3137",
         "enabled": true,
         "urls": {
-          "matches": "https://futbolme.com/resultados-directo/torneo/primera-federacion-promocion-de-ascenso/3137/calendario",
-          "standings": "https://futbolme.com/resultados-directo/torneo/primera-federacion-promocion-de-ascenso/3137/"
+          "matches": "https://futbolme.com/resultados-directo/torneo/primera-federacion-promocion-de-ascenso/3137/calendario"
         },
         "notes": "URL validada el 17 de mayo de 2026."
       }
@@ -620,8 +616,7 @@
         "competition_id": "3235",
         "enabled": true,
         "urls": {
-          "matches": "https://futbolme.com/resultados-directo/torneo/tercera-federacion-femenina-promocion-de-ascenso/3235/calendario",
-          "standings": "https://futbolme.com/resultados-directo/torneo/tercera-federacion-femenina-promocion-de-ascenso/3235/"
+          "matches": "https://futbolme.com/resultados-directo/torneo/tercera-federacion-femenina-promocion-de-ascenso/3235/calendario"
         },
         "notes": "URL validada el 17 de mayo de 2026."
       }
@@ -664,8 +659,7 @@
         "competition_id": "3156",
         "enabled": true,
         "urls": {
-          "matches": "https://futbolme.com/resultados-directo/torneo/division-honor-ibiza-y-formentera-promocion-previa-ascenso/3156/calendario",
-          "standings": "https://futbolme.com/resultados-directo/torneo/division-honor-ibiza-y-formentera-promocion-previa-ascenso/3156/"
+          "matches": "https://futbolme.com/resultados-directo/torneo/division-honor-ibiza-y-formentera-promocion-previa-ascenso/3156/calendario"
         },
         "notes": "URL validada el 17 de mayo de 2026."
       }
@@ -708,8 +702,7 @@
         "competition_id": "3160",
         "enabled": true,
         "urls": {
-          "matches": "https://futbolme.com/resultados-directo/torneo/division-honor-menorca-promocion-previa-ascenso/3160/calendario",
-          "standings": "https://futbolme.com/resultados-directo/torneo/division-honor-menorca-promocion-previa-ascenso/3160/"
+          "matches": "https://futbolme.com/resultados-directo/torneo/division-honor-menorca-promocion-previa-ascenso/3160/calendario"
         },
         "notes": "URL validada el 17 de mayo de 2026."
       }
@@ -752,8 +745,7 @@
         "competition_id": "282",
         "enabled": true,
         "urls": {
-          "matches": "https://futbolme.com/resultados-directo/torneo/division-de-honor-eliminatorias-de-ascenso/282/calendario",
-          "standings": "https://futbolme.com/resultados-directo/torneo/division-de-honor-eliminatorias-de-ascenso/282/"
+          "matches": "https://futbolme.com/resultados-directo/torneo/division-de-honor-eliminatorias-de-ascenso/282/calendario"
         },
         "notes": "URL validada el 17 de mayo de 2026."
       }
