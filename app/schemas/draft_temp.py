@@ -27,8 +27,13 @@ class DraftTempCandidateView(BaseModel):
     external_publication_error: str | None = None
     quality_check_passed: bool | None = None
     quality_check_errors: list[str] = Field(default_factory=list)
+    quality_check_preview_passed: bool | None = None
+    quality_check_preview_errors: list[str] = Field(default_factory=list)
     has_formatted: bool = False
     has_rewrite: bool = False
+    phase3_rollout_eligible: bool = False
+    phase3_rollout_reason: str | None = None
+    editorial_voice_request: dict[str, Any] | None = None
     selected_text_source: str
     selected_text: str
     excerpt: str
@@ -51,6 +56,10 @@ class DraftTempSummary(BaseModel):
     exported_count: int
     failed_export_count: int
     capacity_deferred_count: int
+    phase3_candidate_count: int = 0
+    phase3_eligible_count: int = 0
+    phase3_quality_passed_count: int = 0
+    phase3_quality_failed_count: int = 0
 
 
 class DraftTempSnapshot(BaseModel):
@@ -58,5 +67,8 @@ class DraftTempSnapshot(BaseModel):
     source: str = "content_candidates"
     limit: int
     include_rejected: bool = False
+    phase3_only: bool = False
+    recompute_quality_checks: bool = False
+    prefer_rewrite: bool = True
     summary: DraftTempSummary
     rows: list[DraftTempCandidateView] = Field(default_factory=list)

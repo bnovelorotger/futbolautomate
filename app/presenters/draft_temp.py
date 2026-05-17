@@ -18,5 +18,11 @@ def render_draft_temp_sync(snapshot: DraftTempSnapshot, *, path: Path) -> str:
             f"published_count={snapshot.summary.published_count}",
             f"pending_export_count={snapshot.summary.pending_export_count}",
             f"capacity_deferred_count={snapshot.summary.capacity_deferred_count}",
+            f"phase3_only={str(snapshot.phase3_only).lower()}",
+            f"recompute_quality_checks={str(snapshot.recompute_quality_checks).lower()}",
+            f"phase3_candidate_count={snapshot.summary.phase3_candidate_count}",
+            f"phase3_eligible_count={snapshot.summary.phase3_eligible_count}",
+            f"phase3_quality_passed_count={snapshot.summary.phase3_quality_passed_count}",
+            f"phase3_quality_failed_count={snapshot.summary.phase3_quality_failed_count}",
         ]
     )

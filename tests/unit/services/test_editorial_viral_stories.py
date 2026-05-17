@@ -4,6 +4,7 @@ from datetime import date, time
 
 from sqlalchemy import select
 
+from app.core.config import Settings
 from app.core.enums import ViralStoryType
 from app.db.models import ContentCandidate
 from app.services.editorial_viral_stories import EditorialViralStoriesService
@@ -108,5 +109,32 @@ def test_editorial_viral_stories_generate_persists_candidates_without_cross_comp
         assert all(row.competition_slug == "tercera_rfef_g11" for row in rows)
         assert all(row.content_type == "viral_story" for row in rows)
         assert all("Torrent CF" not in row.text_draft and "UE Porreres" not in row.text_draft for row in rows)
+    finally:
+        session.close()
+
+
+def test_editorial_viral_stories_emit_local_voice_only_for_supported_positive_stories() -> None:
+    session = build_session()
+    try:
+        seed_viral_extreme_data(session)
+        service = EditorialViralStoriesService(
+            session,
+            settings=Settings(
+                database_url="sqlite+pysqlite:///:memory:",
+                editorial_rewrite_humanized_local_enabled=True,
+                editorial_phase3_rollout_enabled=True,
+            ),
+        )
+
+        drafts = service.build_candidate_drafts("division_honor_mallorca", reference_date=date(2026, 3, 16))
+        draft_by_story_type = {
+            ViralStoryType(draft.payload_json["source_payload"]["story_type"]): draft for draft in drafts
+        }
+
+        assert draft_by_story_type[ViralStoryType.HOT_FORM].payload_json["editorial_voice"] == {
+            "mode": "viral_story_light",
+            "resource_id": "molt_bona_feina",
+        }
+        assert "editorial_voice" not in draft_by_story_type[ViralStoryType.LOSING_STREAK].payload_json
     finally:
         session.close()

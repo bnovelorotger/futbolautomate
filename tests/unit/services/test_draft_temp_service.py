@@ -142,6 +142,10 @@ def test_draft_temp_service_builds_snapshot_and_persists_json(tmp_path) -> None:
         assert snapshot.summary.exported_count == 1
         assert snapshot.summary.failed_export_count == 1
         assert snapshot.summary.capacity_deferred_count == 1
+        assert snapshot.summary.phase3_candidate_count == 1
+        assert snapshot.summary.phase3_eligible_count == 0
+        assert snapshot.summary.phase3_quality_passed_count == 0
+        assert snapshot.summary.phase3_quality_failed_count == 0
 
         assert [row.status for row in snapshot.rows] == [
             "draft",
@@ -162,6 +166,7 @@ def test_draft_temp_service_builds_snapshot_and_persists_json(tmp_path) -> None:
 
         payload = json.loads(path.read_text(encoding="utf-8"))
         assert payload["summary"]["capacity_deferred_count"] == 1
+        assert payload["summary"]["phase3_candidate_count"] == 1
         assert len(payload["rows"]) == 5
     finally:
         session.close()

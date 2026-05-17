@@ -15,7 +15,9 @@ from app.db.models import Competition, ContentCandidate
 from app.llm.providers.base import LLMConfigurationError, LLMProviderError
 from app.llm.schemas import EditorialRewriteLLMResponse
 from app.services.editorial_rewriter import (
+    CONTENT_TYPE_REWRITE_MODE,
     EditorialRewriterService,
+    EditorialRewriteMode,
     is_candidate_eligible_for_rewrite,
 )
 
@@ -35,6 +37,8 @@ def build_settings(**overrides) -> Settings:
         "editorial_rewrite_api_url": "https://api.openai.com/v1/responses",
         "editorial_rewrite_model": "gpt-4.1-mini",
         "editorial_rewrite_max_chars": 280,
+        "editorial_rewrite_humanized_local_enabled": False,
+        "editorial_phase3_rollout_enabled": False,
     }
     payload.update(overrides)
     return Settings(**payload)
@@ -84,7 +88,28 @@ def seed_candidates(session: Session) -> None:
                 priority=90,
                 text_draft="PREVIA",
                 formatted_text=None,
-                payload_json={},
+                payload_json={
+                    "competition_name": "2a RFEF Grupo 3",
+                    "source_payload": {
+                        "featured_match": {
+                            "round_name": "Jornada 26",
+                            "home_team": "Atletico Baleares",
+                            "away_team": "UD Poblense",
+                        },
+                        "matches": [
+                            {
+                                "round_name": "Jornada 26",
+                                "home_team": "Atletico Baleares",
+                                "away_team": "UD Poblense",
+                            },
+                            {
+                                "round_name": "Jornada 26",
+                                "home_team": "UE Sant Andreu",
+                                "away_team": "UE Olot",
+                            },
+                        ],
+                    },
+                },
                 source_summary_hash="hash-2",
                 scheduled_at=now,
                 status="approved",
@@ -180,6 +205,92 @@ def test_editorial_rewriter_dry_run_without_provider_config_stays_local() -> Non
         session.close()
 
 
+def test_editorial_rewriter_prompt_uses_strict_data_mode_with_hard_invariants() -> None:
+    session = build_session()
+    try:
+        seed_candidates(session)
+        candidate = session.get(ContentCandidate, 1)
+
+        assert candidate is not None
+        service = EditorialRewriterService(
+            session,
+            provider=Mock(),
+            settings=build_settings(
+                editorial_rewrite_humanized_local_enabled=True,
+                editorial_phase3_rollout_enabled=True,
+            ),
+        )
+
+        prompt = service._prompt(candidate)
+
+        assert CONTENT_TYPE_REWRITE_MODE[ContentType.MATCH_RESULT] == EditorialRewriteMode.STRICT_DATA
+        assert "assigned_mode: strict_data" in prompt
+        assert "applied_tone: strict_data" in prompt
+        assert "No alterar ningun dato del borrador ni de los hechos estructurados." in prompt
+        assert "No inventar hashtags ni handles." in prompt
+        assert "Conservar intactos los hashtags y handles ya presentes en el borrador base." in prompt
+        assert "Conservar literalmente las lineas ancla estructurales que se indiquen mas abajo." in prompt
+        assert "Respetar el maximo real de 280 caracteres en el texto final." in prompt
+        assert "calidez local" not in prompt
+    finally:
+        session.close()
+
+
+def test_editorial_rewriter_prompt_keeps_humanized_mode_dormant_by_default() -> None:
+    session = build_session()
+    try:
+        seed_candidates(session)
+        candidate = session.get(ContentCandidate, 2)
+
+        assert candidate is not None
+        service = EditorialRewriterService(session, provider=Mock(), settings=build_settings())
+
+        prompt = service._prompt(candidate)
+
+        assert CONTENT_TYPE_REWRITE_MODE[ContentType.PREVIEW] == EditorialRewriteMode.HUMANIZED_LOCAL
+        assert "assigned_mode: humanized_local" in prompt
+        assert "applied_tone: legacy" in prompt
+        assert "Tono directo, periodistico, limpio y breve." in prompt
+        assert "calidez local" not in prompt
+    finally:
+        session.close()
+
+
+def test_editorial_rewriter_prompt_applies_humanized_local_persona_when_enabled() -> None:
+    session = build_session()
+    try:
+        seed_candidates(session)
+        candidate = session.get(ContentCandidate, 2)
+
+        assert candidate is not None
+        service = EditorialRewriterService(
+            session,
+            provider=Mock(),
+            settings=build_settings(
+                editorial_rewrite_humanized_local_enabled=True,
+                editorial_phase3_rollout_enabled=True,
+            ),
+        )
+
+        prompt = service._prompt(candidate)
+
+        assert "assigned_mode: humanized_local" in prompt
+        assert "applied_tone: humanized_local" in prompt
+        assert "Tono cercano y natural, con una capa ligera de calidez local solo cuando encaje con el tipo." in prompt
+        assert "Anclajes estructurales obligatorios:" in prompt
+        assert "title_line_exact: 🔎 Previa - 2ª RFEF - G3 - J26" in prompt
+        assert "preserve_line_exact: Partidos: Atlético Baleares vs UD Poblense | UE Sant Andreu vs UE Olot" in prompt
+        assert "preserve_line_exact: Partido clave: Atlético Baleares vs UD Poblense" in prompt
+        assert "preserve_line_exact: Quin partidàs." in prompt
+        assert "hashtag_line_exact: #FutbolBalear #2aRFEF" in prompt
+        assert "Si una mejora rompe alguna linea ancla, devuelve el borrador base exacto." in prompt
+        assert '"editorial_voice": {' in prompt
+        assert '"mode": "preview_light"' in prompt
+        assert '"resource_id": "quin_partidas"' in prompt
+    finally:
+        session.close()
+
+
 def test_editorial_rewriter_rewrites_successfully_with_provider() -> None:
     session = build_session()
     try:
@@ -226,6 +337,89 @@ def test_editorial_rewriter_records_provider_error() -> None:
         assert persisted.rewrite_status == "failed"
         assert persisted.rewrite_error == "timeout"
         assert persisted.rewrite_timestamp is not None
+    finally:
+        session.close()
+
+
+def test_editorial_rewriter_uses_base_text_fallback_for_recoverable_provider_json_error_in_dry_run() -> None:
+    session = build_session()
+    try:
+        seed_candidates(session)
+        provider = Mock()
+        provider.rewrite.side_effect = LLMProviderError(
+            "Groq editorial rewrite failed with 400: Failed to validate JSON. Please adjust your prompt."
+        )
+        service = EditorialRewriterService(
+            session,
+            provider=provider,
+            settings=build_settings(
+                editorial_rewrite_humanized_local_enabled=True,
+                editorial_phase3_rollout_enabled=True,
+            ),
+        )
+
+        result = service.rewrite_candidate(2, dry_run=True, overwrite=True)
+
+        assert result.candidate.rewrite_status == "dry_run_fallback_base_text"
+        assert result.candidate.rewrite_error is not None
+        assert result.candidate.rewritten_text == service._base_text(session.get(ContentCandidate, 2))
+    finally:
+        session.close()
+
+
+def test_editorial_rewriter_persists_base_text_fallback_for_recoverable_provider_json_error() -> None:
+    session = build_session()
+    try:
+        seed_candidates(session)
+        provider = Mock()
+        provider.rewrite.side_effect = LLMProviderError(
+            "Groq editorial rewrite failed with 400: Failed to generate JSON. Please adjust your prompt."
+        )
+        service = EditorialRewriterService(
+            session,
+            provider=provider,
+            settings=build_settings(
+                editorial_rewrite_humanized_local_enabled=True,
+                editorial_phase3_rollout_enabled=True,
+            ),
+        )
+
+        result = service.rewrite_candidate(2, dry_run=False, overwrite=True)
+        session.commit()
+
+        persisted = session.get(ContentCandidate, 2)
+        assert result.candidate.rewrite_status == "rewritten_fallback_base_text"
+        assert persisted.rewrite_status == "rewritten_fallback_base_text"
+        assert persisted.rewrite_error is not None
+        assert persisted.rewritten_text == service._base_text(persisted)
+    finally:
+        session.close()
+
+
+def test_editorial_rewriter_uses_base_text_fallback_for_provider_rate_limit() -> None:
+    session = build_session()
+    try:
+        seed_candidates(session)
+        provider = Mock()
+        provider.rewrite.side_effect = LLMProviderError(
+            "Groq editorial rewrite failed with 429: Rate limit reached for model `openai/gpt-oss-20b`."
+        )
+        service = EditorialRewriterService(
+            session,
+            provider=provider,
+            settings=build_settings(
+                editorial_rewrite_provider="groq",
+                editorial_rewrite_model="openai/gpt-oss-20b",
+                editorial_rewrite_humanized_local_enabled=True,
+                editorial_phase3_rollout_enabled=True,
+            ),
+        )
+
+        result = service.rewrite_candidate(2, dry_run=True, overwrite=True)
+
+        assert result.candidate.rewrite_status == "dry_run_fallback_base_text"
+        assert result.candidate.rewrite_error is not None
+        assert result.candidate.rewritten_text == service._base_text(session.get(ContentCandidate, 2))
     finally:
         session.close()
 

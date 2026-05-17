@@ -3,9 +3,12 @@ from __future__ import annotations
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
-from app.core.enums import ContentCandidateStatus
+from app.core.config import Settings, get_settings
+from app.core.editorial_rollout import evaluate_phase3_rollout
+from app.core.enums import ContentCandidateStatus, ContentType
 from app.db.models import ContentCandidate
 from app.schemas.draft_temp import DraftTempCandidateView, DraftTempSnapshot, DraftTempSummary
+from app.services.editorial_quality_checks import EditorialQualityChecksService
 from app.utils.time import utcnow
 
 _CAPACITY_ERROR_PREFIX = "capacity_deferred:"
@@ -26,18 +29,25 @@ def _excerpt(text: str, limit: int = 120) -> str:
 
 
 class DraftTempService:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, *, settings: Settings | None = None) -> None:
         self.session = session
+        self.settings = settings or get_settings()
+        self.quality_service = EditorialQualityChecksService(session, settings=self.settings)
 
     def build_snapshot(
         self,
         *,
         limit: int = 200,
         include_rejected: bool = False,
+        phase3_only: bool = False,
+        recompute_quality_checks: bool = False,
+        prefer_rewrite: bool = True,
     ) -> DraftTempSnapshot:
         query = select(ContentCandidate)
         if not include_rejected:
             query = query.where(ContentCandidate.status != str(ContentCandidateStatus.REJECTED))
+        if phase3_only:
+            query = query.where(ContentCandidate.content_type.in_(["preview", "viral_story"]))
         status_order = case(
             (ContentCandidate.status == str(ContentCandidateStatus.DRAFT), 0),
             (ContentCandidate.status == str(ContentCandidateStatus.APPROVED), 1),
@@ -57,11 +67,33 @@ class DraftTempService:
             source="content_candidates",
             limit=limit,
             include_rejected=include_rejected,
-            summary=self._summary(included_rows=len(rows)),
-            rows=[self._row_to_view(row) for row in rows],
+            phase3_only=phase3_only,
+            recompute_quality_checks=recompute_quality_checks,
+            prefer_rewrite=prefer_rewrite,
+            summary=self._summary(
+                rows=rows,
+                included_rows=len(rows),
+                recompute_quality_checks=recompute_quality_checks,
+                prefer_rewrite=prefer_rewrite,
+            ),
+            rows=[
+                self._row_to_view(
+                    row,
+                    recompute_quality_checks=recompute_quality_checks,
+                    prefer_rewrite=prefer_rewrite,
+                )
+                for row in rows
+            ],
         )
 
-    def _summary(self, *, included_rows: int) -> DraftTempSummary:
+    def _summary(
+        self,
+        *,
+        rows: list[ContentCandidate],
+        included_rows: int,
+        recompute_quality_checks: bool,
+        prefer_rewrite: bool,
+    ) -> DraftTempSummary:
         counts = {
             status: count
             for status, count in self.session.execute(
@@ -113,6 +145,15 @@ class DraftTempService:
         )
         total_candidates = sum(counts.values())
         rejected_count = int(counts.get(str(ContentCandidateStatus.REJECTED), 0))
+        phase3_views = [
+            self._row_to_view(
+                row,
+                recompute_quality_checks=recompute_quality_checks,
+                prefer_rewrite=prefer_rewrite,
+            )
+            for row in rows
+            if row.content_type in {"preview", "viral_story"}
+        ]
         return DraftTempSummary(
             total_candidates=total_candidates,
             active_candidates=total_candidates - rejected_count,
@@ -126,9 +167,38 @@ class DraftTempService:
             exported_count=exported_count,
             failed_export_count=failed_export_count,
             capacity_deferred_count=capacity_deferred_count,
+            phase3_candidate_count=len(phase3_views),
+            phase3_eligible_count=sum(1 for row in phase3_views if row.phase3_rollout_eligible),
+            phase3_quality_passed_count=sum(1 for row in phase3_views if row.quality_check_preview_passed is True),
+            phase3_quality_failed_count=sum(1 for row in phase3_views if row.quality_check_preview_passed is False),
         )
 
-    def _row_to_view(self, row: ContentCandidate) -> DraftTempCandidateView:
+    def _row_to_view(
+        self,
+        row: ContentCandidate,
+        *,
+        recompute_quality_checks: bool,
+        prefer_rewrite: bool,
+    ) -> DraftTempCandidateView:
+        phase3_decision = evaluate_phase3_rollout(
+            ContentType(row.content_type),
+            priority=row.priority,
+            competition_slug=row.competition_slug,
+            payload_json=row.payload_json or {},
+            humanized_local_enabled=self.settings.editorial_rewrite_humanized_local_enabled,
+            phase3_rollout_enabled=self.settings.editorial_phase3_rollout_enabled,
+        )
+        quality_preview_passed: bool | None = None
+        quality_preview_errors: list[str] = []
+        if recompute_quality_checks:
+            preview = self.quality_service.check_candidates(
+                [row.id],
+                dry_run=True,
+                prefer_rewrite=prefer_rewrite,
+                require_published=row.status == str(ContentCandidateStatus.PUBLISHED),
+            ).rows[0]
+            quality_preview_passed = preview.passed
+            quality_preview_errors = list(preview.errors)
         selected_text, selected_text_source = self._selected_text(row)
         return DraftTempCandidateView(
             id=row.id,
@@ -149,8 +219,13 @@ class DraftTempService:
             external_publication_error=row.external_publication_error,
             quality_check_passed=row.quality_check_passed,
             quality_check_errors=list(row.quality_check_errors or []),
+            quality_check_preview_passed=quality_preview_passed,
+            quality_check_preview_errors=quality_preview_errors,
             has_formatted=_usable_text(row.formatted_text) is not None,
             has_rewrite=_usable_text(row.rewritten_text) is not None,
+            phase3_rollout_eligible=phase3_decision.eligible,
+            phase3_rollout_reason=phase3_decision.reason,
+            editorial_voice_request=phase3_decision.editorial_voice_request,
             selected_text_source=selected_text_source,
             selected_text=selected_text,
             excerpt=_excerpt(selected_text),

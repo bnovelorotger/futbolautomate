@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -8,6 +9,8 @@ from sqlalchemy.orm import Session
 from app.core.catalog import load_competition_catalog
 from app.core.config import Settings, get_settings
 from app.core.enums import ContentType
+from app.core.editorial_rollout import with_phase3_editorial_voice
+from app.core.editorial_voice import load_editorial_voice_pack
 from app.db.models import ContentCandidate
 from app.normalizers.text import normalize_token
 from app.schemas.editorial_content import ContentCandidateDraft
@@ -34,6 +37,7 @@ MAX_PREVIEW_MATCHES = 3
 MAX_RANKING_ROWS = 3
 IDEAL_MENTION_LIMIT = 2
 CLUB_PREFIXES = {"cd", "cf", "ce", "ue", "ud", "rcd", "scr", "atletico", "atl", "fc"}
+HASHTAG_PATTERN = re.compile(r"(?<!\w)#[A-Za-z0-9_]+")
 CURATED_MENTION_TYPES = {
     ContentType.MATCH_RESULT,
     ContentType.RESULTS_ROUNDUP,
@@ -89,6 +93,7 @@ class EditorialFormatterService:
         self.settings = settings or get_settings()
         self.max_characters = max_characters
         self.catalog = load_competition_catalog()
+        self.editorial_voice = load_editorial_voice_pack()
         self.identity_service = SocialIdentityService(session)
         self.social_enricher = SocialEnricherService(
             session,
@@ -109,10 +114,16 @@ class EditorialFormatterService:
 
     def build_text_layers_for_draft(self, candidate: ContentCandidateDraft) -> EditorialTextLayers:
         content_type = ContentType(candidate.content_type)
+        effective_payload_json = self._effective_payload_json(
+            competition_slug=candidate.competition_slug,
+            content_type=content_type,
+            priority=candidate.priority,
+            payload_json=candidate.payload_json,
+        )
         normalized_text_draft, normalized_payload_json = self._normalized_editorial_inputs(
             content_type=content_type,
             text_draft=candidate.text_draft,
-            payload_json=candidate.payload_json,
+            payload_json=effective_payload_json,
         )
         text = self._format_content(
             competition_slug=candidate.competition_slug,
@@ -141,7 +152,12 @@ class EditorialFormatterService:
 
     def build_text_layers_for_candidate(self, candidate: ContentCandidate) -> EditorialTextLayers:
         content_type = ContentType(candidate.content_type)
-        payload_json = candidate.payload_json or {}
+        payload_json = self._effective_payload_json(
+            competition_slug=candidate.competition_slug,
+            content_type=content_type,
+            priority=candidate.priority,
+            payload_json=candidate.payload_json or {},
+        )
         normalized_text_draft, normalized_payload_json = self._normalized_editorial_inputs(
             content_type=content_type,
             text_draft=candidate.text_draft,
@@ -167,6 +183,24 @@ class EditorialFormatterService:
             payload_json=normalized_payload_json,
         )
         return EditorialTextLayers(text, enriched_text, viral_formatted_text)
+
+    def _effective_payload_json(
+        self,
+        *,
+        competition_slug: str,
+        content_type: ContentType,
+        priority: int,
+        payload_json: dict[str, Any],
+    ) -> dict[str, Any]:
+        effective_payload_json, _ = with_phase3_editorial_voice(
+            payload_json,
+            content_type,
+            priority=priority,
+            competition_slug=competition_slug,
+            humanized_local_enabled=self.settings.editorial_rewrite_humanized_local_enabled,
+            phase3_rollout_enabled=self.settings.editorial_phase3_rollout_enabled,
+        )
+        return effective_payload_json
 
     def _normalized_editorial_inputs(
         self,
@@ -215,6 +249,7 @@ class EditorialFormatterService:
     ) -> str | None:
         source_payload = payload_json.get("source_payload", {}) if isinstance(payload_json, dict) else {}
         competition_name = str(payload_json.get("competition_name") or self._competition_name(competition_slug))
+        editorial_voice_request = self._editorial_voice_request(payload_json)
         if content_type == ContentType.RESULTS_ROUNDUP:
             return self.format_results_summary(
                 competition_slug=competition_slug, competition_name=competition_name, source_payload=source_payload
@@ -232,6 +267,7 @@ class EditorialFormatterService:
                 competition_name=competition_name,
                 source_payload=source_payload,
                 content_type=content_type,
+                editorial_voice_request=editorial_voice_request,
             )
         if content_type == ContentType.RANKING:
             return self.format_ranking_summary(
@@ -248,6 +284,7 @@ class EditorialFormatterService:
                 content_type=content_type,
                 source_payload=source_payload,
                 base_text=text_draft,
+                editorial_voice_request=editorial_voice_request,
             )
         if content_type == ContentType.MATCH_RESULT:
             return self.format_match_result(
@@ -476,6 +513,7 @@ class EditorialFormatterService:
         competition_name: str,
         source_payload: dict[str, Any],
         content_type: ContentType,
+        editorial_voice_request: dict[str, Any] | None = None,
     ) -> str | None:
         matches = self._preview_matches(source_payload, limit=MAX_PREVIEW_MATCHES)
         featured_match = self._featured_match(source_payload, matches)
@@ -489,6 +527,7 @@ class EditorialFormatterService:
             featured_match=featured_match,
             content_type=content_type,
             mention_limit=0,
+            editorial_voice_request=editorial_voice_request,
         )
 
     def _render_preview_summary(
@@ -501,6 +540,7 @@ class EditorialFormatterService:
         featured_match: dict[str, Any],
         content_type: ContentType,
         mention_limit: int,
+        editorial_voice_request: dict[str, Any] | None = None,
     ) -> str:
         mention_map = self._mention_map(
             [
@@ -514,6 +554,10 @@ class EditorialFormatterService:
             competition_slug,
             limit=mention_limit,
         )
+        local_voice_line = self._local_voice_line(
+            content_type=content_type,
+            editorial_voice_request=editorial_voice_request,
+        )
         lines = [
             self._standard_title(
                 content_type=content_type,
@@ -521,27 +565,20 @@ class EditorialFormatterService:
                 competition_name=competition_name,
                 source_payload=source_payload,
             ),
-            "",
-            "Partidos:",
         ]
-        for match in matches:
-            lines.append(
-                f"{self._string(match.get('home_team')) or '-'} vs {self._string(match.get('away_team')) or '-'}"
+        if local_voice_line:
+            lines.append(local_voice_line)
+        lines.append(self._preview_matches_line(matches))
+        lines.append(
+            self._preview_featured_match_line(
+                featured_match=featured_match,
+                mention_map=mention_map,
             )
-        lines.extend(
-            [
-                "",
-                "Partido clave:",
-                (
-                    f"{self._render_team_label(self._string(featured_match.get('home_team')) or '-', mention_map)} vs "
-                    f"{self._render_team_label(self._string(featured_match.get('away_team')) or '-', mention_map)}"
-                ),
-            ]
         )
         insight_line = self._preview_insight_line(source_payload)
         if insight_line:
             lines.append(insight_line)
-        lines.extend(["", self._hashtags_line(competition_slug)])
+        lines.append(self._hashtags_line(competition_slug))
         return self._compact_blank_lines("\n".join(lines))
 
     def format_ranking_summary(
@@ -648,18 +685,30 @@ class EditorialFormatterService:
         content_type: ContentType,
         source_payload: dict[str, Any],
         base_text: str,
+        editorial_voice_request: dict[str, Any] | None = None,
     ) -> str | None:
         del competition_name
         normalized_base = " ".join(base_text.split())
         if not normalized_base:
             return None
         hashtags = self._hashtags_line(competition_slug)
+        base_hashtags = HASHTAG_PATTERN.findall(normalized_base)
         narrative_title = self._narrative_title(content_type, source_payload)
+        local_voice_line = self._local_voice_line(
+            content_type=content_type,
+            editorial_voice_request=editorial_voice_request,
+        )
+        text_blocks = [narrative_title]
+        if local_voice_line:
+            text_blocks.append(local_voice_line)
+        text_blocks.append(normalized_base)
+        if not base_hashtags:
+            text_blocks.append(hashtags)
         for separator in ("\n\n", "\n", " "):
-            text = separator.join((narrative_title, normalized_base, hashtags))
+            text = separator.join(text_blocks)
             if len(text) <= self.max_characters:
                 return text
-        return f"{narrative_title}\n{normalized_base}\n{hashtags}"
+        return "\n".join(text_blocks)
 
     def format_match_result(
         self,
@@ -718,7 +767,12 @@ class EditorialFormatterService:
             )
         if content_type in {ContentType.PREVIEW, ContentType.FEATURED_MATCH_PREVIEW}:
             return self._viral_preview_summary(
-                competition_slug, competition_name, source_payload, fallback_text, content_type
+                competition_slug,
+                competition_name,
+                source_payload,
+                fallback_text,
+                content_type,
+                self._editorial_voice_request(payload_json),
             )
         if content_type == ContentType.RANKING:
             return self._viral_ranking_summary(competition_slug, competition_name, source_payload, fallback_text)
@@ -914,6 +968,7 @@ class EditorialFormatterService:
         source_payload: dict[str, Any],
         fallback_text: str | None,
         content_type: ContentType,
+        editorial_voice_request: dict[str, Any] | None,
     ) -> str | None:
         matches = self._preview_matches(source_payload, limit=MAX_PREVIEW_MATCHES)
         featured_match = self._featured_match(source_payload, matches)
@@ -928,6 +983,7 @@ class EditorialFormatterService:
                 featured_match=featured_match,
                 content_type=content_type,
                 mention_limit=mention_limit,
+                editorial_voice_request=editorial_voice_request,
             )
             if len(text) <= self.max_characters:
                 return text
@@ -1001,6 +1057,7 @@ class EditorialFormatterService:
         featured_match: dict[str, Any],
         content_type: ContentType,
         mention_limit: int,
+        editorial_voice_request: dict[str, Any] | None = None,
     ) -> str:
         base_text = self._render_preview_summary(
             competition_slug=competition_slug,
@@ -1010,6 +1067,7 @@ class EditorialFormatterService:
             featured_match=featured_match,
             content_type=content_type,
             mention_limit=mention_limit,
+            editorial_voice_request=editorial_voice_request,
         )
         insight_line = self._preview_insight_line(source_payload)
         if not insight_line:
@@ -1027,6 +1085,10 @@ class EditorialFormatterService:
             competition_slug,
             limit=mention_limit,
         )
+        local_voice_line = self._local_voice_line(
+            content_type=content_type,
+            editorial_voice_request=editorial_voice_request,
+        )
         lines = [
             self._standard_title(
                 content_type=content_type,
@@ -1034,28 +1096,39 @@ class EditorialFormatterService:
                 competition_name=competition_name,
                 source_payload=source_payload,
             ),
-            "",
-            "Partidos:",
         ]
-        for match in matches:
-            lines.append(
-                f"{self._string(match.get('home_team')) or '-'} vs {self._string(match.get('away_team')) or '-'}"
+        if local_voice_line:
+            lines.append(local_voice_line)
+        lines.append(self._preview_matches_line(matches))
+        lines.append(
+            self._preview_featured_match_line(
+                featured_match=featured_match,
+                mention_map=mention_map,
             )
-        lines.extend(
-            [
-                "",
-                "Partido clave:",
-                (
-                    f"{self._render_team_label(self._string(featured_match.get('home_team')) or '-', mention_map)} vs "
-                    f"{self._render_team_label(self._string(featured_match.get('away_team')) or '-', mention_map)}"
-                ),
-                insight_line,
-                "",
-                self._hashtags_line(competition_slug),
-            ]
         )
+        lines.append(insight_line)
+        lines.append(self._hashtags_line(competition_slug))
         enriched_text = self._compact_blank_lines("\n".join(lines))
         return enriched_text if len(enriched_text) <= self.max_characters else base_text
+
+    def _preview_matches_line(self, matches: list[dict[str, Any]]) -> str:
+        match_labels = [
+            f"{self._string(match.get('home_team')) or '-'} vs {self._string(match.get('away_team')) or '-'}"
+            for match in matches
+        ]
+        return f"Partidos: {' | '.join(match_labels)}"
+
+    def _preview_featured_match_line(
+        self,
+        *,
+        featured_match: dict[str, Any],
+        mention_map: dict[str, str],
+    ) -> str:
+        return (
+            "Partido clave: "
+            f"{self._render_team_label(self._string(featured_match.get('home_team')) or '-', mention_map)} vs "
+            f"{self._render_team_label(self._string(featured_match.get('away_team')) or '-', mention_map)}"
+        )
 
     def _viral_ranking_summary(
         self,
@@ -1686,6 +1759,66 @@ class EditorialFormatterService:
         if isinstance(featured_match, dict):
             return featured_match
         return matches[0] if matches else None
+
+    def _editorial_voice_request(self, payload_json: dict[str, Any]) -> dict[str, Any] | None:
+        if not isinstance(payload_json, dict):
+            return None
+        editorial_voice = payload_json.get("editorial_voice")
+        if isinstance(editorial_voice, dict):
+            return editorial_voice
+        source_payload = payload_json.get("source_payload")
+        if isinstance(source_payload, dict) and isinstance(source_payload.get("editorial_voice"), dict):
+            return source_payload["editorial_voice"]
+        return None
+
+    def _local_voice_line(
+        self,
+        *,
+        content_type: ContentType,
+        editorial_voice_request: dict[str, Any] | None,
+    ) -> str | None:
+        if not self.editorial_voice.enabled:
+            return None
+        if self.editorial_voice.usage.apply_only_when_requested and not editorial_voice_request:
+            return None
+
+        content_type_value = str(content_type)
+        if content_type_value in self.editorial_voice.blocked_content_types or not editorial_voice_request:
+            return None
+
+        mode_name = self._string(editorial_voice_request.get("mode"))
+        if not mode_name:
+            return None
+        mode = self.editorial_voice.modes.get(mode_name)
+        if mode is None or not mode.enabled or content_type_value not in mode.allowed_content_types:
+            return None
+        if self.editorial_voice.usage.max_local_expressions_per_piece < 1:
+            return None
+
+        requested_resource_ids = self._requested_local_voice_resource_ids(editorial_voice_request)
+        candidate_resource_ids = [
+            resource_id for resource_id in requested_resource_ids if resource_id in mode.resource_ids
+        ] or list(mode.resource_ids)
+        resource_map = self.editorial_voice.resource_map()
+        for resource_id in candidate_resource_ids:
+            resource = resource_map.get(resource_id)
+            if resource is None or content_type_value not in resource.allowed_content_types:
+                continue
+            return self._render_local_voice_text(resource.text)
+        return None
+
+    def _requested_local_voice_resource_ids(self, editorial_voice_request: dict[str, Any]) -> list[str]:
+        resource_ids = editorial_voice_request.get("resource_ids")
+        if isinstance(resource_ids, list):
+            return [resource_id for resource_id in resource_ids if isinstance(resource_id, str) and resource_id.strip()]
+        resource_id = self._string(editorial_voice_request.get("resource_id"))
+        return [resource_id] if resource_id else []
+
+    def _render_local_voice_text(self, resource_text: str) -> str | None:
+        normalized_text = " ".join(resource_text.split())
+        if not normalized_text:
+            return None
+        return f"{normalized_text[0].upper()}{normalized_text[1:]}."
 
     def _ranking_rows(self, source_payload: dict[str, Any], *, unique_teams: bool) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []

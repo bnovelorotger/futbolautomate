@@ -6,7 +6,10 @@ from datetime import date as date_type
 
 import typer
 
+from app.core.config import get_settings
 from app.core.exceptions import ConfigurationError, InvalidStateTransitionError
+from app.core.logging import configure_logging
+from app.core.run_context import set_run_id
 from app.db.session import init_db, session_scope
 from app.presenters.editorial_quality_checks import (
     render_quality_batch_result,
@@ -46,6 +49,9 @@ def check_candidate(
     use_rewrite: bool = typer.Option(False, "--use-rewrite", help="Prioriza rewritten_text"),
     as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
 ) -> None:
+    set_run_id()
+    settings = get_settings()
+    configure_logging(settings.log_level, settings.log_json)
     init_db()
     prefer_rewrite = _prefer_rewrite(use_draft=use_draft, use_rewrite=use_rewrite)
     error_message: str | None = None
@@ -75,6 +81,9 @@ def check_pending(
     use_rewrite: bool = typer.Option(False, "--use-rewrite", help="Prioriza rewritten_text"),
     as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
 ) -> None:
+    set_run_id()
+    settings = get_settings()
+    configure_logging(settings.log_level, settings.log_json)
     init_db()
     parsed_date = date_type.fromisoformat(reference_date) if reference_date else None
     prefer_rewrite = _prefer_rewrite(use_draft=use_draft, use_rewrite=use_rewrite)
@@ -99,6 +108,9 @@ def dry_run_checks(
     use_rewrite: bool = typer.Option(False, "--use-rewrite", help="Prioriza rewritten_text"),
     as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
 ) -> None:
+    set_run_id()
+    settings = get_settings()
+    configure_logging(settings.log_level, settings.log_json)
     init_db()
     parsed_date = date_type.fromisoformat(reference_date) if reference_date else None
     prefer_rewrite = _prefer_rewrite(use_draft=use_draft, use_rewrite=use_rewrite)

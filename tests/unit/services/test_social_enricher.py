@@ -166,3 +166,33 @@ def test_social_enricher_falls_back_cleanly_when_no_handle_exists() -> None:
         assert enriched == text
     finally:
         session.close()
+
+
+def test_social_enricher_skips_invalid_handles_from_identity_data() -> None:
+    session = build_session()
+    try:
+        seed_socials(session)
+        social = session.query(TeamSocial).filter_by(team_name="CE Felanitx").one()
+        social.x_handle = "@cefelanitx!"
+        session.add(social)
+        session.commit()
+
+        service = SocialEnricherService(session, settings=build_settings(max_mentions_per_post=3))
+        text = "CE Felanitx 1-0 CE Santanyi"
+
+        enriched = service.enrich_text_with_mentions(
+            text,
+            {
+                "source_payload": {
+                    "matches": [
+                        {"home_team": "CE Felanitx", "away_team": "CE Santanyi"},
+                    ]
+                }
+            },
+            "results_roundup",
+            competition_slug="tercera_rfef_g11",
+        )
+
+        assert enriched == text
+    finally:
+        session.close()

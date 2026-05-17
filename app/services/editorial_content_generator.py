@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from datetime import date
+import logging
 from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.core.config import Settings, get_settings
 from app.core.enums import ContentCandidateStatus, ContentType
+from app.core.editorial_rollout import with_phase3_editorial_voice
 from app.db.repositories.content_candidates import ContentCandidateRepository
 from app.normalizers.text import normalize_token
 from app.schemas.common import IngestStats
@@ -16,6 +19,8 @@ from app.services.editorial_formatter import EditorialFormatterService
 from app.services.editorial_summary import CompetitionEditorialSummaryService
 from app.utils.hashing import stable_hash
 from app.utils.time import utcnow
+
+logger = logging.getLogger(__name__)
 
 
 def _match_label(match: CompetitionMatchView) -> str:
@@ -56,8 +61,9 @@ def _candidate_hash(
 
 
 class EditorialContentGenerator:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, *, settings: Settings | None = None) -> None:
         self.session = session
+        self.settings = settings or get_settings()
         self.summary_service = CompetitionEditorialSummaryService(session)
         self.repository = ContentCandidateRepository(session)
 
@@ -71,6 +77,7 @@ class EditorialContentGenerator:
         source_payload: dict[str, Any],
         scheduled_at=None,
     ) -> ContentCandidateDraft:
+        settings = getattr(self, "settings", None) or get_settings()
         payload_json = {
             "content_key": content_key,
             "template_name": f"{content_type}_v1",
@@ -78,6 +85,27 @@ class EditorialContentGenerator:
             "reference_date": summary.metadata.reference_date.isoformat(),
             "source_payload": source_payload,
         }
+        payload_json, rollout_decision = with_phase3_editorial_voice(
+            payload_json,
+            content_type,
+            priority=priority,
+            competition_slug=summary.metadata.competition_slug,
+            humanized_local_enabled=settings.editorial_rewrite_humanized_local_enabled,
+            phase3_rollout_enabled=settings.editorial_phase3_rollout_enabled,
+        )
+        logger.info(
+            "editorial_rollout_payload_prepared",
+            extra={
+                "event": "editorial_rollout_payload_prepared",
+                "competition_slug": summary.metadata.competition_slug,
+                "content_type": str(content_type),
+                "priority": priority,
+                "phase3_rollout_eligible": rollout_decision.eligible,
+                "phase3_rollout_reason": rollout_decision.reason,
+                "editorial_voice_mode": (rollout_decision.editorial_voice_request or {}).get("mode"),
+                "editorial_voice_resource_id": (rollout_decision.editorial_voice_request or {}).get("resource_id"),
+            },
+        )
         return ContentCandidateDraft(
             competition_slug=summary.metadata.competition_slug,
             content_type=content_type,

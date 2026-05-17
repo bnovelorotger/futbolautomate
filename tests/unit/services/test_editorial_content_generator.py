@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timezone
 
+from app.core.config import Settings
 from app.core.enums import ContentType
 from app.schemas.editorial_content import ContentCandidateDraft
 from app.schemas.editorial_summary import (
@@ -134,3 +135,35 @@ def test_editorial_content_generator_hashes_source_payload_not_template_text() -
     assert isinstance(draft, ContentCandidateDraft)
     assert draft.source_summary_hash
     assert draft.payload_json["content_key"] == "preview:jornada-26:2026-03-14:rcd-mallorca-b:ce-santanyi"
+
+
+def test_editorial_content_generator_emits_preview_editorial_voice_only_when_enabled() -> None:
+    summary = build_summary()
+
+    generator_disabled = EditorialContentGenerator.__new__(EditorialContentGenerator)
+    generator_disabled.settings = Settings(
+        database_url="sqlite+pysqlite:///:memory:",
+        editorial_rewrite_humanized_local_enabled=False,
+    )
+    preview_disabled = next(
+        draft
+        for draft in EditorialContentGenerator.generate_from_summary(generator_disabled, summary)
+        if draft.content_type == ContentType.PREVIEW
+    )
+    assert "editorial_voice" not in preview_disabled.payload_json
+
+    generator_enabled = EditorialContentGenerator.__new__(EditorialContentGenerator)
+    generator_enabled.settings = Settings(
+        database_url="sqlite+pysqlite:///:memory:",
+        editorial_rewrite_humanized_local_enabled=True,
+        editorial_phase3_rollout_enabled=True,
+    )
+    preview_enabled = next(
+        draft
+        for draft in EditorialContentGenerator.generate_from_summary(generator_enabled, summary)
+        if draft.content_type == ContentType.PREVIEW
+    )
+    assert preview_enabled.payload_json["editorial_voice"] == {
+        "mode": "preview_light",
+        "resource_id": "quin_partidas",
+    }
