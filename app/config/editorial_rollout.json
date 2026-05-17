@@ -1,0 +1,37 @@
+{
+  "phase3": {
+    "allowed_content_types": [
+      "preview",
+      "viral_story"
+    ],
+    "allowed_competitions": [],
+    "preview": {
+      "enabled": true,
+      "min_priority": 90,
+      "require_featured_match": true,
+      "editorial_voice_mode": "preview_light",
+      "editorial_voice_resource_id": "quin_partidas"
+    },
+    "viral_story": {
+      "enabled": true,
+      "min_priority": 69,
+      "allowed_story_types": [
+        "win_streak",
+        "unbeaten_streak",
+        "hot_form",
+        "recent_top_scorer",
+        "best_attack",
+        "best_defense"
+      ],
+      "editorial_voice_mode": "viral_story_light",
+      "resource_by_story_type": {
+        "win_streak": "molt_bona_feina",
+        "unbeaten_streak": "molt_bona_feina",
+        "hot_form": "molt_bona_feina",
+        "recent_top_scorer": "molt_bona_feina",
+        "best_attack": "molt_bona_feina",
+        "best_defense": "molt_bona_feina"
+      }
+    }
+  }
+}

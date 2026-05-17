@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import date, datetime
+import logging
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -9,8 +10,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.catalog import load_competition_catalog
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.core.enums import ContentCandidateStatus, ContentType, ViralStoryType
+from app.core.editorial_rollout import with_phase3_editorial_voice
 from app.core.exceptions import ConfigurationError
 from app.db.models import Competition, Match
 from app.db.repositories.content_candidates import ContentCandidateRepository
@@ -27,6 +29,8 @@ from app.services.competition_relevance import CompetitionRelevanceService
 from app.services.editorial_formatter import EditorialFormatterService
 from app.utils.hashing import stable_hash
 from app.utils.time import utcnow
+
+logger = logging.getLogger(__name__)
 
 _VIRAL_PRIORITY = {
     ViralStoryType.WIN_STREAK: 76,
@@ -129,13 +133,14 @@ def _team_result(team_name: str, match: CompetitionMatchView) -> str:
 
 
 class EditorialViralStoriesService:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, *, settings: Settings | None = None) -> None:
         self.session = session
+        self.settings = settings or get_settings()
         self.repository = ContentCandidateRepository(session)
         self.queries = CompetitionQueryService(session)
         self.relevance = CompetitionRelevanceService()
         self.competition_catalog = load_competition_catalog()
-        self.timezone_name = get_settings().timezone
+        self.timezone_name = self.settings.timezone
 
     def preview_for_competition(
         self,
@@ -316,6 +321,28 @@ class EditorialViralStoriesService:
                 **source_payload,
             },
         }
+        payload_json, rollout_decision = with_phase3_editorial_voice(
+            payload_json,
+            ContentType.VIRAL_STORY,
+            priority=priority,
+            competition_slug=competition_slug,
+            humanized_local_enabled=self.settings.editorial_rewrite_humanized_local_enabled,
+            phase3_rollout_enabled=self.settings.editorial_phase3_rollout_enabled,
+        )
+        logger.info(
+            "editorial_rollout_payload_prepared",
+            extra={
+                "event": "editorial_rollout_payload_prepared",
+                "competition_slug": competition_slug,
+                "content_type": str(ContentType.VIRAL_STORY),
+                "priority": priority,
+                "phase3_rollout_eligible": rollout_decision.eligible,
+                "phase3_rollout_reason": rollout_decision.reason,
+                "editorial_voice_mode": (rollout_decision.editorial_voice_request or {}).get("mode"),
+                "editorial_voice_resource_id": (rollout_decision.editorial_voice_request or {}).get("resource_id"),
+                "viral_story_type": str(story_type),
+            },
+        )
         return ContentCandidateDraft(
             competition_slug=competition_slug,
             content_type=ContentType.VIRAL_STORY,

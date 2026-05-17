@@ -7,6 +7,8 @@ from datetime import UTC, datetime
 
 from app.core.run_context import get_run_id
 
+_STANDARD_RECORD_ATTRS = set(logging.makeLogRecord({}).__dict__.keys())
+
 
 class RunIdFilter(logging.Filter):
     """Inject the current run_id into every log record."""
@@ -28,6 +30,13 @@ class JsonFormatter(logging.Formatter):
         for key in ("source", "competition", "target", "url", "records_found"):
             value = getattr(record, key, None)
             if value is not None:
+                payload[key] = value
+        for key, value in record.__dict__.items():
+            if key in _STANDARD_RECORD_ATTRS or key in payload or key.startswith("_"):
+                continue
+            if isinstance(value, (str, int, float, bool)) or value is None:
+                payload[key] = value
+            elif isinstance(value, (list, dict)):
                 payload[key] = value
         if record.exc_info:
             payload["exception"] = self.formatException(record.exc_info)

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timezone
 
 from app.db.models import ContentCandidate
+from app.services.editorial_formatter import EditorialFormatterService
 from app.services.editorial_narratives import EditorialNarrativesService
 from app.services.editorial_quality_checks import EditorialQualityChecksService
 from app.services.editorial_viral_stories import EditorialViralStoriesService
@@ -814,5 +815,246 @@ def test_quality_checks_block_more_than_two_hashtags() -> None:
 
         assert result.candidate.passed is False
         assert "text_hashtags_exceed_max>2" in result.candidate.errors
+    finally:
+        session.close()
+
+
+def test_quality_checks_block_rewrite_that_mutates_handles_hashtags_and_uses_ai_cliche() -> None:
+    session = build_session()
+    try:
+        seed_narratives_data(session)
+        candidate = ContentCandidate(
+            competition_slug="tercera_rfef_g11",
+            content_type="viral_story",
+            priority=78,
+            text_draft="CD Llosetense enlaza 4 victorias seguidas.",
+            formatted_text="CD Llosetense @cdllosetense enlaza 4 victorias seguidas. #FutbolBalear #3aRFEF",
+            rewritten_text="En resumen, CD Llosetense @otroclub enlaza 4 victorias seguidas. #FutbolBalear #NuevaTag",
+            payload_json={
+                "content_key": "viral:rewrite-guard:handles",
+                "source_payload": {
+                    "story_type": "win_streak",
+                    "teams": ["CD Llosetense"],
+                    "metric_value": 4,
+                    "streak_length": 4,
+                },
+            },
+            source_summary_hash="quality-rewrite-handles-hashtags",
+            status="published",
+            reviewed_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+            approved_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+            published_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+        )
+        session.add(candidate)
+        session.commit()
+
+        result = EditorialQualityChecksService(
+            session,
+            settings=build_settings(),
+            policy=build_export_policy(),
+        ).check_candidate(candidate.id, dry_run=False)
+
+        assert result.candidate.passed is False
+        assert "rewrite_handles_unauthorized:@otroclub" in result.candidate.errors
+        assert "rewrite_hashtags_missing:#3aRFEF" in result.candidate.errors
+        assert "rewrite_hashtags_unauthorized:#NuevaTag" in result.candidate.errors
+        assert "rewrite_ai_cliche:en_resumen" in result.candidate.errors
+    finally:
+        session.close()
+
+
+def test_quality_checks_block_rewrite_that_changes_teams_and_numbers() -> None:
+    session = build_session()
+    try:
+        seed_narratives_data(session)
+        candidate = ContentCandidate(
+            competition_slug="tercera_rfef_g11",
+            content_type="race_narrative",
+            priority=87,
+            text_draft="CD Llosetense 2-0 SD Portmany y sigue con 31 puntos.",
+            formatted_text="CD Llosetense 2-0 SD Portmany y sigue con 31 puntos.",
+            rewritten_text="CD Llosetense 1-0 CE Mercadal y sigue con 30 puntos.",
+            payload_json={
+                "content_key": "race_narrative:rewrite-guard:teams",
+                "source_payload": {
+                    "narrative_type": "title_race",
+                    "target_position": 1,
+                    "team_count": 2,
+                    "points_span": 4,
+                    "rounds_remaining": 5,
+                    "teams": [
+                        {"team": "CD Llosetense", "position": 1, "points": 31, "gap_to_target": 0},
+                        {"team": "SD Portmany", "position": 2, "points": 27, "gap_to_target": 4},
+                    ],
+                },
+            },
+            source_summary_hash="quality-rewrite-teams-numbers",
+            status="published",
+            reviewed_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+            approved_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+            published_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+        )
+        session.add(candidate)
+        session.commit()
+
+        result = EditorialQualityChecksService(
+            session,
+            settings=build_settings(),
+            policy=build_export_policy(),
+        ).check_candidate(candidate.id, dry_run=False)
+
+        assert result.candidate.passed is False
+        assert "rewrite_teams_missing:SD Portmany" in result.candidate.errors
+        assert "rewrite_teams_unauthorized:CE Mercadal" in result.candidate.errors
+        assert any(error.startswith("rewrite_numbers_missing:") for error in result.candidate.errors)
+        assert "rewrite_numbers_unauthorized:30" in result.candidate.errors
+        assert "rewrite_scores_missing:2-0" in result.candidate.errors
+    finally:
+        session.close()
+
+
+def test_quality_checks_block_overlong_rewrite_even_when_rewrite_is_not_selected() -> None:
+    session = build_session()
+    try:
+        seed_narratives_data(session)
+        candidate = ContentCandidate(
+            competition_slug="tercera_rfef_g11",
+            content_type="viral_story",
+            priority=78,
+            text_draft="CD Llosetense suma 4 victorias seguidas.",
+            formatted_text="CD Llosetense suma 4 victorias seguidas.",
+            rewritten_text=f"CD Llosetense suma 4 victorias seguidas. {'a' * 210}",
+            payload_json={
+                "content_key": "viral:rewrite-guard:length",
+                "source_payload": {
+                    "story_type": "win_streak",
+                    "teams": ["CD Llosetense"],
+                    "metric_value": 4,
+                    "streak_length": 4,
+                },
+            },
+            source_summary_hash="quality-rewrite-too-long",
+            status="published",
+            reviewed_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+            approved_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+            published_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+        )
+        session.add(candidate)
+        session.commit()
+
+        result = EditorialQualityChecksService(
+            session,
+            settings=build_settings(),
+            policy=build_export_policy(),
+        ).check_candidate(candidate.id, dry_run=False, prefer_rewrite=False)
+
+        assert result.candidate.passed is False
+        assert "rewritten_text_too_long>240" in result.candidate.errors
+    finally:
+        session.close()
+
+
+def test_quality_checks_compare_rewrite_against_recomputed_base_text_when_stored_formatted_is_stale() -> None:
+    session = build_session()
+    try:
+        seed_competition(
+            session,
+            code="tercera_rfef_g11",
+            name="3a RFEF Grupo 11",
+            teams=["SD Formentera", "SD Portmany", "CD Llosetense", "CE Felanitx", "RCD Mallorca B", "UD Collerense"],
+            standings_rows=[
+                {"position": 1, "team": "SD Formentera", "played": 10, "wins": 7, "draws": 2, "losses": 1, "goals_for": 18, "goals_against": 8, "goal_difference": 10, "points": 23},
+                {"position": 2, "team": "SD Portmany", "played": 10, "wins": 6, "draws": 2, "losses": 2, "goals_for": 16, "goals_against": 9, "goal_difference": 7, "points": 20},
+            ],
+            match_rows=[
+                {"round_name": "Jornada 27", "match_date": date(2026, 3, 21), "match_time": time(12, 0), "home_team": "SD Formentera", "away_team": "SD Portmany", "home_score": 0, "away_score": 0},
+                {"round_name": "Jornada 27", "match_date": date(2026, 3, 21), "match_time": time(12, 15), "home_team": "CD Llosetense", "away_team": "CE Felanitx", "home_score": 0, "away_score": 0},
+                {"round_name": "Jornada 27", "match_date": date(2026, 3, 21), "match_time": time(16, 0), "home_team": "RCD Mallorca B", "away_team": "UD Collerense", "home_score": 0, "away_score": 0},
+            ],
+        )
+        candidate = ContentCandidate(
+            competition_slug="tercera_rfef_g11",
+            content_type="preview",
+            priority=90,
+            text_draft="PREVIA",
+            formatted_text="PREVIA\n3a RFEF Grupo 11\nJornada 27\nSD Formentera vs SD Portmany\nCD Llosetense vs CE Felanitx\n#TerceraRFEF",
+            payload_json={
+                "competition_name": "3a RFEF Baleares",
+                "source_payload": {
+                    "featured_match": {"round_name": "Jornada 27", "home_team": "SD Formentera", "away_team": "SD Portmany"},
+                    "matches": [
+                        {"round_name": "Jornada 27", "home_team": "SD Formentera", "away_team": "SD Portmany"},
+                        {"round_name": "Jornada 27", "home_team": "CD Llosetense", "away_team": "CE Felanitx"},
+                        {"round_name": "Jornada 27", "home_team": "RCD Mallorca B", "away_team": "UD Collerense"},
+                    ],
+                },
+            },
+            source_summary_hash="quality-preview-stale-formatted",
+            status="published",
+            reviewed_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+            approved_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+            published_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+        )
+        session.add(candidate)
+        session.commit()
+
+        settings = build_settings(
+            editorial_rewrite_humanized_local_enabled=True,
+            editorial_phase3_rollout_enabled=True,
+        )
+        candidate = session.get(ContentCandidate, candidate.id)
+        candidate.rewritten_text = EditorialFormatterService(session, settings=settings).format_candidate(candidate)
+        session.add(candidate)
+        session.commit()
+
+        result = EditorialQualityChecksService(
+            session,
+            settings=settings,
+            policy=build_export_policy(),
+        ).check_candidate(candidate.id, dry_run=False)
+
+        assert result.candidate.passed is True
+        assert not any(error.startswith("rewrite_hashtags_") for error in result.candidate.errors)
+    finally:
+        session.close()
+
+
+def test_quality_checks_do_not_flag_generic_baleares_phrase_as_unauthorized_team() -> None:
+    session = build_session()
+    try:
+        seed_narratives_data(session)
+        candidate = ContentCandidate(
+            competition_slug="segunda_rfef_g3_baleares",
+            content_type="viral_story",
+            priority=78,
+            text_draft="UE Sant Andreu llega con 7 victorias seguidas en 2a RFEF con equipos baleares.",
+            formatted_text="💪🏼 Forma\n\nUE Sant Andreu llega con 7 victorias seguidas en 2a RFEF con equipos baleares.\n\n#FutbolBalear #2aRFEF",
+            rewritten_text="💪🏼 Forma\n\nMolt bona feina.\n\nUE Sant Andreu llega con 7 victorias seguidas en 2a RFEF con equipos baleares.\n\n#FutbolBalear #2aRFEF",
+            payload_json={
+                "content_key": "viral:rewrite-guard:baleares-generic",
+                "source_payload": {
+                    "story_type": "win_streak",
+                    "teams": ["UE Sant Andreu"],
+                    "metric_value": 7,
+                    "streak_length": 7,
+                },
+            },
+            source_summary_hash="quality-rewrite-baleares-generic",
+            status="published",
+            reviewed_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+            approved_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+            published_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+        )
+        session.add(candidate)
+        session.commit()
+
+        result = EditorialQualityChecksService(
+            session,
+            settings=build_settings(),
+            policy=build_export_policy(),
+        ).check_candidate(candidate.id, dry_run=False)
+
+        assert result.candidate.passed is True
+        assert not any(error.startswith("rewrite_teams_unauthorized") for error in result.candidate.errors)
     finally:
         session.close()

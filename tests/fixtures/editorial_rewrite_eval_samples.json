@@ -1,0 +1,585 @@
+{
+  "samples": [
+    {
+      "id": "dp_match_result_torrent",
+      "group": "data_pure",
+      "content_type": "match_result",
+      "competition_slug": "segunda_rfef_g3_baleares",
+      "status": "published",
+      "priority": 99,
+      "approval_precheck": false,
+      "draft_text": "📋 Resultado - 2a RFEF Grupo 3 - J26\n\nTorrent CF 1-0 UE Porreres.\nFinal cerrado en la jornada 26.\n#FutbolBalear #SegundaRFEF",
+      "variants": {
+        "current_rewrite": "📋 Resultado - 2a RFEF Grupo 3 - J26\n\nTorrent CF cerró el 1-0 ante UE Porreres en la jornada 26.\n#FutbolBalear #SegundaRFEF",
+        "humanized_local": "📋 Resultado - 2a RFEF Grupo 3 - J26\n\nTorrent CF sacó el 1-0 ante UE Porreres con oficio.\n#FutbolBalear"
+      },
+      "payload_json": {
+        "content_key": "match_result:segunda_rfef_g3_baleares:j26:torrent-porreres",
+        "source_payload": {
+          "home_team": "Torrent CF",
+          "away_team": "UE Porreres",
+          "home_score": 1,
+          "away_score": 0
+        }
+      },
+      "expected_data_points": ["Torrent CF", "UE Porreres", "1-0", "J26"],
+      "expected_handles": [],
+      "expected_hashtags": ["#FutbolBalear", "#SegundaRFEF"]
+    },
+    {
+      "id": "dp_match_result_atb",
+      "group": "data_pure",
+      "content_type": "match_result",
+      "competition_slug": "segunda_rfef_g3_baleares",
+      "status": "published",
+      "priority": 97,
+      "approval_precheck": false,
+      "draft_text": "📋 Resultado - 2a RFEF Grupo 3 - J26\n\nUE Sant Andreu 2-2 CD Atletico Baleares.\nReparto de puntos en la jornada 26.\n@atleticbalears #FutbolBalear #SegundaRFEF",
+      "variants": {
+        "current_rewrite": "📋 Resultado - 2a RFEF Grupo 3 - J26\n\nUE Sant Andreu y CD Atletico Baleares firmaron un 2-2 en la jornada 26.\n@atleticbalears #FutbolBalear #SegundaRFEF",
+        "humanized_local": "📋 Resultado - 2a RFEF Grupo 3 - J26\n\nUE Sant Andreu y CD Atletico Baleares dejaron un 2-2 muy abierto.\n@atleticbalears #FutbolBalear #SegundaRFEF"
+      },
+      "payload_json": {
+        "content_key": "match_result:segunda_rfef_g3_baleares:j26:santandreu-atb",
+        "source_payload": {
+          "home_team": "UE Sant Andreu",
+          "away_team": "CD Atletico Baleares",
+          "home_score": 2,
+          "away_score": 2
+        }
+      },
+      "expected_data_points": ["UE Sant Andreu", "CD Atletico Baleares", "2-2", "J26"],
+      "expected_handles": ["@atleticbalears"],
+      "expected_hashtags": ["#FutbolBalear", "#SegundaRFEF"]
+    },
+    {
+      "id": "dp_results_roundup_t3",
+      "group": "data_pure",
+      "content_type": "results_roundup",
+      "competition_slug": "tercera_rfef_g11",
+      "status": "published",
+      "priority": 96,
+      "approval_precheck": false,
+      "draft_text": "📋 Resultados - 3a RFEF Grupo 11 - J28\n\nCD Llosetense 2-0 SD Portmany\nCE Mercadal 1-1 CD Manacor\n#FutbolBalear #TerceraRFEF",
+      "variants": {
+        "current_rewrite": "📋 Resultados - 3a RFEF Grupo 11 - J28\n\nCD Llosetense 2-0 SD Portmany\nCE Mercadal 1-1 CD Manacor\n#FutbolBalear #TerceraRFEF",
+        "humanized_local": "Resultados en 3a RFEF Grupo 11\n\nCD Llosetense ganó a SD Portmany.\nCE Mercadal empató con CD Manacor.\n#FutbolBalear #TerceraRFEF"
+      },
+      "payload_json": {
+        "content_key": "results_roundup:tercera_rfef_g11:j28:sample-a",
+        "source_payload": {
+          "selected_matches_count": 2,
+          "omitted_matches_count": 0,
+          "matches": [
+            {
+              "home_team": "CD Llosetense",
+              "away_team": "SD Portmany",
+              "home_score": 2,
+              "away_score": 0
+            },
+            {
+              "home_team": "CE Mercadal",
+              "away_team": "CD Manacor",
+              "home_score": 1,
+              "away_score": 1
+            }
+          ]
+        }
+      },
+      "expected_data_points": ["CD Llosetense", "2-0", "CE Mercadal", "1-1", "CD Manacor", "J28"],
+      "expected_handles": [],
+      "expected_hashtags": ["#FutbolBalear", "#TerceraRFEF"]
+    },
+    {
+      "id": "dp_results_roundup_t2",
+      "group": "data_pure",
+      "content_type": "results_roundup",
+      "competition_slug": "segunda_rfef_g3_baleares",
+      "status": "published",
+      "priority": 95,
+      "approval_precheck": false,
+      "draft_text": "📋 Resultados - 2a RFEF Grupo 3 - J26\n\nTorrent CF 1-0 UE Porreres\nUE Sant Andreu 2-2 CD Atletico Baleares @atleticbalears\n#FutbolBalear #SegundaRFEF",
+      "variants": {
+        "current_rewrite": "📋 Resultados - 2a RFEF Grupo 3 - J26\n\nTorrent CF 1-0 UE Porreres\nUE Sant Andreu 2-2 CD Atletico Baleares @atleticbalears\n#FutbolBalear #SegundaRFEF",
+        "humanized_local": "📋 Resultados - 2a RFEF Grupo 3 - J26\n\nTorrent CF 1-0 UE Porreres\nUE Sant Andreu 2-2 CD Atletico Baleares\n#FutbolBalear #SegundaRFEF"
+      },
+      "payload_json": {
+        "content_key": "results_roundup:segunda_rfef_g3_baleares:j26:sample-b",
+        "source_payload": {
+          "selected_matches_count": 2,
+          "omitted_matches_count": 0,
+          "matches": [
+            {
+              "home_team": "Torrent CF",
+              "away_team": "UE Porreres",
+              "home_score": 1,
+              "away_score": 0
+            },
+            {
+              "home_team": "UE Sant Andreu",
+              "away_team": "CD Atletico Baleares",
+              "home_score": 2,
+              "away_score": 2
+            }
+          ]
+        }
+      },
+      "expected_data_points": ["Torrent CF", "UE Porreres", "1-0", "UE Sant Andreu", "CD Atletico Baleares", "2-2"],
+      "expected_handles": ["@atleticbalears"],
+      "expected_hashtags": ["#FutbolBalear", "#SegundaRFEF"]
+    },
+    {
+      "id": "dp_standings_t3",
+      "group": "data_pure",
+      "content_type": "standings",
+      "competition_slug": "tercera_rfef_g11",
+      "status": "published",
+      "priority": 94,
+      "approval_precheck": false,
+      "draft_text": "📊 Clasificación - 3a RFEF Grupo 11 - J28\n\n1. CD Llosetense 58 pts\n2. SD Portmany 57 pts\n3. CE Mercadal 51 pts\n#FutbolBalear #TerceraRFEF",
+      "variants": {
+        "current_rewrite": "📊 Clasificación - 3a RFEF Grupo 11 - J28\n\n1. CD Llosetense 58 pts\n2. SD Portmany 57 pts\n3. CE Mercadal 51 pts\n#FutbolBalear #TerceraRFEF",
+        "humanized_local": "La tabla de 3a RFEF Grupo 11\n\nCD Llosetense sigue primero con 58 pts.\nSD Portmany tiene 57 pts.\nCE Mercadal suma 51 pts.\n#FutbolBalear #TerceraRFEF"
+      },
+      "payload_json": {
+        "content_key": "standings:tercera_rfef_g11:j28",
+        "source_payload": {
+          "selected_rows_count": 3,
+          "rows": [
+            {"position": 1, "team": "CD Llosetense", "points": 58},
+            {"position": 2, "team": "SD Portmany", "points": 57},
+            {"position": 3, "team": "CE Mercadal", "points": 51}
+          ]
+        }
+      },
+      "expected_data_points": ["CD Llosetense", "58 pts", "SD Portmany", "57 pts", "CE Mercadal", "51 pts"],
+      "expected_handles": [],
+      "expected_hashtags": ["#FutbolBalear", "#TerceraRFEF"]
+    },
+    {
+      "id": "dp_standings_t2",
+      "group": "data_pure",
+      "content_type": "standings",
+      "competition_slug": "segunda_rfef_g3_baleares",
+      "status": "published",
+      "priority": 93,
+      "approval_precheck": false,
+      "draft_text": "📊 Clasificación - 2a RFEF Grupo 3 - J26\n\n1. UE Sant Andreu 61 pts\n2. CD Atletico Baleares 59 pts\n3. Torrent CF 54 pts\n#FutbolBalear #SegundaRFEF",
+      "variants": {
+        "current_rewrite": "📊 Clasificación - 2a RFEF Grupo 3 - J26\n\n1. UE Sant Andreu 61 pts\n2. CD Atletico Baleares 59 pts\n3. Torrent CF 54 pts\n#FutbolBalear #SegundaRFEF",
+        "humanized_local": "📊 Clasificación - 2a RFEF Grupo 3 - J26\n\n1. UE Sant Andreu 61 pts\n2. CD Atletico Baleares 59 pts\n3. Torrent CF 54 pts\n#FutbolBalear"
+      },
+      "payload_json": {
+        "content_key": "standings:segunda_rfef_g3_baleares:j26",
+        "source_payload": {
+          "selected_rows_count": 3,
+          "rows": [
+            {"position": 1, "team": "UE Sant Andreu", "points": 61},
+            {"position": 2, "team": "CD Atletico Baleares", "points": 59},
+            {"position": 3, "team": "Torrent CF", "points": 54}
+          ]
+        }
+      },
+      "expected_data_points": ["UE Sant Andreu", "61 pts", "CD Atletico Baleares", "59 pts", "Torrent CF", "54 pts"],
+      "expected_handles": [],
+      "expected_hashtags": ["#FutbolBalear", "#SegundaRFEF"]
+    },
+    {
+      "id": "dp_standings_roundup_top",
+      "group": "data_pure",
+      "content_type": "standings_roundup",
+      "competition_slug": "tercera_rfef_g11",
+      "status": "published",
+      "priority": 92,
+      "approval_precheck": false,
+      "draft_text": "📊 Clasificación - 3a RFEF Grupo 11 - J28 (1/2)\n\n1. CD Llosetense 58 pts\n2. SD Portmany 57 pts\n3. CE Mercadal 51 pts\n#FutbolBalear #TerceraRFEF",
+      "variants": {
+        "current_rewrite": "📊 Clasificación - 3a RFEF Grupo 11 - J28 (1/2)\n\n1. CD Llosetense 58 pts\n2. SD Portmany 57 pts\n3. CE Mercadal 51 pts\n#FutbolBalear #TerceraRFEF",
+        "humanized_local": "📊 Clasificación - 3a RFEF Grupo 11 - J28 (1/2)\n\nCD Llosetense manda con 58 pts.\nSD Portmany sigue con 57 pts.\nCE Mercadal está en 51 pts.\n#FutbolBalear #TerceraRFEF"
+      },
+      "payload_json": {
+        "content_key": "standings_roundup:tercera_rfef_g11:j28:top",
+        "source_payload": {
+          "selected_rows_count": 3,
+          "part_total": 2,
+          "part_index": 1,
+          "split_focus": "top",
+          "rows": [
+            {"position": 1, "team": "CD Llosetense", "points": 58},
+            {"position": 2, "team": "SD Portmany", "points": 57},
+            {"position": 3, "team": "CE Mercadal", "points": 51}
+          ]
+        }
+      },
+      "expected_data_points": ["CD Llosetense", "58 pts", "SD Portmany", "57 pts", "CE Mercadal", "51 pts", "(1/2)"],
+      "expected_handles": [],
+      "expected_hashtags": ["#FutbolBalear", "#TerceraRFEF"]
+    },
+    {
+      "id": "dp_standings_roundup_relegation",
+      "group": "data_pure",
+      "content_type": "standings_roundup",
+      "competition_slug": "segunda_rfef_g3_baleares",
+      "status": "published",
+      "priority": 91,
+      "approval_precheck": false,
+      "draft_text": "📊 Clasificación - 2a RFEF Grupo 3 - J26 (2/2)\n\n2. CD Atletico Baleares 59 pts\n3. Torrent CF 54 pts\n4. UE Porreres 48 pts\n#FutbolBalear #SegundaRFEF",
+      "variants": {
+        "current_rewrite": "📊 Clasificación - 2a RFEF Grupo 3 - J26 (2/2)\n\n2. CD Atletico Baleares 59 pts\n3. Torrent CF 54 pts\n4. UE Porreres 48 pts\n#FutbolBalear #SegundaRFEF",
+        "humanized_local": "📊 Clasificación - 2a RFEF Grupo 3 - J26 (2/2)\n\nCD Atletico Baleares queda en 59 pts.\nTorrent CF sigue con 54 pts.\n#FutbolBalear #SegundaRFEF"
+      },
+      "payload_json": {
+        "content_key": "standings_roundup:segunda_rfef_g3_baleares:j26:bottom",
+        "source_payload": {
+          "selected_rows_count": 3,
+          "part_total": 2,
+          "part_index": 2,
+          "split_focus": "relegation",
+          "rows": [
+            {"position": 2, "team": "CD Atletico Baleares", "points": 59},
+            {"position": 3, "team": "Torrent CF", "points": 54},
+            {"position": 4, "team": "UE Porreres", "points": 48}
+          ]
+        }
+      },
+      "expected_data_points": ["CD Atletico Baleares", "59 pts", "Torrent CF", "54 pts", "UE Porreres", "48 pts", "(2/2)"],
+      "expected_handles": [],
+      "expected_hashtags": ["#FutbolBalear", "#SegundaRFEF"]
+    },
+    {
+      "id": "dp_ranking_attack",
+      "group": "data_pure",
+      "content_type": "ranking",
+      "competition_slug": "tercera_rfef_g11",
+      "status": "published",
+      "priority": 90,
+      "approval_precheck": false,
+      "draft_text": "🏆 Ataque - 3a RFEF Grupo 11\n\n1. CD Llosetense 24 goles\n2. SD Portmany 21 goles\n3. CE Mercadal 19 goles\n#FutbolBalear #TerceraRFEF",
+      "variants": {
+        "current_rewrite": "🏆 Ataque - 3a RFEF Grupo 11\n\n1. CD Llosetense 24 goles\n2. SD Portmany 21 goles\n3. CE Mercadal 19 goles\n#FutbolBalear #TerceraRFEF",
+        "humanized_local": "🏆 Ataque - 3a RFEF Grupo 11\n\nCD Llosetense lidera con 24 goles.\nSD Portmany está en 21.\nCE Mercadal suma 19.\n#FutbolBalear #TerceraRFEF"
+      },
+      "payload_json": {
+        "content_key": "ranking:attack:tercera_rfef_g11:j28",
+        "source_payload": {
+          "best_attack": {"team": "CD Llosetense", "value": 24},
+          "best_defense": {"team": "SD Portmany", "value": 10},
+          "most_wins": {"team": "CE Mercadal", "value": 15}
+        }
+      },
+      "expected_data_points": ["CD Llosetense", "24 goles", "SD Portmany", "21", "CE Mercadal", "19"],
+      "expected_handles": [],
+      "expected_hashtags": ["#FutbolBalear", "#TerceraRFEF"]
+    },
+    {
+      "id": "dp_top_scorer_t2",
+      "group": "data_pure",
+      "content_type": "top_scorer_update",
+      "competition_slug": "segunda_rfef_g3_baleares",
+      "status": "published",
+      "priority": 89,
+      "approval_precheck": false,
+      "draft_text": "Goleadores al día en 2a RFEF Grupo 3: Joan Serra lidera con 6 goles para Torrent CF, por delante de Marc Riera con 4 en UE Porreres. @UEPorreres #FutbolBalear #SegundaRFEF",
+      "variants": {
+        "current_rewrite": "Goleadores al día en 2a RFEF Grupo 3: Joan Serra lidera con 6 goles para Torrent CF, por delante de Marc Riera con 4 en UE Porreres. @UEPorreres #FutbolBalear #SegundaRFEF",
+        "humanized_local": "Joan Serra sigue al frente con 6 goles para Torrent CF y Marc Riera persigue con 4 en UE Porreres. #FutbolBalear #SegundaRFEF"
+      },
+      "payload_json": {
+        "content_key": "top_scorer:segunda_rfef_g3_baleares:j26",
+        "source_payload": {
+          "leader_goals": 6,
+          "scorer_matches_count": 3,
+          "goal_events_count": 6,
+          "leader": {"player": "Joan Serra", "team": "Torrent CF", "goals": 6},
+          "rows": [
+            {"player": "Joan Serra", "team": "Torrent CF", "goals": 6},
+            {"player": "Marc Riera", "team": "UE Porreres", "goals": 4}
+          ]
+        }
+      },
+      "expected_data_points": ["Joan Serra", "6 goles", "Torrent CF", "Marc Riera", "4", "UE Porreres"],
+      "expected_handles": ["@UEPorreres"],
+      "expected_hashtags": ["#FutbolBalear", "#SegundaRFEF"]
+    },
+    {
+      "id": "hm_preview_torrent",
+      "group": "humanizable",
+      "content_type": "preview",
+      "competition_slug": "segunda_rfef_g3_baleares",
+      "status": "published",
+      "priority": 88,
+      "approval_precheck": false,
+      "draft_text": "🔎 Previa - 2a RFEF Grupo 3 - J27\n\nTorrent CF recibe a UE Porreres este domingo a las 12:00. Dos puntos separan a ambos antes de la jornada. @UEPorreres #FutbolBalear #SegundaRFEF",
+      "variants": {
+        "current_rewrite": "🔎 Previa - 2ª RFEF - G3 - J27\nPartidos: Torrent CF vs UE Porreres\nPartido clave: Torrent CF vs UE Porreres\nDomingo 12:00, 2 puntos entre ambos.\n#FutbolBalear #2aRFEF",
+        "humanized_local": "🔎 Previa - 2ª RFEF - G3 - J27\nPartidos: Torrent CF vs UE Porreres\nPartido clave: Torrent CF vs UE Porreres\nDomingo 12:00, 2 puntos entre ambos.\n#FutbolBalear #2aRFEF"
+      },
+      "payload_json": {
+        "content_key": "preview:segunda_rfef_g3_baleares:j27:torrent-porreres",
+        "source_payload": {
+          "home_team": "Torrent CF",
+          "away_team": "UE Porreres",
+          "match_time": "12:00",
+          "points_gap": 2,
+          "round_number": 27
+        }
+      },
+      "expected_data_points": ["Torrent CF", "UE Porreres", "12:00", "2 puntos"],
+      "expected_handles": [],
+      "expected_hashtags": ["#FutbolBalear", "#2aRFEF"]
+    },
+    {
+      "id": "hm_preview_llosetense",
+      "group": "humanizable",
+      "content_type": "preview",
+      "competition_slug": "tercera_rfef_g11",
+      "status": "published",
+      "priority": 87,
+      "approval_precheck": false,
+      "draft_text": "🔎 Previa - 3a RFEF Grupo 11 - J29\n\nCD Llosetense y SD Portmany se cruzan el sábado a las 18:00 con un punto de margen por el liderato. @CD_Llosetense @sdportmany #FutbolBalear #TerceraRFEF",
+      "variants": {
+        "current_rewrite": "🔎 Previa - 3ª RFEF - G11 - J29\nPartidos: CD Llosetense vs SD Portmany\nPartido clave: CD Llosetense vs SD Portmany\nSabado 18:00, 1 punto por el liderato.\n#FutbolBalear #3aRFEF",
+        "humanized_local": "🔎 Previa - 3ª RFEF - G11 - J29\nPartidos: CD Llosetense vs SD Portmany\nPartido clave: CD Llosetense vs SD Portmany\nSabado 18:00, 1 punto por el liderato.\n#FutbolBalear #3aRFEF"
+      },
+      "payload_json": {
+        "content_key": "preview:tercera_rfef_g11:j29:llosetense-portmany",
+        "source_payload": {
+          "home_team": "CD Llosetense",
+          "away_team": "SD Portmany",
+          "match_time": "18:00",
+          "points_gap": 1,
+          "round_number": 29
+        }
+      },
+      "expected_data_points": ["CD Llosetense", "SD Portmany", "18:00", "1 punto"],
+      "expected_handles": [],
+      "expected_hashtags": ["#FutbolBalear", "#3aRFEF"]
+    },
+    {
+      "id": "hm_preview_santandreu",
+      "group": "humanizable",
+      "content_type": "preview",
+      "competition_slug": "segunda_rfef_g3_baleares",
+      "status": "published",
+      "priority": 86,
+      "approval_precheck": false,
+      "draft_text": "🔎 Previa - 2a RFEF Grupo 3 - J27\n\nUE Sant Andreu recibe a CD Atletico Baleares el domingo a las 18:30. El segundo visita al líder con dos puntos de distancia. @atleticbalears #FutbolBalear #SegundaRFEF",
+      "variants": {
+        "current_rewrite": "🔎 Previa - 2ª RFEF - G3 - J27\nPartidos: UE Sant Andreu vs CD Atletico Baleares\nPartido clave: UE Sant Andreu vs CD Atletico Baleares\nDomingo 18:30, 2 puntos entre lider y segundo.\n#FutbolBalear #2aRFEF",
+        "humanized_local": "🔎 Previa - 2ª RFEF - G3 - J27\nPartidos: UE Sant Andreu vs CD Atletico Baleares\nPartido clave: UE Sant Andreu vs CD Atletico Baleares\nDomingo 18:30, 2 puntos entre lider y segundo.\n#FutbolBalear #2aRFEF"
+      },
+      "payload_json": {
+        "content_key": "preview:segunda_rfef_g3_baleares:j27:santandreu-atb",
+        "source_payload": {
+          "home_team": "UE Sant Andreu",
+          "away_team": "CD Atletico Baleares",
+          "match_time": "18:30",
+          "points_gap": 2,
+          "round_number": 27
+        }
+      },
+      "expected_data_points": ["UE Sant Andreu", "CD Atletico Baleares", "18:30", "2 puntos"],
+      "expected_handles": [],
+      "expected_hashtags": ["#FutbolBalear", "#2aRFEF"]
+    },
+    {
+      "id": "hm_viral_llosetense",
+      "group": "humanizable",
+      "content_type": "viral_story",
+      "competition_slug": "tercera_rfef_g11",
+      "status": "published",
+      "priority": 84,
+      "approval_precheck": false,
+      "draft_text": "CD Llosetense encadena 4 victorias seguidas y sigue al frente en 3a RFEF Grupo 11. @CD_Llosetense #FutbolBalear #TerceraRFEF",
+      "variants": {
+        "current_rewrite": "💪🏼 Forma\n\nMolt bona feina.\n\nCD Llosetense encadena 4 victorias seguidas y sigue al frente en 3a RFEF Grupo 11. @CD_Llosetense #FutbolBalear #TerceraRFEF",
+        "humanized_local": "💪🏼 Forma\n\nMolt bona feina.\n\nCD Llosetense encadena 4 victorias seguidas y sigue al frente en 3a RFEF Grupo 11. @CD_Llosetense #FutbolBalear #TerceraRFEF"
+      },
+      "payload_json": {
+        "content_key": "viral:win_streak:tercera_rfef_g11:llosetense",
+        "source_payload": {
+          "story_type": "win_streak",
+          "teams": ["CD Llosetense"],
+          "title": "Racha de victorias de CD Llosetense",
+          "metric_value": 4,
+          "streak_length": 4
+        }
+      },
+      "expected_data_points": ["CD Llosetense", "4 victorias", "3a RFEF Grupo 11"],
+      "expected_handles": ["@CD_Llosetense"],
+      "expected_hashtags": ["#FutbolBalear", "#TerceraRFEF"]
+    },
+    {
+      "id": "hm_viral_atb_hot_form",
+      "group": "humanizable",
+      "content_type": "viral_story",
+      "competition_slug": "segunda_rfef_g3_baleares",
+      "status": "published",
+      "priority": 83,
+      "approval_precheck": false,
+      "draft_text": "CD Atletico Baleares firma 10 puntos de 12 recientes y sigue en la pelea alta de 2a RFEF Grupo 3. @atleticbalears #FutbolBalear #SegundaRFEF",
+      "variants": {
+        "current_rewrite": "📈 Tendencia\n\nMolt bona feina.\n\nCD Atlético Baleares firma 10 puntos de 12 recientes y sigue en la pelea alta de 2a RFEF Grupo 3. @atleticbalears #FutbolBalear #SegundaRFEF",
+        "humanized_local": "📈 Tendencia\n\nMolt bona feina.\n\nCD Atlético Baleares firma 10 puntos de 12 recientes y sigue en la pelea alta de 2a RFEF Grupo 3. @atleticbalears #FutbolBalear #SegundaRFEF"
+      },
+      "payload_json": {
+        "content_key": "viral:hot_form:segunda_rfef_g3_baleares:atb",
+        "source_payload": {
+          "story_type": "hot_form",
+          "teams": ["CD Atletico Baleares"],
+          "title": "Forma reciente de CD Atletico Baleares",
+          "metric_value": 10,
+          "recent_points": 10
+        }
+      },
+      "expected_data_points": ["CD Atlético Baleares", "10 puntos", "2a RFEF Grupo 3"],
+      "expected_handles": ["@atleticbalears"],
+      "expected_hashtags": ["#FutbolBalear", "#SegundaRFEF"]
+    },
+    {
+      "id": "hm_viral_torrent_trend",
+      "group": "humanizable",
+      "content_type": "viral_story",
+      "competition_slug": "segunda_rfef_g3_baleares",
+      "status": "published",
+      "priority": 82,
+      "approval_precheck": false,
+      "draft_text": "Torrent CF ha subido 0.8 goles por partido en sus 5 encuentros recientes dentro de 2a RFEF Grupo 3. #FutbolBalear #SegundaRFEF",
+      "variants": {
+        "current_rewrite": "📈 Tendencia\n\nTorrent CF ha subido 0.8 goles por partido en sus 5 encuentros recientes dentro de 2a RFEF Grupo 3. #FutbolBalear #SegundaRFEF",
+        "humanized_local": "📈 Tendencia\n\nTorrent CF ha subido 0.8 goles por partido en sus 5 encuentros recientes dentro de 2a RFEF Grupo 3. #FutbolBalear #SegundaRFEF"
+      },
+      "payload_json": {
+        "content_key": "viral:goals_trend:segunda_rfef_g3_baleares:torrent",
+        "source_payload": {
+          "story_type": "goals_trend",
+          "teams": ["Torrent CF"],
+          "title": "Tendencia ofensiva de Torrent CF",
+          "metric_value": 0.8,
+          "recent_matches": 5,
+          "delta": 0.8
+        }
+      },
+      "expected_data_points": ["Torrent CF", "0.8", "5", "2a RFEF Grupo 3"],
+      "expected_handles": [],
+      "expected_hashtags": ["#FutbolBalear", "#SegundaRFEF"]
+    },
+    {
+      "id": "hm_race_title_t3",
+      "group": "humanizable",
+      "content_type": "race_narrative",
+      "competition_slug": "tercera_rfef_g11",
+      "status": "draft",
+      "priority": 87,
+      "approval_precheck": true,
+      "draft_text": "CD Llosetense y SD Portmany llegan a la recta final separados por 1 punto con 4 jornadas por delante en la pelea por el liderato.",
+      "variants": {
+        "current_rewrite": "CD Llosetense y SD Portmany afrontan la recta final separados por 1 punto, con 4 jornadas por delante en la pelea por el liderato.",
+        "humanized_local": "CD Llosetense y SD Portmany entran en el tramo final con el liderato apretado: 1 punto entre ambos y 4 jornadas por jugar."
+      },
+      "payload_json": {
+        "content_key": "race_narrative:title_race:tercera_rfef_g11:1:llosetense-portmany",
+        "source_payload": {
+          "narrative_type": "title_race",
+          "target_label": "liderato",
+          "target_position": 1,
+          "team_count": 2,
+          "points_span": 1,
+          "rounds_remaining": 4,
+          "teams": [
+            {"team": "CD Llosetense", "position": 1, "points": 58, "gap_to_target": 0},
+            {"team": "SD Portmany", "position": 2, "points": 57, "gap_to_target": 1}
+          ]
+        }
+      },
+      "expected_data_points": ["CD Llosetense", "SD Portmany", "1 punto", "4 jornadas"],
+      "expected_handles": [],
+      "expected_hashtags": []
+    },
+    {
+      "id": "hm_race_playoff_t2",
+      "group": "humanizable",
+      "content_type": "race_narrative",
+      "competition_slug": "segunda_rfef_g3_baleares",
+      "status": "draft",
+      "priority": 84,
+      "approval_precheck": true,
+      "draft_text": "Torrent CF y UE Porreres llegan separados por 2 puntos con 6 jornadas por delante en la carrera por la zona de playoff.",
+      "variants": {
+        "current_rewrite": "Torrent CF y UE Porreres encaran 6 jornadas por delante con 2 puntos de margen en la pelea por la zona de playoff.",
+        "humanized_local": "Torrent CF y UE Porreres entran en la carrera por el playoff con margen corto y seis jornadas por delante."
+      },
+      "payload_json": {
+        "content_key": "race_narrative:playoff_race:segunda_rfef_g3_baleares:4:torrent-porreres",
+        "source_payload": {
+          "narrative_type": "playoff_race",
+          "target_label": "playoff",
+          "target_position": 4,
+          "team_count": 3,
+          "points_span": 2,
+          "rounds_remaining": 6,
+          "teams": [
+            {"team": "Torrent CF", "position": 3, "points": 54, "gap_to_target": 0},
+            {"team": "UE Porreres", "position": 4, "points": 52, "gap_to_target": 2},
+            {"team": "CD Atletico Baleares", "position": 2, "points": 55, "gap_to_target": -1}
+          ]
+        }
+      },
+      "expected_data_points": ["Torrent CF", "UE Porreres", "2 puntos", "6 jornadas"],
+      "expected_handles": [],
+      "expected_hashtags": []
+    },
+    {
+      "id": "hm_milestone_atb",
+      "group": "humanizable",
+      "content_type": "milestone_story",
+      "competition_slug": "segunda_rfef_g3_baleares",
+      "status": "published",
+      "priority": 81,
+      "approval_precheck": false,
+      "draft_text": "CD Atletico Baleares alcanza 20 goles a favor tras 12 jornadas en 2a RFEF Grupo 3. @atleticbalears #FutbolBalear #SegundaRFEF",
+      "variants": {
+        "current_rewrite": "CD Atletico Baleares alcanza los 20 goles a favor después de 12 jornadas en 2a RFEF Grupo 3. @atleticbalears #FutbolBalear #SegundaRFEF",
+        "humanized_local": "CD Atletico Baleares ya está en 20 goles a favor tras 12 jornadas de 2a RFEF Grupo 3. @atleticbalears #FutbolBalear #SegundaRFEF"
+      },
+      "payload_json": {
+        "content_key": "milestone_story:segunda_rfef_g3_baleares:atb:20-goals",
+        "source_payload": {
+          "team": "CD Atletico Baleares",
+          "metric_value": 20,
+          "milestone_label": "20 goles a favor",
+          "played_matches": 12
+        }
+      },
+      "expected_data_points": ["CD Atletico Baleares", "20 goles", "12 jornadas", "2a RFEF Grupo 3"],
+      "expected_handles": ["@atleticbalears"],
+      "expected_hashtags": ["#FutbolBalear", "#SegundaRFEF"]
+    },
+    {
+      "id": "hm_milestone_manacor",
+      "group": "humanizable",
+      "content_type": "milestone_story",
+      "competition_slug": "tercera_rfef_g11",
+      "status": "published",
+      "priority": 80,
+      "approval_precheck": false,
+      "draft_text": "CD Manacor firma 12 partidos jugados y se mantiene con 15 goles a favor en 3a RFEF Grupo 11. #FutbolBalear #TerceraRFEF",
+      "variants": {
+        "current_rewrite": "CD Manacor completa 12 partidos y se sostiene en 15 goles a favor dentro de 3a RFEF Grupo 11. #FutbolBalear #TerceraRFEF",
+        "humanized_local": "CD Manacor sigue dejando su registro ofensivo en 15 goles dentro de 3a RFEF Grupo 11. #FutbolBalear #TerceraRFEF"
+      },
+      "payload_json": {
+        "content_key": "milestone_story:tercera_rfef_g11:manacor:15-goals",
+        "source_payload": {
+          "team": "CD Manacor",
+          "metric_value": 15,
+          "milestone_label": "15 goles a favor",
+          "played_matches": 12
+        }
+      },
+      "expected_data_points": ["CD Manacor", "15 goles", "12 partidos", "3a RFEF Grupo 11"],
+      "expected_handles": [],
+      "expected_hashtags": ["#FutbolBalear", "#TerceraRFEF"]
+    }
+  ]
+}

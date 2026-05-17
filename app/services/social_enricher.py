@@ -89,8 +89,8 @@ class SocialEnricherService:
         rows: list[tuple[str, str, int, int, int]] = []
         for index, team_name in enumerate(team_names):
             social_info = self.identity_service.get_team_social_info(team_name, competition_slug=competition_slug)
-            handle = social_info.get("x_handle")
-            if not isinstance(handle, str) or not handle.strip():
+            handle = self._validated_handle(social_info.get("x_handle"))
+            if handle is None:
                 continue
             activity_level = str(social_info.get("activity_level") or "media")
             rows.append(
@@ -200,6 +200,14 @@ class SocialEnricherService:
         if position < 0:
             return text, False
         return f"{text[:position]}{replacement}{text[position + len(needle) :]}", True
+
+    def _validated_handle(self, value: Any) -> str | None:
+        if not isinstance(value, str):
+            return None
+        normalized = value.strip()
+        if not _HANDLE_PATTERN.fullmatch(normalized):
+            return None
+        return normalized
 
     def _unique(self, values) -> list[str]:
         seen: set[str] = set()

@@ -4,7 +4,10 @@ import json
 
 import typer
 
+from app.core.config import get_settings
 from app.core.exceptions import ConfigurationError, InvalidStateTransitionError
+from app.core.logging import configure_logging
+from app.core.run_context import set_run_id
 from app.db.session import init_db, session_scope
 from app.llm.providers.base import LLMConfigurationError, LLMProviderError
 from app.presenters.editorial_rewrite import (
@@ -31,6 +34,9 @@ def show_candidate(
     candidate_id: int = typer.Option(..., "--id", help="ID del content candidate"),
     as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
 ) -> None:
+    set_run_id()
+    settings = get_settings()
+    configure_logging(settings.log_level, settings.log_json)
     init_db()
     with session_scope() as session:
         try:
@@ -49,6 +55,9 @@ def dry_run_candidate(
     overwrite: bool = typer.Option(False, "--overwrite", help="Permite recalcular aunque ya exista rewritten_text"),
     as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
 ) -> None:
+    set_run_id()
+    settings = get_settings()
+    configure_logging(settings.log_level, settings.log_json)
     init_db()
     with session_scope() as session:
         service = EditorialRewriterService(session)
@@ -73,6 +82,9 @@ def rewrite_candidate(
     overwrite: bool = typer.Option(False, "--overwrite", help="Permite reemplazar rewritten_text existente"),
     as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
 ) -> None:
+    set_run_id()
+    settings = get_settings()
+    configure_logging(settings.log_level, settings.log_json)
     init_db()
     error_message: str | None = None
     result = None
@@ -102,6 +114,9 @@ def rewrite_pending(
     overwrite: bool = typer.Option(False, "--overwrite", help="Permite reemplazar rewritten_text existente"),
     as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
 ) -> None:
+    set_run_id()
+    settings = get_settings()
+    configure_logging(settings.log_level, settings.log_json)
     init_db()
     with session_scope() as session:
         service = EditorialRewriterService(session)

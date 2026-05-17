@@ -6,7 +6,9 @@ import re
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.core.config import Settings
 from app.core.enums import ContentCandidateStatus, ContentType, NarrativeMetricType, ViralStoryType
+from app.core.editorial_voice import load_editorial_voice_pack
 from app.db.base import Base
 from app.db.models import Competition, TeamMention
 from app.schemas.editorial_content import ContentCandidateDraft
@@ -90,6 +92,184 @@ def test_format_results_summary_uses_new_editorial_title_and_hashtags() -> None:
         assert formatted.startswith("📋 Resultados - 3ª RFEF - G11 - J26")
         assert "@cdmanacor" not in formatted
         assert formatted.rstrip().endswith("#FutbolBalear #3aRFEF")
+    finally:
+        session.close()
+
+
+def test_editorial_voice_pack_is_small_and_conservative() -> None:
+    voice_pack = load_editorial_voice_pack()
+
+    assert voice_pack.usage.apply_only_when_requested is True
+    assert voice_pack.usage.optional is True
+    assert voice_pack.usage.max_local_expressions_per_piece == 1
+    assert set(voice_pack.blocked_content_types) >= {
+        "match_result",
+        "results_roundup",
+        "standings",
+        "standings_roundup",
+        "top_scorer_update",
+    }
+    assert {resource.id: resource.text for resource in voice_pack.resources} == {
+        "uep": "Uep",
+        "quin_partidas": "quin partidàs",
+        "molt_bona_feina": "molt bona feina",
+    }
+
+
+def test_editorial_voice_applies_one_allowlisted_pincelada_to_preview() -> None:
+    session = build_session()
+    try:
+        seed_catalog(session)
+        service = EditorialFormatterService(session)
+        draft = ContentCandidateDraft(
+            competition_slug="segunda_rfef_g3_baleares",
+            content_type=ContentType.PREVIEW,
+            priority=90,
+            text_draft="PREVIA",
+            source_summary_hash="hash-preview-local-voice",
+            status=ContentCandidateStatus.DRAFT,
+            payload_json={
+                "competition_name": "2a RFEF con equipos baleares",
+                "editorial_voice": {
+                    "mode": "preview_light",
+                    "resource_ids": ["quin_partidas", "uep"],
+                },
+                "source_payload": {
+                    "featured_match": {"round_name": "Jornada 28", "home_team": "Atletico Baleares", "away_team": "UD Poblense"},
+                    "matches": [
+                        {"round_name": "Jornada 28", "home_team": "Atletico Baleares", "away_team": "UD Poblense"},
+                        {"round_name": "Jornada 28", "home_team": "UE Sant Andreu", "away_team": "UE Olot"},
+                    ],
+                },
+            },
+        )
+
+        layers = service.build_text_layers_for_draft(draft)
+
+        assert layers.formatted_text is not None
+        assert "Quin partidàs." in layers.formatted_text
+        assert "Uep." not in layers.formatted_text
+        assert layers.formatted_text.count("Quin partidàs.") == 1
+        assert layers.viral_formatted_text is not None
+        assert "Quin partidàs." in layers.viral_formatted_text
+        assert "Uep." not in layers.viral_formatted_text
+    finally:
+        session.close()
+
+
+def test_editorial_voice_does_not_apply_to_match_result() -> None:
+    session = build_session()
+    try:
+        seed_catalog(session)
+        service = EditorialFormatterService(session)
+        draft = ContentCandidateDraft(
+            competition_slug="tercera_rfef_g11",
+            content_type=ContentType.MATCH_RESULT,
+            priority=92,
+            text_draft="CD Manacor gana en casa.",
+            source_summary_hash="hash-match-result-local-voice",
+            status=ContentCandidateStatus.DRAFT,
+            payload_json={
+                "competition_name": "3a RFEF Baleares",
+                "editorial_voice": {
+                    "mode": "preview_light",
+                    "resource_id": "uep",
+                },
+                "source_payload": {
+                    "round_name": "Jornada 26",
+                    "home_team": "CD Manacor",
+                    "away_team": "RCD Mallorca B",
+                    "home_score": 2,
+                    "away_score": 1,
+                },
+            },
+        )
+
+        formatted = service.apply_to_draft(draft).formatted_text
+
+        assert formatted is not None
+        assert "Uep." not in formatted
+        assert "Quin partidàs." not in formatted
+        assert "Molt bona feina." not in formatted
+    finally:
+        session.close()
+
+
+def test_editorial_voice_can_be_derived_for_phase3_preview_without_persisted_request() -> None:
+    session = build_session()
+    try:
+        seed_catalog(session)
+        service = EditorialFormatterService(
+            session,
+            settings=Settings(
+                database_url="sqlite+pysqlite:///:memory:",
+                editorial_rewrite_humanized_local_enabled=True,
+                editorial_phase3_rollout_enabled=True,
+            ),
+        )
+        draft = ContentCandidateDraft(
+            competition_slug="segunda_rfef_g3_baleares",
+            content_type=ContentType.PREVIEW,
+            priority=90,
+            text_draft="PREVIA",
+            source_summary_hash="hash-preview-derived-local-voice",
+            status=ContentCandidateStatus.DRAFT,
+            payload_json={
+                "competition_name": "2a RFEF con equipos baleares",
+                "source_payload": {
+                    "featured_match": {
+                        "round_name": "Jornada 28",
+                        "home_team": "Atletico Baleares",
+                        "away_team": "UD Poblense",
+                    },
+                    "matches": [
+                        {"round_name": "Jornada 28", "home_team": "Atletico Baleares", "away_team": "UD Poblense"},
+                    ],
+                },
+            },
+        )
+
+        formatted = service.apply_to_draft(draft).formatted_text
+
+        assert formatted is not None
+        assert "Quin partidàs." in formatted
+    finally:
+        session.close()
+
+
+def test_editorial_voice_limits_viral_story_to_single_pincelada() -> None:
+    session = build_session()
+    try:
+        seed_catalog(session)
+        service = EditorialFormatterService(session)
+        draft = ContentCandidateDraft(
+            competition_slug="tercera_rfef_g11",
+            content_type=ContentType.VIRAL_STORY,
+            priority=75,
+            text_draft="CD Manacor suma 5 victorias seguidas en 3a RFEF Baleares.",
+            source_summary_hash="hash-viral-local-voice",
+            status=ContentCandidateStatus.DRAFT,
+            scheduled_at=datetime(2026, 3, 17, 10, 0, tzinfo=timezone.utc),
+            payload_json={
+                "competition_name": "3a RFEF Baleares",
+                "editorial_voice": {
+                    "mode": "viral_story_light",
+                    "resource_ids": ["molt_bona_feina", "uep", "quin_partidas"],
+                },
+                "source_payload": {
+                    "story_type": str(ViralStoryType.WIN_STREAK),
+                    "team": "CD Manacor",
+                    "metric_value": 5,
+                },
+            },
+        )
+
+        formatted = service.apply_to_draft(draft).formatted_text
+
+        assert formatted is not None
+        assert "Molt bona feina." in formatted
+        assert "Uep." not in formatted
+        assert "Quin partidàs." not in formatted
     finally:
         session.close()
 
@@ -740,12 +920,49 @@ def test_build_text_layers_produce_viral_preview_with_key_match_mentions() -> No
 
         assert layers.viral_formatted_text is not None
         assert layers.viral_formatted_text.startswith("🔎 Previa - 2ª RFEF - G3 - J28")
-        assert "Partidos:\nAtlético Baleares vs UD Poblense" in layers.viral_formatted_text
-        assert "Partido clave:" in layers.viral_formatted_text
-        assert "Partido clave:\n@atleticbalears vs UD Poblense" in layers.viral_formatted_text
+        assert "Partidos: Atlético Baleares vs UD Poblense | UE Sant Andreu vs UE Olot" in layers.viral_formatted_text
+        assert "Partido clave: @atleticbalears vs UD Poblense" in layers.viral_formatted_text
         assert "2o vs 3o | duelo directo por playoff | 11 y 9 pts de 15" in layers.viral_formatted_text
         assert layers.viral_formatted_text.count("@atleticbalears") == 1
         assert layers.viral_formatted_text.endswith("#FutbolBalear #2aRFEF")
+    finally:
+        session.close()
+
+
+def test_preview_format_stays_below_quality_line_break_limit() -> None:
+    session = build_session()
+    try:
+        seed_catalog(session)
+        service = EditorialFormatterService(session)
+        draft = ContentCandidateDraft(
+            competition_slug="tercera_rfef_g11",
+            content_type=ContentType.PREVIEW,
+            priority=90,
+            text_draft="PREVIA",
+            source_summary_hash="hash-preview-line-breaks",
+            status=ContentCandidateStatus.DRAFT,
+            payload_json={
+                "competition_name": "3a RFEF Baleares",
+                "source_payload": {
+                    "featured_match": {"round_name": "Jornada 30", "home_team": "UD Collerense", "away_team": "CE Santanyí"},
+                    "matches": [
+                        {"round_name": "Jornada 30", "home_team": "UD Collerense", "away_team": "CE Santanyí"},
+                        {"round_name": "Jornada 30", "home_team": "UD Rotlet Molinar", "away_team": "CD Son Cladera"},
+                        {"round_name": "Jornada 30", "home_team": "SD Portmany", "away_team": "UE Alcúdia"},
+                    ],
+                },
+            },
+        )
+
+        formatted = service.apply_to_draft(draft).formatted_text
+
+        assert formatted is not None
+        assert formatted.count("\n") < 10
+        assert (
+            "Partidos: UD Collerense vs CE Santanyí | UD Rotlet Molinar vs CD Son Cladera | "
+            "SD Portmany vs UE Alcúdia"
+        ) in formatted
+        assert "Partido clave: UD Collerense vs CE Santanyí" in formatted
     finally:
         session.close()
 

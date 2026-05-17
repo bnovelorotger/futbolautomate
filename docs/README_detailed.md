@@ -1222,23 +1222,23 @@ Ademas, hay guias especificas por tipo:
 
 ### Proveedor y configuracion
 
-La estructura queda preparada para cambiar de proveedor sin tocar la logica editorial. La implementacion inicial usa un adaptador OpenAI via Responses API.
+La estructura queda preparada para cambiar de proveedor sin tocar la logica editorial. Ahora soporta adaptadores `groq` y `openai`.
 
 Variables de entorno:
 
 ```bash
-EDITORIAL_REWRITE_PROVIDER=openai
+EDITORIAL_REWRITE_PROVIDER=groq
 EDITORIAL_REWRITE_API_KEY=...
-EDITORIAL_REWRITE_API_URL=https://api.openai.com/v1/responses
-EDITORIAL_REWRITE_MODEL=...
+EDITORIAL_REWRITE_API_URL=https://api.groq.com/openai/v1/chat/completions
+EDITORIAL_REWRITE_MODEL=openai/gpt-oss-20b
 EDITORIAL_REWRITE_MAX_CHARS=280
 ```
 
 Notas:
 
-- `EDITORIAL_REWRITE_PROVIDER`: hoy soporta `openai`
+- `EDITORIAL_REWRITE_PROVIDER`: hoy soporta `groq` y `openai`
 - `EDITORIAL_REWRITE_API_KEY`: obligatoria para modo real
-- `EDITORIAL_REWRITE_API_URL`: por defecto `https://api.openai.com/v1/responses`
+- `EDITORIAL_REWRITE_API_URL`: para `groq` usar `https://api.groq.com/openai/v1/chat/completions`; para `openai`, `https://api.openai.com/v1/responses`
 - `EDITORIAL_REWRITE_MODEL`: obligatorio para modo real
 - `EDITORIAL_REWRITE_MAX_CHARS`: limita la salida final y por defecto queda en `280`
 
@@ -1310,10 +1310,44 @@ Torrent CF se impuso por 1-0 a la UE Porreres en la jornada 26 de la 2a RFEF Gru
 - si existe `rewritten_text` util, el backend browser puede publicarlo por delante de `viral_formatted_text`, `formatted_text` o `text_draft`
 - la salida externa ya no esta atada a `text_draft` puro
 
+### Politica operativa recomendada
+
+- usar rewrite real cuando `groq` devuelva JSON valido
+- usar fallback automatico a `base_text` cuando el proveedor falle por JSON invalido o `rate limit`
+- revisar a diario la ratio `real vs fallback` para vigilar estabilidad del proveedor y consumo de cuota
+
+Comando:
+
+```bash
+python scripts/editorial_rewrite_daily_metrics.py --days 7 --output logs/editorial_rewrite_daily_metrics.json
+```
+
+### Rollout controlado de fase 3
+
+El rollout activo de humanizacion no es global. Queda acotado a `PREVIEW` y `VIRAL_STORY` y requiere dos flags:
+
+```bash
+EDITORIAL_REWRITE_HUMANIZED_LOCAL_ENABLED=true
+EDITORIAL_PHASE3_ROLLOUT_ENABLED=true
+```
+
+La compuerta fina vive en `app/config/editorial_rollout.json` y el runtime en `app/core/editorial_rollout.py`.
+
+Criterios actuales:
+
+- `PREVIEW`: requiere `featured_match` y prioridad minima `90`
+- `VIRAL_STORY`: requiere prioridad minima `69` y un `story_type` permitido
+
+Documentacion operativa complementaria:
+
+- `docs/editorial_phase3_runbook.md`
+- `docs/editorial_rewrite_rollout_eval.md`
+- `docs/editorial_strategy_review.md`
+
 ### Limitaciones actuales de la reescritura
 
 - la verificacion de exactitud depende de instrucciones y validaciones basicas; no hay chequeo semantico fuerte de todos los hechos
-- hoy solo hay proveedor `openai`, aunque el servicio ya queda desacoplado
+- `groq` usa Chat Completions con `json_schema`; `openai` usa Responses API
 - no se persiste aun una auditoria completa del prompt ni del raw response fuera del adaptador
 - la salida debe caber en `EDITORIAL_REWRITE_MAX_CHARS`; si el modelo se pasa, la reescritura falla
 - si no hay credenciales del proveedor, el modo real no puede validarse; en ese caso el entorno sigue siendo util con `dry-run` y tests con mocks

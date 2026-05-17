@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import logging
 import re
+from collections import Counter
 from collections.abc import Iterable
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
@@ -32,9 +34,12 @@ from app.services.top_scorer_tracker import (
 )
 from app.utils.time import utcnow
 
+logger = logging.getLogger(__name__)
+
 _TEAM_KEYS = {"team", "teams", "home_team", "away_team", "runner_up_team"}
 _METRIC_VALUE_KEYS = {"metric_value", "recent_points", "recent_goals_for", "delta"}
 _MIN_STAT_NARRATIVE_MATCHES = 4
+_AMBIGUOUS_TEAM_IDENTITY_MARKERS = {"baleares", "mallorca", "menorca", "ibiza"}
 _RACE_NARRATIVE_AUTO_RULES: dict[str, dict[str, int]] = {
     "title_race": {
         "min_priority": 86,
@@ -67,7 +72,16 @@ _RACE_NARRATIVE_AUTO_RULES: dict[str, dict[str, int]] = {
 }
 _HANDLE_PATTERN = re.compile(r"(?<!\w)@[A-Za-z0-9_]{1,15}")
 _HASHTAG_PATTERN = re.compile(r"(?<!\w)#[A-Za-z0-9_]+")
+_NUMBER_PATTERN = re.compile(r"\d+(?:[.,]\d+)?")
+_SCORE_PATTERN = re.compile(r"\b\d+\s*-\s*\d+\b")
 _MAX_EDITORIAL_TEXT_LENGTH = 240
+_AI_CLICHE_PATTERNS = (
+    ("rewrite_ai_cliche:en_resumen", re.compile(r"\ben resumen\b")),
+    ("rewrite_ai_cliche:cabe_destacar", re.compile(r"\bcabe destacar\b")),
+    ("rewrite_ai_cliche:es_importante_destacar", re.compile(r"\bes importante destacar\b")),
+    ("rewrite_ai_cliche:conviene_destacar", re.compile(r"\bconviene destacar\b")),
+    ("rewrite_ai_cliche:hay_que_destacar", re.compile(r"\bhay que destacar\b")),
+)
 _COMPACT_ROUNDUP_TITLE_PATTERN = re.compile(r"^.+ - J\d+(?: \(\d+/\d+\))?$")
 _RESULTS_TITLE_PATTERN = re.compile(r"^📋 Resultados - .+ - J\d+(?: \(\d+/\d+\))?$")
 _STANDINGS_TITLE_PATTERN = re.compile(r"^📊 Clasificación - .+ - J\d+(?: \(\d+/\d+\))?$")
@@ -85,6 +99,13 @@ def _excerpt(text: str, limit: int = 110) -> str:
 
 def _normalized_text(text: str) -> str:
     return " ".join(text.split()).strip().lower()
+
+
+def _usable_text(text: str | None) -> str | None:
+    if text is None:
+        return None
+    normalized = text.strip()
+    return normalized or None
 
 
 class EditorialQualityChecksService:
@@ -249,7 +270,7 @@ class EditorialQualityChecksService:
             candidate.quality_checked_at = checked_at
             self.session.add(candidate)
             self.session.flush()
-        return EditorialQualityCheckCandidateDetail(
+        detail = EditorialQualityCheckCandidateDetail(
             id=candidate.id,
             competition_slug=candidate.competition_slug,
             content_type=ContentType(candidate.content_type),
@@ -265,6 +286,24 @@ class EditorialQualityChecksService:
             created_at=candidate.created_at,
             updated_at=candidate.updated_at,
         )
+        logger.info(
+            "editorial_quality_checked",
+            extra={
+                "event": "editorial_quality_checked",
+                "candidate_id": candidate.id,
+                "competition_slug": candidate.competition_slug,
+                "content_type": str(ContentType(candidate.content_type)),
+                "text_source": selection.source,
+                "prefer_rewrite": prefer_rewrite,
+                "approval_precheck": approval_precheck,
+                "quality_passed": detail.passed,
+                "quality_error_count": len(detail.errors),
+                "quality_warning_count": len(detail.warnings),
+                "quality_errors": detail.errors[:5],
+                "persisted": persist,
+            },
+        )
+        return detail
 
     def _detail_to_view(
         self,
@@ -307,6 +346,10 @@ class EditorialQualityChecksService:
             errors.append(f"text_too_long>{max_text_length}")
         elif len(selected_text) >= int(max_text_length * 0.9):
             warnings.append("text_near_limit")
+
+        rewritten_text = _usable_text(candidate.rewritten_text)
+        if rewritten_text is not None and len(rewritten_text) > max_text_length:
+            errors.append(f"rewritten_text_too_long>{max_text_length}")
 
         if "\x00" in selected_text:
             errors.append("text_contains_null_byte")
@@ -368,6 +411,17 @@ class EditorialQualityChecksService:
             errors.append("source_payload_invalid")
             return sorted(set(errors)), warnings
 
+        if rewritten_text is not None:
+            base_text = self._rewrite_base_text(candidate)
+            errors.extend(
+                self._rewrite_integrity_errors(
+                    candidate,
+                    base_text=base_text,
+                    rewritten_text=rewritten_text,
+                    source_payload=source_payload,
+                )
+            )
+
         errors.extend(self._coherence_errors(candidate, source_payload))
         errors.extend(self._structure_errors(candidate, selected_text, source_payload))
         errors.extend(self._duplicate_errors(candidate, selected_text, prefer_rewrite=prefer_rewrite))
@@ -380,6 +434,201 @@ class EditorialQualityChecksService:
         )
 
         return sorted(set(errors)), sorted(set(warnings))
+
+    def _rewrite_base_text(self, candidate: ContentCandidate) -> str:
+        formatted_text = _usable_text(self.text_selector.formatter.format_candidate(candidate)) or _usable_text(
+            candidate.formatted_text
+        )
+        if formatted_text is not None:
+            return formatted_text
+        return candidate.text_draft
+
+    def _rewrite_integrity_errors(
+        self,
+        candidate: ContentCandidate,
+        *,
+        base_text: str,
+        rewritten_text: str,
+        source_payload: dict[str, Any],
+    ) -> list[str]:
+        errors: list[str] = []
+        errors.extend(
+            self._preserved_token_errors(
+                base_tokens=_HANDLE_PATTERN.findall(base_text),
+                rewritten_tokens=_HANDLE_PATTERN.findall(rewritten_text),
+                missing_code="rewrite_handles_missing",
+                unauthorized_code="rewrite_handles_unauthorized",
+            )
+        )
+        errors.extend(
+            self._preserved_token_errors(
+                base_tokens=_HASHTAG_PATTERN.findall(base_text),
+                rewritten_tokens=_HASHTAG_PATTERN.findall(rewritten_text),
+                missing_code="rewrite_hashtags_missing",
+                unauthorized_code="rewrite_hashtags_unauthorized",
+            )
+        )
+        errors.extend(
+            self._rewrite_entity_errors(
+                candidate,
+                base_text=base_text,
+                rewritten_text=rewritten_text,
+                source_payload=source_payload,
+            )
+        )
+        errors.extend(
+            self._rewrite_number_errors(
+                base_text=base_text,
+                rewritten_text=rewritten_text,
+                source_payload=source_payload,
+            )
+        )
+        errors.extend(self._rewrite_cliche_errors(rewritten_text))
+        return errors
+
+    def _preserved_token_errors(
+        self,
+        *,
+        base_tokens: list[str],
+        rewritten_tokens: list[str],
+        missing_code: str,
+        unauthorized_code: str,
+    ) -> list[str]:
+        errors: list[str] = []
+        if not base_tokens and not rewritten_tokens:
+            return errors
+
+        base_counter = Counter(base_tokens)
+        rewritten_counter = Counter(rewritten_tokens)
+        missing = sorted(token for token, count in base_counter.items() if rewritten_counter[token] < count)
+        if missing:
+            errors.append(f"{missing_code}:{','.join(missing)}")
+
+        allowed_tokens = {token.lower() for token in base_tokens}
+        unauthorized = sorted({token for token in rewritten_tokens if token.lower() not in allowed_tokens})
+        if unauthorized:
+            errors.append(f"{unauthorized_code}:{','.join(unauthorized)}")
+        return errors
+
+    def _rewrite_entity_errors(
+        self,
+        candidate: ContentCandidate,
+        *,
+        base_text: str,
+        rewritten_text: str,
+        source_payload: dict[str, Any],
+    ) -> list[str]:
+        allowed_teams = self._extract_team_names(source_payload)
+        if not allowed_teams:
+            return []
+
+        base_teams = [team for team in allowed_teams if self._text_mentions_team(base_text, team)]
+        missing = sorted(team for team in base_teams if not self._text_mentions_team(rewritten_text, team))
+
+        competition_teams = sorted(self._competition_team_names(candidate.competition_slug) | set(allowed_teams))
+        allowed_markers = {
+            marker
+            for team in allowed_teams
+            for marker in self._team_markers(team, allow_ambiguous_identity=False)
+        }
+        unauthorized = sorted(
+            team
+            for team in competition_teams
+            if self._text_mentions_team(rewritten_text, team, allow_ambiguous_identity=False)
+            and set(self._team_markers(team, allow_ambiguous_identity=False)).isdisjoint(allowed_markers)
+        )
+
+        errors: list[str] = []
+        if missing:
+            errors.append(f"rewrite_teams_missing:{','.join(missing)}")
+        if unauthorized:
+            errors.append(f"rewrite_teams_unauthorized:{','.join(unauthorized)}")
+        return errors
+
+    def _rewrite_number_errors(
+        self,
+        *,
+        base_text: str,
+        rewritten_text: str,
+        source_payload: dict[str, Any],
+    ) -> list[str]:
+        base_numbers = [self._normalize_number_token(token) for token in _NUMBER_PATTERN.findall(base_text)]
+        rewritten_numbers = [self._normalize_number_token(token) for token in _NUMBER_PATTERN.findall(rewritten_text)]
+        payload_numbers = [self._normalize_number_token(token) for token in self._payload_number_tokens(source_payload)]
+        allowed_numbers = {token for token in [*base_numbers, *payload_numbers] if token}
+        if not allowed_numbers and not rewritten_numbers:
+            return []
+
+        errors: list[str] = []
+        base_counter = Counter(token for token in base_numbers if token in allowed_numbers)
+        rewritten_counter = Counter(token for token in rewritten_numbers if token)
+        missing_numbers = sorted(token for token, count in base_counter.items() if rewritten_counter[token] < count)
+        if missing_numbers:
+            errors.append(f"rewrite_numbers_missing:{','.join(missing_numbers)}")
+
+        unauthorized_numbers = sorted({token for token in rewritten_numbers if token and token not in allowed_numbers})
+        if unauthorized_numbers:
+            errors.append(f"rewrite_numbers_unauthorized:{','.join(unauthorized_numbers)}")
+
+        base_scores = Counter(self._normalize_score_token(token) for token in _SCORE_PATTERN.findall(base_text))
+        rewritten_scores = Counter(self._normalize_score_token(token) for token in _SCORE_PATTERN.findall(rewritten_text))
+        missing_scores = sorted(token for token, count in base_scores.items() if rewritten_scores[token] < count)
+        if missing_scores:
+            errors.append(f"rewrite_scores_missing:{','.join(missing_scores)}")
+
+        return errors
+
+    def _rewrite_cliche_errors(self, rewritten_text: str) -> list[str]:
+        normalized_text = normalize_token(rewritten_text)
+        return [code for code, pattern in _AI_CLICHE_PATTERNS if pattern.search(normalized_text)]
+
+    def _text_mentions_team(self, text: str, team_name: str, *, allow_ambiguous_identity: bool = True) -> bool:
+        normalized_text = f" {normalize_token(text)} "
+        return any(
+            f" {marker} " in normalized_text
+            for marker in self._team_markers(team_name, allow_ambiguous_identity=allow_ambiguous_identity)
+        )
+
+    def _team_markers(self, team_name: str, *, allow_ambiguous_identity: bool = True) -> tuple[str, ...]:
+        normalized_name = normalize_token(team_name)
+        normalized_identity = normalize_team_identity_value(team_name)
+        markers = [normalized_name]
+        if normalized_identity and normalized_identity != normalized_name:
+            if allow_ambiguous_identity or normalized_identity not in _AMBIGUOUS_TEAM_IDENTITY_MARKERS:
+                markers.append(normalized_identity)
+        return tuple(marker for marker in dict.fromkeys(markers) if marker)
+
+    def _team_marker(self, team_name: str, *, allow_ambiguous_identity: bool = True) -> str:
+        return self._team_markers(team_name, allow_ambiguous_identity=allow_ambiguous_identity)[-1]
+
+    def _payload_number_tokens(self, value: Any) -> list[str]:
+        tokens: list[str] = []
+        if isinstance(value, dict):
+            for inner_value in value.values():
+                tokens.extend(self._payload_number_tokens(inner_value))
+            return tokens
+        if isinstance(value, list):
+            for item in value:
+                tokens.extend(self._payload_number_tokens(item))
+            return tokens
+        if isinstance(value, bool):
+            return tokens
+        if isinstance(value, int):
+            return [str(value)]
+        if isinstance(value, float):
+            return [self._normalize_number_token(str(value))]
+        if isinstance(value, str):
+            return [_token for _token in _NUMBER_PATTERN.findall(value)]
+        return tokens
+
+    def _normalize_number_token(self, token: str) -> str:
+        normalized = token.strip().replace(",", ".")
+        if "." in normalized:
+            normalized = normalized.rstrip("0").rstrip(".")
+        return normalized
+
+    def _normalize_score_token(self, token: str) -> str:
+        return re.sub(r"\s+", "", token)
 
     def _coherence_errors(
         self,

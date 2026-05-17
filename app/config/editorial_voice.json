@@ -1,0 +1,103 @@
+{
+  "enabled": true,
+  "usage": {
+    "apply_only_when_requested": true,
+    "optional": true,
+    "max_local_expressions_per_piece": 1
+  },
+  "blocked_content_types": [
+    "match_result",
+    "results_roundup",
+    "standings",
+    "standings_roundup",
+    "top_scorer_update"
+  ],
+  "modes": {
+    "viral_story_light": {
+      "enabled": true,
+      "allowed_content_types": [
+        "viral_story"
+      ],
+      "resource_ids": [
+        "uep",
+        "quin_partidas",
+        "molt_bona_feina"
+      ]
+    },
+    "preview_light": {
+      "enabled": true,
+      "allowed_content_types": [
+        "preview",
+        "featured_match_preview"
+      ],
+      "resource_ids": [
+        "uep",
+        "quin_partidas"
+      ]
+    },
+    "race_narrative_light": {
+      "enabled": true,
+      "allowed_content_types": [
+        "race_narrative"
+      ],
+      "resource_ids": [
+        "uep",
+        "quin_partidas",
+        "molt_bona_feina"
+      ]
+    }
+  },
+  "resources": [
+    {
+      "id": "uep",
+      "text": "Uep",
+      "kind": "interjection",
+      "islands": [
+        "mallorca"
+      ],
+      "registers": [
+        "colloquial_light"
+      ],
+      "allowed_content_types": [
+        "viral_story",
+        "preview",
+        "featured_match_preview",
+        "race_narrative"
+      ]
+    },
+    {
+      "id": "quin_partidas",
+      "text": "quin partidàs",
+      "kind": "short_turn",
+      "islands": [
+        "mallorca"
+      ],
+      "registers": [
+        "matchday_warm"
+      ],
+      "allowed_content_types": [
+        "viral_story",
+        "preview",
+        "featured_match_preview",
+        "race_narrative"
+      ]
+    },
+    {
+      "id": "molt_bona_feina",
+      "text": "molt bona feina",
+      "kind": "controlled_expression",
+      "islands": [
+        "mallorca",
+        "menorca",
+        "eivissa"
+      ],
+      "registers": [
+        "measured_praise"
+      ],
+      "allowed_content_types": [
+        "viral_story",
+        "race_narrative"
+      ]
+    }
+  ]
+}

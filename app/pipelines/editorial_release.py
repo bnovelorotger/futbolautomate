@@ -8,6 +8,8 @@ from datetime import date as date_type
 
 import typer
 
+from app.core.config import get_settings
+from app.core.logging import configure_logging
 from app.core.run_context import set_run_id
 from app.db.repositories.pipeline_metrics import PipelineMetricRepository
 from app.db.session import init_db, session_scope
@@ -44,6 +46,8 @@ def dry_run(
     as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
 ) -> None:
     set_run_id()
+    settings = get_settings()
+    configure_logging(settings.log_level, settings.log_json)
     init_db()
     if use_draft and use_rewrite:
         raise typer.BadParameter("No puedes usar --use-draft y --use-rewrite a la vez")
@@ -83,6 +87,8 @@ def run(
     as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
 ) -> None:
     set_run_id()
+    settings = get_settings()
+    configure_logging(settings.log_level, settings.log_json)
     init_db()
     if use_draft and use_rewrite:
         raise typer.BadParameter("No puedes usar --use-draft y --use-rewrite a la vez")
