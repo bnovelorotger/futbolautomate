@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import logging
 from collections import defaultdict
 from datetime import date, datetime
-import logging
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -11,8 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.core.catalog import load_competition_catalog
 from app.core.config import Settings, get_settings
-from app.core.enums import ContentCandidateStatus, ContentType, ViralStoryType
 from app.core.editorial_rollout import with_phase3_editorial_voice
+from app.core.enums import ContentCandidateStatus, ContentType, ViralStoryType
 from app.core.exceptions import ConfigurationError
 from app.db.models import Competition, Match
 from app.db.repositories.content_candidates import ContentCandidateRepository

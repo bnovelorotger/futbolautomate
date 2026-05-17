@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
+from dataclasses import dataclass
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from app.core.catalog import load_competition_catalog
 from app.core.config import Settings, get_settings
-from app.core.enums import ContentType
 from app.core.editorial_rollout import with_phase3_editorial_voice
 from app.core.editorial_voice import load_editorial_voice_pack
+from app.core.enums import ContentType
 from app.db.models import ContentCandidate
 from app.normalizers.text import normalize_token
 from app.schemas.editorial_content import ContentCandidateDraft

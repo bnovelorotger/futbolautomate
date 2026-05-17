@@ -34,9 +34,7 @@ class JsonFormatter(logging.Formatter):
         for key, value in record.__dict__.items():
             if key in _STANDARD_RECORD_ATTRS or key in payload or key.startswith("_"):
                 continue
-            if isinstance(value, (str, int, float, bool)) or value is None:
-                payload[key] = value
-            elif isinstance(value, (list, dict)):
+            if isinstance(value, (str, int, float, bool)) or value is None or isinstance(value, (list, dict)):
                 payload[key] = value
         if record.exc_info:
             payload["exception"] = self.formatException(record.exc_info)

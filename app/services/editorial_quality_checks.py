@@ -593,9 +593,12 @@ class EditorialQualityChecksService:
         normalized_name = normalize_token(team_name)
         normalized_identity = normalize_team_identity_value(team_name)
         markers = [normalized_name]
-        if normalized_identity and normalized_identity != normalized_name:
-            if allow_ambiguous_identity or normalized_identity not in _AMBIGUOUS_TEAM_IDENTITY_MARKERS:
-                markers.append(normalized_identity)
+        if (
+            normalized_identity
+            and normalized_identity != normalized_name
+            and (allow_ambiguous_identity or normalized_identity not in _AMBIGUOUS_TEAM_IDENTITY_MARKERS)
+        ):
+            markers.append(normalized_identity)
         return tuple(marker for marker in dict.fromkeys(markers) if marker)
 
     def _team_marker(self, team_name: str, *, allow_ambiguous_identity: bool = True) -> str:

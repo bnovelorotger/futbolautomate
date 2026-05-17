@@ -5,8 +5,8 @@ from app.core.exceptions import ConfigurationError
 from app.llm.providers.base import EditorialRewriteProvider
 from app.llm.providers.groq import (
     GroqEditorialRewriteClient,
-    missing_groq_editorial_rewrite_config,
     groq_editorial_rewrite_config_presence,
+    missing_groq_editorial_rewrite_config,
 )
 from app.llm.providers.openai import (
     OpenAIEditorialRewriteClient,

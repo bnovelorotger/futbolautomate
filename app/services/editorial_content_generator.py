@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from datetime import date
 import logging
+from datetime import date
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
-from app.core.enums import ContentCandidateStatus, ContentType
 from app.core.editorial_rollout import with_phase3_editorial_voice
+from app.core.enums import ContentCandidateStatus, ContentType
 from app.db.repositories.content_candidates import ContentCandidateRepository
 from app.normalizers.text import normalize_token
 from app.schemas.common import IngestStats
