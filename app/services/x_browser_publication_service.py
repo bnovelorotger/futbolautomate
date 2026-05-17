@@ -199,7 +199,7 @@ class XBrowserPublicationService:
         self.session.flush()
         return ref
 
-    def mark_pre_browser_published(self, *, cutoff_hours: int = 48) -> None:
+    def mark_pre_browser_published(self, *, cutoff_hours: int = 96) -> None:
         """Mark old published candidates as handled so they are never queued for browser publish."""
 
         cutoff = self.scheduler.current_local_time() - timedelta(hours=cutoff_hours)
@@ -215,7 +215,7 @@ class XBrowserPublicationService:
         )
 
     def _pending_candidates(self, *, limit: int | None = None) -> list[ContentCandidate]:
-        cutoff = self.scheduler.current_local_time() - timedelta(hours=48)
+        cutoff = self.scheduler.current_local_time() - timedelta(hours=96)
         query = (
             select(ContentCandidate)
             .where(

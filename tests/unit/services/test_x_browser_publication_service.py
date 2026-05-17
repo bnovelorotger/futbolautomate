@@ -267,11 +267,11 @@ def test_publish_standings_thread_falls_back_when_single_candidate() -> None:
 
 
 def test_list_all_unpublished_ignores_window() -> None:
-    """Candidates published 3 days ago (outside any window) still appear in list_all_unpublished."""
+    """Candidates published 5 days ago (outside the 96h rescue window) still appear in list_all_unpublished."""
     session = build_session()
     try:
         seed_candidates(session)
-        three_days_ago = datetime(2026, 3, 13, 10, 0, tzinfo=UTC)
+        five_days_ago = datetime(2026, 3, 11, 10, 0, tzinfo=UTC)
         session.add(
             ContentCandidate(
                 id=10,
@@ -280,22 +280,22 @@ def test_list_all_unpublished_ignores_window() -> None:
                 priority=85,
                 text_draft="RESULTADO ANTIGUO",
                 payload_json=build_results_payload(
-                    reference_date="2026-03-13",
-                    match_date="2026-03-12",
+                    reference_date="2026-03-11",
+                    match_date="2026-03-10",
                 ),
                 source_summary_hash="hash-10",
                 status="published",
-                reviewed_at=three_days_ago,
-                approved_at=three_days_ago,
-                published_at=three_days_ago,
+                reviewed_at=five_days_ago,
+                approved_at=five_days_ago,
+                published_at=five_days_ago,
                 external_publication_ref=None,
-                created_at=three_days_ago,
-                updated_at=three_days_ago,
+                created_at=five_days_ago,
+                updated_at=five_days_ago,
             )
         )
         session.commit()
 
-        # current_time is 3 days after the candidate's published_at — outside the 48h cutoff
+        # current_time is 5 days after the candidate's published_at — outside the 96h rescue window
         current_time = datetime(2026, 3, 16, 10, 0, tzinfo=UTC)
         service = XBrowserPublicationService(
             session,
@@ -309,7 +309,56 @@ def test_list_all_unpublished_ignores_window() -> None:
         pending_ids = [row.id for row in pending]
 
         assert 10 in all_ids, "Stranded candidate must appear in list_all_unpublished"
-        assert 10 not in pending_ids, "Stranded candidate must NOT appear in list_pending (outside 48h window)"
+        assert 10 not in pending_ids, "Stranded candidate must NOT appear in list_pending (outside 96h window)"
+    finally:
+        session.close()
+
+
+def test_publish_pending_bypass_schedule_rescues_3day_old_stranded_candidate() -> None:
+    """A candidate published 3 days ago (72h, within 96h rescue window) must be rescued by bypass_schedule=True."""
+    session = build_session()
+    try:
+        three_days_ago = datetime(2026, 3, 13, 10, 0, tzinfo=UTC)
+        current_time = datetime(2026, 3, 16, 10, 0, tzinfo=ZoneInfo("Europe/Madrid"))
+        session.add(
+            ContentCandidate(
+                id=60,
+                competition_slug="segunda_rfef_g3_baleares",
+                content_type="results_roundup",
+                priority=99,
+                text_draft="RESULTADO VARADO TRES DIAS",
+                payload_json=build_results_payload(reference_date="2026-03-13", match_date="2026-03-12"),
+                source_summary_hash="hash-60",
+                status="published",
+                published_at=three_days_ago,
+                created_at=three_days_ago,
+                updated_at=three_days_ago,
+            )
+        )
+        session.commit()
+
+        publisher = Mock()
+        publisher.publish_text.return_value = XBrowserPublishResponse(
+            text="RESULTADO VARADO TRES DIAS",
+            published_at=datetime(2026, 3, 16, 10, 5, tzinfo=UTC),
+            dry_run=False,
+        )
+        window_service = Mock()
+        window_service.matches_release_window.return_value = False
+        service = XBrowserPublicationService(
+            session,
+            publisher=publisher,
+            scheduler=build_scheduler(current_time=current_time),
+            window_service=window_service,
+        )
+
+        normal_result = service.publish_pending(limit=10, dry_run=True, stagger_seconds=0)
+        bypass_result = service.publish_pending(limit=10, dry_run=True, stagger_seconds=0, bypass_schedule=True)
+
+        normal_ids = [r.candidate_id for r in normal_result.rows]
+        bypass_ids = [r.candidate_id for r in bypass_result.rows]
+        assert 60 not in normal_ids, "3-day-old candidate must not appear in normal pending"
+        assert 60 in bypass_ids, "3-day-old candidate within 96h window must be rescued by bypass"
     finally:
         session.close()
 
