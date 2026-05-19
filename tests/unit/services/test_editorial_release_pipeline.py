@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 from unittest.mock import Mock
 
 from app.db.models import ContentCandidate
 from app.services.editorial_approval_policy import EditorialApprovalPolicyService
-from app.services.x_browser_publication_service import XBrowserBatchResult
 from app.services.editorial_release_pipeline import EditorialReleasePipelineService
+from app.services.x_browser_publication_service import XBrowserBatchResult
 from tests.unit.services.service_test_support import build_session, build_settings
 from tests.unit.services.test_editorial_narratives import seed_competition
 
@@ -16,7 +16,7 @@ REFERENCE_DATE = date(2026, 3, 17)
 
 
 def seed_release_candidates(session) -> None:
-    created_at = datetime(2026, 3, 17, 10, 0, tzinfo=timezone.utc)
+    created_at = datetime(2026, 3, 17, 10, 0, tzinfo=UTC)
     match_date = date(2026, 3, 16)
     seed_competition(
         session,
@@ -189,7 +189,7 @@ def seed_release_candidates(session) -> None:
 
 
 def add_critical_narrative_candidates(session) -> None:
-    created_at = datetime(2026, 3, 17, 10, 2, tzinfo=timezone.utc)
+    created_at = datetime(2026, 3, 17, 10, 2, tzinfo=UTC)
     session.add_all(
         [
             ContentCandidate(
@@ -248,7 +248,7 @@ def add_critical_narrative_candidates(session) -> None:
 
 
 def add_quality_blocked_candidate(session) -> None:
-    created_at = datetime(2026, 3, 17, 10, 1, tzinfo=timezone.utc)
+    created_at = datetime(2026, 3, 17, 10, 1, tzinfo=UTC)
     session.add(
         ContentCandidate(
             id=105,
@@ -268,7 +268,7 @@ def add_quality_blocked_candidate(session) -> None:
 
 
 def add_future_preview_candidate(session) -> None:
-    created_at = datetime(2026, 3, 17, 10, 3, tzinfo=timezone.utc)
+    created_at = datetime(2026, 3, 17, 10, 3, tzinfo=UTC)
     session.add(
         ContentCandidate(
             id=110,
@@ -302,7 +302,7 @@ def add_future_preview_candidate(session) -> None:
                 },
             },
             source_summary_hash="release-hash-110",
-            scheduled_at=datetime(2099, 3, 21, 12, 0, tzinfo=timezone.utc),
+            scheduled_at=datetime(2099, 3, 21, 12, 0, tzinfo=UTC),
             status="draft",
             created_at=created_at,
             updated_at=created_at,
@@ -312,7 +312,7 @@ def add_future_preview_candidate(session) -> None:
 
 
 def add_ready_approved_preview_candidate(session) -> None:
-    created_at = datetime(2026, 3, 15, 10, 3, tzinfo=timezone.utc)
+    created_at = datetime(2026, 3, 15, 10, 3, tzinfo=UTC)
     session.add(
         ContentCandidate(
             id=111,
@@ -597,12 +597,6 @@ def test_editorial_release_pipeline_publish_flags_use_browser_service_once(tmp_p
         seed_release_candidates(session)
         x_publication_service = Mock()
         x_browser_publication_service = Mock()
-        x_browser_publication_service.publish_standings_thread.return_value = XBrowserBatchResult(
-            dry_run=False,
-            published_count=0,
-            error_count=0,
-            skipped_count=0,
-        )
         x_browser_publication_service.publish_pending.return_value = XBrowserBatchResult(
             dry_run=False,
             published_count=4,
@@ -629,8 +623,47 @@ def test_editorial_release_pipeline_publish_flags_use_browser_service_once(tmp_p
         assert result.x_publish_enabled is True
         assert result.x_published_count == 4
         x_publication_service.publish_candidates.assert_not_called()
-        x_browser_publication_service.publish_standings_thread.assert_called_once_with(dry_run=False, bypass_schedule=True)
-        x_browser_publication_service.publish_pending.assert_called_once_with(dry_run=False, bypass_schedule=True)
+        x_browser_publication_service.publish_pending.assert_called_once_with(
+            limit=4,
+            dry_run=False,
+            bypass_schedule=False,
+        )
         x_browser_publication_service.build_views_from_batch_result.assert_called_once()
+    finally:
+        session.close()
+
+
+def test_editorial_release_pipeline_caps_browser_publish_by_run_limit(tmp_path: Path) -> None:
+    session = build_session()
+    try:
+        seed_release_candidates(session)
+        x_browser_publication_service = Mock()
+        x_browser_publication_service.publish_pending.return_value = XBrowserBatchResult(
+            dry_run=False,
+            published_count=2,
+            error_count=0,
+            skipped_count=0,
+        )
+        x_browser_publication_service.build_views_from_batch_result.return_value = []
+        service = EditorialReleasePipelineService(
+            session,
+            settings=build_settings(app_root=tmp_path),
+            x_browser_publication_service=x_browser_publication_service,
+        )
+
+        result = service.run(
+            reference_date=REFERENCE_DATE,
+            limit=2,
+            dry_run=False,
+            publish_via_browser=True,
+        )
+        session.commit()
+
+        assert result.x_published_count == 2
+        x_browser_publication_service.publish_pending.assert_called_once_with(
+            limit=2,
+            dry_run=False,
+            bypass_schedule=False,
+        )
     finally:
         session.close()

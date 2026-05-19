@@ -51,10 +51,14 @@ class Settings(BaseSettings):
     x_browser_state_file: str = ".x_browser_state.json"
     x_browser_headless: bool = False
     x_browser_typing_delay_ms: int = 30
-    x_browser_stagger_seconds: int = 900
+    x_browser_stagger_seconds: int = 1800
+    x_browser_release_action_limit: int = 4
     x_engagement_daily_likes: int = 3
     telegram_bot_token: str | None = None
     telegram_chat_id: str | None = None
+    telegram_task_start_finish_enabled: bool = False
+    telegram_task_error_enabled: bool = True
+    telegram_publication_notifications_enabled: bool = True
     app_root: Path = Field(default_factory=lambda: Path(__file__).resolve().parents[2])
 
     @property

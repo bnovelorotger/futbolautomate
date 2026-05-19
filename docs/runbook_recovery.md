@@ -171,8 +171,8 @@ Get-ScheduledTask | Where-Object { $_.TaskName -like "futbol_*" } | Select-Objec
 Deben aparecer las siguientes tareas:
 
 - `futbol_refresh_morning`, `futbol_refresh_midweek`, `futbol_refresh_other`, `futbol_refresh_afternoon`
-- `futbol_editorial_day_mon_sun`, `futbol_editorial_day_wed`, `futbol_editorial_day_fri`, `futbol_editorial_day_other`
-- `futbol_release_mon_sun`, `futbol_release_wed`, `futbol_release_fri`, `futbol_release_other`
+- `futbol_editorial_day_mon`, `futbol_editorial_day_other`, `futbol_editorial_day_wed`, `futbol_editorial_day_fri`, `futbol_editorial_day_sat`, `futbol_editorial_day_sun`
+- `futbol_release_mon`, `futbol_release_other`, `futbol_release_wed`, `futbol_release_fri`, `futbol_release_sat`, `futbol_release_sun`
 - `futbol_session_check`
 - `futbol_engagement`
 - `futbol_summary`

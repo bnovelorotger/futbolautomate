@@ -9,11 +9,14 @@ def test_default_editorial_schedule_loads_expected_rules() -> None:
     schedule = load_editorial_schedule()
 
     monday_rules = schedule.rules_for_weekday("monday")
+    tuesday_rules = schedule.rules_for_weekday("tuesday")
     wednesday_rules = schedule.rules_for_weekday("wednesday")
     thursday_rules = schedule.rules_for_weekday("thursday")
+    saturday_rules = schedule.rules_for_weekday("saturday")
     sunday_rules = schedule.rules_for_weekday("sunday")
 
     assert len(monday_rules) == 37
+    assert len(tuesday_rules) == 8
     assert monday_rules[0].competition_slug == "tercera_rfef_g11"
     assert monday_rules[0].content_type == EditorialPlanningContent.RESULTS_ROUNDUP
     assert any(rule.content_type == EditorialPlanningContent.STANDINGS_ROUNDUP for rule in monday_rules)
@@ -39,7 +42,15 @@ def test_default_editorial_schedule_loads_expected_rules() -> None:
     )
     assert any(rule.content_type == EditorialPlanningContent.METRIC_NARRATIVE for rule in wednesday_rules)
     assert any(rule.content_type == EditorialPlanningContent.VIRAL_STORY for rule in wednesday_rules)
-    assert len(thursday_rules) == 0
+    assert {rule.content_type for rule in tuesday_rules} == {
+        EditorialPlanningContent.RANKING,
+        EditorialPlanningContent.STANDINGS_ROUNDUP,
+    }
+    assert len(thursday_rules) == 8
+    assert {rule.content_type for rule in thursday_rules} == {
+        EditorialPlanningContent.RANKING,
+        EditorialPlanningContent.TOP_SCORER_UPDATE,
+    }
     friday_rules = schedule.rules_for_weekday("friday")
     assert len(friday_rules) == 14
     assert any(rule.content_type == EditorialPlanningContent.FEATURED_MATCH_PREVIEW for rule in friday_rules)
@@ -62,6 +73,8 @@ def test_default_editorial_schedule_loads_expected_rules() -> None:
         EditorialPlanningContent.FEATURED_MATCH_PREVIEW,
         EditorialPlanningContent.MATCH_IMPACT_SCENARIO,
     }
+    assert len(saturday_rules) == 5
+    assert {rule.content_type for rule in saturday_rules} == {EditorialPlanningContent.PREVIEW}
     assert len(sunday_rules) == 4
     assert {rule.competition_slug for rule in sunday_rules} == {
         "tercera_rfef_g11",

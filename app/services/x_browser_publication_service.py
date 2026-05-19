@@ -25,6 +25,7 @@ from app.schemas.x_publication import (
 )
 from app.services.editorial_candidate_window import EditorialCandidateWindowService
 from app.services.editorial_text_selector import EditorialTextSelectorService
+from app.services.telegram_publication_notifier import TelegramPublicationNotifier
 from app.services.x_publication_scheduler import XPublicationScheduler
 from app.utils.time import utcnow
 
@@ -83,12 +84,14 @@ class XBrowserPublicationService:
         text_selector: EditorialTextSelectorService | None = None,
         scheduler: XPublicationScheduler | None = None,
         window_service: EditorialCandidateWindowService | None = None,
+        publication_notifier: TelegramPublicationNotifier | None = None,
     ) -> None:
         self.session = session
         self.settings = settings or get_settings()
         self.text_selector = text_selector or EditorialTextSelectorService(session, settings=self.settings)
         self.scheduler = scheduler or XPublicationScheduler(settings=self.settings)
         self.window_service = window_service or EditorialCandidateWindowService(session, settings=self.settings)
+        self.publication_notifier = publication_notifier or TelegramPublicationNotifier(settings=self.settings)
         state_file = Path(self.settings.x_browser_state_file)
         self.publisher = publisher or XBrowserPublisher(
             state_file,
@@ -198,6 +201,26 @@ class XBrowserPublicationService:
         self.session.add(candidate)
         self.session.flush()
         return ref
+
+    def _notify_publication_success(
+        self,
+        *,
+        candidate: ContentCandidate,
+        published_at: datetime,
+        excerpt: str,
+        selected_text_source: str | None,
+    ) -> None:
+        self.publication_notifier.publication_succeeded(
+            candidate=candidate,
+            published_at=published_at,
+            excerpt=excerpt,
+            selected_text_source=selected_text_source,
+        )
+
+    def _persist_publication_state(self) -> None:
+        # External publication side effects must survive even if the outer release task
+        # is interrupted later by Task Scheduler or browser timeouts.
+        self.session.commit()
 
     def mark_pre_browser_published(self, *, cutoff_hours: int = 96) -> None:
         """Mark old published candidates as handled so they are never queued for browser publish."""
@@ -312,13 +335,22 @@ class XBrowserPublicationService:
             response = self.publisher.publish_text(selected_text, image_path=image_path, dry_run=False)
         except (XBrowserSessionError, XBrowserPublishError) as exc:
             self._record_failure(candidate, attempted_at=attempted_at, error=str(exc))
+            self._persist_publication_state()
             raise
 
+        published_at = response.published_at or utcnow()
         self._apply_success(
             candidate,
             attempted_at=attempted_at,
-            published_at=response.published_at or utcnow(),
+            published_at=published_at,
         )
+        self._notify_publication_success(
+            candidate=candidate,
+            published_at=published_at,
+            excerpt=excerpt,
+            selected_text_source=selected_text_source,
+        )
+        self._persist_publication_state()
         return XPublicationResult(
             dry_run=False,
             candidate=self._row_to_view(
@@ -412,6 +444,7 @@ class XBrowserPublicationService:
                             error=str(exc),
                         )
                     )
+                self._persist_publication_state()
             return XBrowserBatchResult(
                 dry_run=dry_run,
                 published_count=0,
@@ -430,6 +463,13 @@ class XBrowserPublicationService:
         for candidate in valid_candidates:
             if not dry_run:
                 ref = self._apply_success(candidate, attempted_at=attempted_at, published_at=published_at)
+                selected_text, selected_text_source = self._selected_text(candidate)
+                self._notify_publication_success(
+                    candidate=candidate,
+                    published_at=published_at,
+                    excerpt=_excerpt(selected_text),
+                    selected_text_source=selected_text_source,
+                )
                 rows.append(
                     XBrowserPublicationResult(
                         candidate_id=candidate.id,
@@ -450,6 +490,8 @@ class XBrowserPublicationService:
                         success=True,
                     )
                 )
+        if not dry_run and valid_candidates:
+            self._persist_publication_state()
 
         return XBrowserBatchResult(
             dry_run=dry_run,
@@ -525,6 +567,7 @@ class XBrowserPublicationService:
                 logger.error("Sesion de browser X invalida, abortando batch: %s", exc)
                 if not dry_run:
                     self._record_failure(candidate, attempted_at=attempted_at, error=str(exc))
+                    self._persist_publication_state()
                 rows.append(
                     XBrowserPublicationResult(
                         candidate_id=candidate.id,
@@ -547,6 +590,7 @@ class XBrowserPublicationService:
                 )
                 if not dry_run:
                     self._record_failure(candidate, attempted_at=attempted_at, error=str(exc))
+                    self._persist_publication_state()
                 rows.append(
                     XBrowserPublicationResult(
                         candidate_id=candidate.id,
@@ -563,11 +607,19 @@ class XBrowserPublicationService:
                 continue
 
             if not dry_run:
+                published_at = response.published_at or utcnow()
                 ref = self._apply_success(
                     candidate,
                     attempted_at=attempted_at,
-                    published_at=response.published_at or utcnow(),
+                    published_at=published_at,
                 )
+                self._notify_publication_success(
+                    candidate=candidate,
+                    published_at=published_at,
+                    excerpt=excerpt,
+                    selected_text_source=selected_text_source,
+                )
+                self._persist_publication_state()
                 rows.append(
                     XBrowserPublicationResult(
                         candidate_id=candidate.id,

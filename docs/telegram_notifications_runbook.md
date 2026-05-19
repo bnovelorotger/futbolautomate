@@ -1,59 +1,17 @@
 # Runbook de Telegram
 
-Este documento fija el contrato operativo para las notificaciones de Telegram del repo. Cubre tres flujos:
+Este documento fija el contrato operativo para las notificaciones de Telegram del repo. Cubre cuatro flujos:
 
-- eventos de tarea (`inicio`, `fin`, `error`)
 - agenda editorial de la jornada (`day plan`)
+- aviso puntual por cada `post publicado`
 - digest diario editorial (`digest`)
+- alertas de error de tarea (`error`) cuando una tarea operativa falla
 
-Si tu branch todavia no incluye `EditorialDailyDigestService` o su pipeline/CLI, toma este documento como la referencia de operacion y de naming que debe respetar el codigo productivo cuando entre.
+`inicio` y `fin` de tarea ya no forman parte del carril normal de produccion. Siguen existiendo en `TelegramEventNotifier`, pero quedan desactivados por defecto.
 
 ## Mensajes existentes
 
-### 1. Inicio de tarea
-
-Emisor esperado: `TelegramEventNotifier.task_started()`
-
-Campos minimos:
-
-- `task`
-- `status`
-
-Campos opcionales:
-
-- `mode`
-- `started_at`
-- metricas resumen (`summary_metrics`)
-
-Titulo esperado:
-
-```text
-futbolbalear - inicio tarea
-```
-
-### 2. Fin de tarea
-
-Emisor esperado: `TelegramEventNotifier.task_finished()`
-
-Campos minimos:
-
-- `task`
-- `status`
-
-Campos opcionales:
-
-- `mode`
-- `started_at`
-- `duration`
-- metricas resumen
-
-Titulo esperado:
-
-```text
-futbolbalear - tarea completada
-```
-
-### 3. Error de tarea
+### 1. Error de tarea
 
 Emisor esperado: `TelegramEventNotifier.task_failed()`
 
@@ -76,7 +34,7 @@ Titulo esperado:
 futbolbalear - tarea con error
 ```
 
-### 4. Digest diario
+### 2. Digest diario
 
 Emisor esperado: `EditorialDailyDigestService` cuando el servicio este disponible.
 
@@ -94,7 +52,7 @@ Titulo esperado:
 futbolbalear - digest diario
 ```
 
-### 5. Agenda editorial del dia
+### 3. Agenda editorial del dia
 
 Emisor esperado: `EditorialDayPlanService`.
 
@@ -112,26 +70,44 @@ Titulo esperado:
 futbolbalear - agenda editorial
 ```
 
+### 4. Aviso de post publicado
+
+Emisor esperado: `TelegramPublicationNotifier.publication_succeeded()`.
+
+Contenido minimo recomendado:
+
+- `id`
+- `type`
+- `competition`
+- `reference_date`
+- `published_at`
+- `text_source`
+- `excerpt`
+
+Titulo esperado:
+
+```text
+futbolbalear - post publicado
+```
+
 ## Tareas que deben notificar
 
 Las notificaciones de evento no requieren una tarea programada aparte. Se emiten desde las tareas ya existentes del scheduler cuando el wrapper de esa tarea llama al notifier.
 
 Scope operativo recomendado:
 
-- `refresh_data`
-- `readiness_check`
-- `run_editorial_day`
 - `editorial_release`
-- `auto_publish_browser`
 - `check_browser_session`
 - `editorial_day_plan`
-- `editorial_daily_digest` cuando exista el pipeline diario de digest
+- `editorial_daily_digest`
+- `x_browser_publication_service` para los avisos de `post publicado`
 
 Criterio de ruido:
 
-- `inicio` y `fin` para tareas largas o criticas
+- `inicio` y `fin` desactivados por defecto
 - `error` para cualquier tarea que corte la cadena operativa o deje el dia sin salida editorial
 - la `agenda editorial` debe salir una sola vez por la manana
+- el aviso de `post publicado` debe salir una vez por publicacion correcta
 - el `digest` debe salir una sola vez por dia
 
 ## Prueba manual de Telegram
@@ -181,7 +157,7 @@ Si falla:
 
 ### Agenda editorial
 
-- hora recomendada: `09:00`
+- hora recomendada: `08:00`
 - tarea scheduler: `futbol_editorial_day_plan`
 - script: `scripts/windows/editorial_day_plan.ps1 -SendTelegram`
 
@@ -257,12 +233,26 @@ Lectura operativa:
 - debe tender a `0`
 - cualquier valor mayor que `0` merece revision de logs y del proveedor
 
+## Flags operativos
+
+Variables relevantes en `Settings`:
+
+- `telegram_task_start_finish_enabled=false`
+- `telegram_task_error_enabled=true`
+- `telegram_publication_notifications_enabled=true`
+
+Lectura operativa:
+
+- produccion normal: agenda + post publicado + digest + alertas de error
+- no enviar `inicio` y `fin` salvo que se activen explicitamente para diagnostico
+
 ## Cobertura actual en tests
 
 Cubierto en este repo:
 
 - `TelegramNotificationService`
 - `TelegramEventNotifier`
+- `TelegramPublicationNotifier`
 - `EditorialDayPlanService`
 - `EditorialDailyDigestService`
 - CLI manual `telegram_notify setup`

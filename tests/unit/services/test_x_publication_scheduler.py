@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.db.models import ContentCandidate
 from app.services.x_publication_scheduler import XPublicationScheduler
@@ -14,7 +14,7 @@ def build_candidate(
     external_publication_error: str | None = None,
     publication_attempts: int = 0,
 ) -> ContentCandidate:
-    now = datetime(2026, 3, 15, 10, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 3, 15, 10, 0, tzinfo=UTC)
     return ContentCandidate(
         id=candidate_id,
         competition_slug="segunda_rfef_g3_baleares",
@@ -48,7 +48,7 @@ def test_scheduler_filters_by_day_hour_and_type() -> None:
         [monday_roundup, monday_top_scorer, monday_preview, monday_race, monday_milestone]
     )
 
-    assert [candidate.id for candidate in publishable] == [1, 2, 4]
+    assert [candidate.id for candidate in publishable] == [1, 2, 4, 5]
 
 
 def test_scheduler_enforces_retry_budget() -> None:
@@ -71,3 +71,26 @@ def test_scheduler_enforces_retry_budget() -> None:
 
     assert scheduler.is_candidate_publishable(retryable) is True
     assert scheduler.is_candidate_publishable(exhausted) is False
+
+
+def test_scheduler_allows_tuesday_rankings_and_thursday_top_scorer() -> None:
+    tuesday_scheduler = XPublicationScheduler(
+        settings=build_settings(timezone="Europe/Madrid"),
+        now_provider=lambda: datetime(2026, 3, 17, 20, 0),
+    )
+    thursday_scheduler = XPublicationScheduler(
+        settings=build_settings(timezone="Europe/Madrid"),
+        now_provider=lambda: datetime(2026, 3, 19, 20, 0),
+    )
+    saturday_scheduler = XPublicationScheduler(
+        settings=build_settings(timezone="Europe/Madrid"),
+        now_provider=lambda: datetime(2026, 3, 21, 11, 0),
+    )
+
+    ranking = build_candidate(candidate_id=10, content_type="ranking")
+    top_scorer = build_candidate(candidate_id=11, content_type="top_scorer_update")
+    preview = build_candidate(candidate_id=12, content_type="preview")
+
+    assert tuesday_scheduler.is_candidate_publishable(ranking) is True
+    assert thursday_scheduler.is_candidate_publishable(top_scorer) is True
+    assert saturday_scheduler.is_candidate_publishable(preview) is True

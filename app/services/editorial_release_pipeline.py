@@ -14,7 +14,7 @@ from app.services.export_base_service import ExportBaseService
 from app.services.export_json_service import ExportJsonService
 from app.services.publication_dispatcher import PublicationDispatcherService
 from app.services.typefully_publication_service import TypefullyPublicationService
-from app.services.x_browser_publication_service import XBrowserBatchResult, XBrowserPublicationService
+from app.services.x_browser_publication_service import XBrowserPublicationService
 from app.services.x_publication_service import XPublicationService
 
 
@@ -160,25 +160,16 @@ class EditorialReleasePipelineService:
         if browser_publish_enabled and self.x_browser_publication_service is not None:
             if not export_dry_run:
                 self.x_browser_publication_service.mark_pre_browser_published()
-            # Publish standings_roundup candidates as a single thread; remaining individually.
-            # publish_pending skips candidates that already have external_publication_ref set.
-            # bypass_schedule=True: when publication is explicitly requested, skip the day-of-week
-            # filter so old unpublished candidates are rescued regardless of when the pipeline runs.
-            standings_result = self.x_browser_publication_service.publish_standings_thread(
-                dry_run=export_dry_run,
-                bypass_schedule=True,
+            release_action_limit = min(
+                max(int(self.settings.x_browser_release_action_limit), 1),
+                max(int(limit), 1),
             )
-            remaining_result = self.x_browser_publication_service.publish_pending(
+            # Release should publish the current scheduled batch, not rescue old stranded items.
+            # Rescue flows belong to the dedicated browser retry path.
+            browser_publish_result = self.x_browser_publication_service.publish_pending(
+                limit=release_action_limit,
                 dry_run=export_dry_run,
-                bypass_schedule=True,
-            )
-            combined_rows = standings_result.rows + remaining_result.rows
-            browser_publish_result = XBrowserBatchResult(
-                dry_run=export_dry_run,
-                published_count=standings_result.published_count + remaining_result.published_count,
-                error_count=standings_result.error_count + remaining_result.error_count,
-                skipped_count=standings_result.skipped_count + remaining_result.skipped_count,
-                rows=combined_rows,
+                bypass_schedule=False,
             )
             browser_publication_rows = self.x_browser_publication_service.build_views_from_batch_result(
                 browser_publish_result

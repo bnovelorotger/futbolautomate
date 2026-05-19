@@ -1,25 +1,53 @@
 {
   "lunes": {
-    "publish_after": "09:00",
+    "publish_after": "09:15",
     "types": [
       "results_roundup",
       "standings_roundup",
       "race_narrative",
+      "milestone_story",
       "top_scorer_update"
     ]
   },
+  "martes": {
+    "publish_after": "20:00",
+    "types": [
+      "ranking",
+      "standings_roundup"
+    ]
+  },
   "miercoles": {
-    "publish_after": "18:00",
+    "publish_after": "20:00",
     "types": [
       "viral_story",
       "metric_narrative"
     ]
   },
+  "jueves": {
+    "publish_after": "20:00",
+    "types": [
+      "top_scorer_update",
+      "ranking"
+    ]
+  },
   "viernes": {
-    "publish_after": "10:00",
+    "publish_after": "13:00",
     "types": [
       "featured_match_preview",
       "match_impact_scenario"
+    ]
+  },
+  "sabado": {
+    "publish_after": "11:00",
+    "types": [
+      "preview"
+    ]
+  },
+  "domingo": {
+    "publish_after": "21:15",
+    "types": [
+      "results_roundup",
+      "standings_roundup"
     ]
   }
 }

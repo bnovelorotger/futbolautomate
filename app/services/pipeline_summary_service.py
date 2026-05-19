@@ -212,7 +212,7 @@ class PipelineSummaryService:
                 external_publication_error=err,
             )
 
-            if ref and ref.startswith("browser:"):
+            if ref and (ref.startswith("browser:") or ref.startswith("x-browser:")):
                 published_to_x += 1
             elif ref == "pre_browser:skipped":
                 skipped_stale += 1

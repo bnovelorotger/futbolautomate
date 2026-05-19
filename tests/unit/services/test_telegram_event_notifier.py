@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from app.services.telegram_event_notifier import TelegramEventNotifier
+from tests.unit.services.service_test_support import build_settings
 
 
 class FakeTelegramNotificationService:
@@ -21,7 +22,10 @@ class FakeTelegramNotificationService:
 
 def test_task_started_renders_expected_message_and_escapes_html() -> None:
     fake_service = FakeTelegramNotificationService()
-    notifier = TelegramEventNotifier(notification_service=fake_service)
+    notifier = TelegramEventNotifier(
+        settings=build_settings(telegram_task_start_finish_enabled=True),
+        notification_service=fake_service,
+    )
 
     result = notifier.task_started(
         task_name="editorial_release <prod>",
@@ -53,7 +57,10 @@ def test_task_started_renders_expected_message_and_escapes_html() -> None:
 
 def test_task_finished_formats_datetime_and_duration() -> None:
     fake_service = FakeTelegramNotificationService()
-    notifier = TelegramEventNotifier(notification_service=fake_service)
+    notifier = TelegramEventNotifier(
+        settings=build_settings(telegram_task_start_finish_enabled=True),
+        notification_service=fake_service,
+    )
 
     result = notifier.task_finished(
         task_name="refresh_data",
@@ -75,7 +82,10 @@ def test_task_finished_formats_datetime_and_duration() -> None:
 
 def test_task_failed_includes_reason_and_negative_duration_is_clamped() -> None:
     fake_service = FakeTelegramNotificationService()
-    notifier = TelegramEventNotifier(notification_service=fake_service)
+    notifier = TelegramEventNotifier(
+        settings=build_settings(telegram_task_error_enabled=True),
+        notification_service=fake_service,
+    )
 
     result = notifier.task_failed(
         task_name="daily_digest",
@@ -95,7 +105,10 @@ def test_task_failed_includes_reason_and_negative_duration_is_clamped() -> None:
 
 def test_notifier_returns_false_without_sending_when_not_configured() -> None:
     fake_service = FakeTelegramNotificationService(configured=False)
-    notifier = TelegramEventNotifier(notification_service=fake_service)
+    notifier = TelegramEventNotifier(
+        settings=build_settings(telegram_task_start_finish_enabled=True),
+        notification_service=fake_service,
+    )
 
     result = notifier.task_started(task_name="editorial_release")
 
@@ -105,9 +118,22 @@ def test_notifier_returns_false_without_sending_when_not_configured() -> None:
 
 def test_notifier_propagates_send_result() -> None:
     fake_service = FakeTelegramNotificationService(send_result=False)
-    notifier = TelegramEventNotifier(notification_service=fake_service)
+    notifier = TelegramEventNotifier(
+        settings=build_settings(telegram_task_start_finish_enabled=True),
+        notification_service=fake_service,
+    )
 
     result = notifier.task_finished(task_name="editorial_release")
 
     assert result is False
     assert len(fake_service.messages) == 1
+
+
+def test_task_started_is_suppressed_by_default() -> None:
+    fake_service = FakeTelegramNotificationService()
+    notifier = TelegramEventNotifier(settings=build_settings(), notification_service=fake_service)
+
+    result = notifier.task_started(task_name="editorial_release")
+
+    assert result is False
+    assert fake_service.messages == []

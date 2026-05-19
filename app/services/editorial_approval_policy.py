@@ -31,6 +31,10 @@ TUE_WED_AUTOAPPROVABLE_CONTENT_TYPES = (
     ContentType.STAT_NARRATIVE,
     ContentType.RANKING,
 )
+THURSDAY_AUTOAPPROVABLE_CONTENT_TYPES = (
+    ContentType.TOP_SCORER_UPDATE,
+    ContentType.RANKING,
+)
 FRIDAY_AUTOAPPROVABLE_CONTENT_TYPES = (
     ContentType.FEATURED_MATCH_PREVIEW,
     ContentType.MATCH_IMPACT_SCENARIO,
@@ -442,6 +446,8 @@ class EditorialApprovalPolicyService:
             return MONDAY_AUTOAPPROVABLE_CONTENT_TYPES
         if target_date.weekday() in {1, 2}:  # Tuesday, Wednesday
             return TUE_WED_AUTOAPPROVABLE_CONTENT_TYPES
+        if target_date.weekday() == 3:  # Thursday
+            return THURSDAY_AUTOAPPROVABLE_CONTENT_TYPES
         if target_date.weekday() == 4:  # Friday
             return FRIDAY_AUTOAPPROVABLE_CONTENT_TYPES
         return ()

@@ -15,12 +15,12 @@
       {
         "competition_slug": "tercera_rfef_g11",
         "content_type": "race_narrative",
-        "priority": 72
+        "priority": 86
       },
       {
         "competition_slug": "tercera_rfef_g11",
         "content_type": "milestone_story",
-        "priority": 71
+        "priority": 72
       },
       {
         "competition_slug": "tercera_rfef_g11",
@@ -40,12 +40,12 @@
       {
         "competition_slug": "segunda_rfef_g3_baleares",
         "content_type": "race_narrative",
-        "priority": 72
+        "priority": 86
       },
       {
         "competition_slug": "segunda_rfef_g3_baleares",
         "content_type": "milestone_story",
-        "priority": 71
+        "priority": 72
       },
       {
         "competition_slug": "segunda_rfef_g3_baleares",
@@ -65,12 +65,12 @@
       {
         "competition_slug": "division_honor_mallorca",
         "content_type": "race_narrative",
-        "priority": 70
+        "priority": 84
       },
       {
         "competition_slug": "division_honor_mallorca",
         "content_type": "milestone_story",
-        "priority": 69
+        "priority": 71
       },
       {
         "competition_slug": "division_honor_mallorca",
@@ -90,12 +90,12 @@
       {
         "competition_slug": "tercera_federacion_femenina_g11",
         "content_type": "race_narrative",
-        "priority": 70
+        "priority": 83
       },
       {
         "competition_slug": "tercera_federacion_femenina_g11",
         "content_type": "milestone_story",
-        "priority": 69
+        "priority": 71
       },
       {
         "competition_slug": "tercera_federacion_femenina_g11",
@@ -120,7 +120,7 @@
       {
         "competition_slug": "primera_rfef_baleares",
         "content_type": "milestone_story",
-        "priority": 69
+        "priority": 71
       },
       {
         "competition_slug": "primera_rfef_baleares",
@@ -220,6 +220,90 @@
         "priority": 68
       }
     ],
+    "martes": [
+      {
+        "competition_slug": "tercera_rfef_g11",
+        "content_type": "ranking",
+        "priority": 82
+      },
+      {
+        "competition_slug": "segunda_rfef_g3_baleares",
+        "content_type": "ranking",
+        "priority": 81
+      },
+      {
+        "competition_slug": "division_honor_mallorca",
+        "content_type": "ranking",
+        "priority": 80
+      },
+      {
+        "competition_slug": "tercera_federacion_femenina_g11",
+        "content_type": "ranking",
+        "priority": 79
+      },
+      {
+        "competition_slug": "primera_rfef_baleares",
+        "content_type": "ranking",
+        "priority": 78
+      },
+      {
+        "competition_slug": "tercera_rfef_g11",
+        "content_type": "standings_roundup",
+        "priority": 76
+      },
+      {
+        "competition_slug": "segunda_rfef_g3_baleares",
+        "content_type": "standings_roundup",
+        "priority": 75
+      },
+      {
+        "competition_slug": "division_honor_mallorca",
+        "content_type": "standings_roundup",
+        "priority": 74
+      }
+    ],
+    "jueves": [
+      {
+        "competition_slug": "tercera_rfef_g11",
+        "content_type": "top_scorer_update",
+        "priority": 78
+      },
+      {
+        "competition_slug": "segunda_rfef_g3_baleares",
+        "content_type": "top_scorer_update",
+        "priority": 77
+      },
+      {
+        "competition_slug": "division_honor_mallorca",
+        "content_type": "top_scorer_update",
+        "priority": 76
+      },
+      {
+        "competition_slug": "tercera_federacion_femenina_g11",
+        "content_type": "top_scorer_update",
+        "priority": 75
+      },
+      {
+        "competition_slug": "primera_rfef_baleares",
+        "content_type": "top_scorer_update",
+        "priority": 74
+      },
+      {
+        "competition_slug": "tercera_rfef_g11",
+        "content_type": "ranking",
+        "priority": 73
+      },
+      {
+        "competition_slug": "segunda_rfef_g3_baleares",
+        "content_type": "ranking",
+        "priority": 72
+      },
+      {
+        "competition_slug": "division_honor_mallorca",
+        "content_type": "ranking",
+        "priority": 71
+      }
+    ],
     "viernes": [
       {
         "competition_slug": "tercera_rfef_g11",
@@ -290,6 +374,33 @@
         "competition_slug": "segunda_rfef_g3_playoff_permanencia",
         "content_type": "featured_match_preview",
         "priority": 92
+      }
+    ],
+    "sabado": [
+      {
+        "competition_slug": "tercera_rfef_g11",
+        "content_type": "preview",
+        "priority": 78
+      },
+      {
+        "competition_slug": "segunda_rfef_g3_baleares",
+        "content_type": "preview",
+        "priority": 77
+      },
+      {
+        "competition_slug": "division_honor_mallorca",
+        "content_type": "preview",
+        "priority": 76
+      },
+      {
+        "competition_slug": "tercera_federacion_femenina_g11",
+        "content_type": "preview",
+        "priority": 75
+      },
+      {
+        "competition_slug": "primera_rfef_baleares",
+        "content_type": "preview",
+        "priority": 74
       }
     ],
     "domingo": [

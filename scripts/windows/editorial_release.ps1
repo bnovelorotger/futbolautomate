@@ -8,7 +8,8 @@ param(
     [switch]$SkipPublishX,
     [switch]$PublishTypefully,
     [switch]$PublishBrowser,
-    [switch]$SkipPublishBrowser
+    [switch]$SkipPublishBrowser,
+    [int]$Limit = 0
 )
 
 Set-StrictMode -Version Latest
@@ -64,6 +65,9 @@ try {
 
     if ($TargetDate) {
         $arguments += @("--date", $TargetDate)
+    }
+    if ($Limit -gt 0) {
+        $arguments += @("--limit", $Limit)
     }
     if ($UseDraft.IsPresent) {
         $arguments += "--use-draft"

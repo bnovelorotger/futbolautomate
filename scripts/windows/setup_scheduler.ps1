@@ -1,12 +1,19 @@
 # Ejecutar como Administrador: clic derecho -> "Ejecutar con PowerShell" (como admin)
-# Crea las tareas programadas del pipeline de futbolalear con horarios optimos por dia
+# Crea las tareas programadas del pipeline de futbolbalear con horarios optimos por dia.
 
 $project = "C:\Users\bnove\Documents\futbolbalear"
 $ps = "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
 $user = $env:USERNAME
 
 function Register-FutbolTask {
-    param($Name, $Script, $TimeStr, [string[]]$Days, [string]$ScriptArguments = "")
+    param(
+        $Name,
+        $Script,
+        $TimeStr,
+        [string[]]$Days,
+        [string]$ScriptArguments = "",
+        [int]$ExecutionHours = 1
+    )
     $fullArgument = "-NonInteractive -ExecutionPolicy Bypass -File `"$project\$Script`""
     if (-not [string]::IsNullOrWhiteSpace($ScriptArguments)) {
         $fullArgument = "$fullArgument $ScriptArguments"
@@ -19,7 +26,7 @@ function Register-FutbolTask {
         New-ScheduledTaskTrigger -Weekly -DaysOfWeek $_ -At $TimeStr
     }
     $settings = New-ScheduledTaskSettingsSet `
-        -ExecutionTimeLimit (New-TimeSpan -Hours 1) `
+        -ExecutionTimeLimit (New-TimeSpan -Hours $ExecutionHours) `
         -StartWhenAvailable `
         -RunOnlyIfNetworkAvailable:$false `
         -WakeToRun:$false
@@ -40,62 +47,88 @@ function Register-FutbolTask {
     Write-Host "[OK] $Name -> $Days @ $TimeStr"
 }
 
+function Unregister-FutbolTaskIfExists {
+    param($Name)
+    if (Get-ScheduledTask -TaskName $Name -ErrorAction SilentlyContinue) {
+        Unregister-ScheduledTask -TaskName $Name -Confirm:$false
+        Write-Host "[OK] $Name -> tarea legacy eliminada"
+    }
+}
+
 Write-Host "Registrando tareas del pipeline futbolbalear..."
 Write-Host ""
 
+@(
+    "futbol_editorial_day_mon_sun",
+    "futbol_release_mon_sun",
+    "futbol_release_other"
+) | ForEach-Object { Unregister-FutbolTaskIfExists $_ }
+
+Write-Host ""
+
 # --- Scraping de datos ---
-# Lunes/domingo: scraping temprano para tener datos de resultados del fin de semana
+# Lunes/domingo: scraping temprano para tener datos de resultados del fin de semana.
 Register-FutbolTask "futbol_refresh_morning"   "scripts\windows\refresh_data.ps1" "06:30" @("Monday","Sunday")
-# Miercoles/viernes: scraping antes de generacion de contenido
+# Miercoles/viernes: scraping antes de generacion de contenido.
 Register-FutbolTask "futbol_refresh_midweek"   "scripts\windows\refresh_data.ps1" "07:00" @("Wednesday","Friday")
-# Resto de dias: scraping matutino estandar
+# Resto de dias: scraping matutino estandar.
 Register-FutbolTask "futbol_refresh_other"     "scripts\windows\refresh_data.ps1" "07:00" @("Tuesday","Thursday","Saturday")
-# Scraping vespertino diario
+# Scraping vespertino diario.
 Register-FutbolTask "futbol_refresh_afternoon" "scripts\windows\refresh_data.ps1" "14:00" @("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday")
+# Domingo: refresco extra antes del cierre nocturno.
+Register-FutbolTask "futbol_refresh_sunday_evening" "scripts\windows\refresh_data.ps1" "20:00" @("Sunday")
 
 # --- Generacion de contenido editorial ---
-# Lunes/domingo: 07:30 — publicar resultados del fin de semana temprano
-Register-FutbolTask "futbol_editorial_day_mon_sun"  "scripts\windows\run_editorial_day.ps1" "07:30" @("Monday","Sunday")
-# Miercoles: 18:30 — contenido mid-week en hora punta de tarde
-Register-FutbolTask "futbol_editorial_day_wed"      "scripts\windows\run_editorial_day.ps1" "18:30" @("Wednesday")
-# Viernes: 08:00 — previews antes del fin de semana
-Register-FutbolTask "futbol_editorial_day_fri"      "scripts\windows\run_editorial_day.ps1" "08:00" @("Friday")
-# Resto de dias: generacion estandar
-Register-FutbolTask "futbol_editorial_day_other"    "scripts\windows\run_editorial_day.ps1" "09:00" @("Tuesday","Thursday","Saturday")
+# Lunes: resultados + clasificaciones post fin de semana antes del primer slot fuerte.
+Register-FutbolTask "futbol_editorial_day_mon" "scripts\windows\run_editorial_day.ps1" "07:30" @("Monday")
+# Martes/jueves/sabado: capa ligera de continuidad editorial.
+Register-FutbolTask "futbol_editorial_day_other" "scripts\windows\run_editorial_day.ps1" "18:30" @("Tuesday","Thursday")
+# Sabado: previa ligera en la manana.
+Register-FutbolTask "futbol_editorial_day_sat" "scripts\windows\run_editorial_day.ps1" "09:30" @("Saturday")
+# Miercoles: historias y metricas para prime time de noche.
+Register-FutbolTask "futbol_editorial_day_wed" "scripts\windows\run_editorial_day.ps1" "18:30" @("Wednesday")
+# Viernes: previews antes de la ventana de comida.
+Register-FutbolTask "futbol_editorial_day_fri" "scripts\windows\run_editorial_day.ps1" "08:00" @("Friday")
+# Domingo: resultados recientes del tramo final de la jornada.
+Register-FutbolTask "futbol_editorial_day_sun" "scripts\windows\run_editorial_day.ps1" "20:45" @("Sunday")
 
 # --- Release + publicacion ---
-# Lunes/domingo: 08:30 — resultados del fin de semana publicados antes de las 9
-Register-FutbolTask "futbol_release_mon_sun"    "scripts\windows\editorial_release.ps1" "08:30" @("Monday","Sunday")
-# Miercoles: 19:30 — prime time para contenido analitico
-Register-FutbolTask "futbol_release_wed"        "scripts\windows\editorial_release.ps1" "19:30" @("Wednesday")
-# Viernes: 09:00 — previews en la manana del viernes
-Register-FutbolTask "futbol_release_fri"        "scripts\windows\editorial_release.ps1" "09:00" @("Friday")
-# Resto de dias: release estandar
-Register-FutbolTask "futbol_release_other"      "scripts\windows\editorial_release.ps1" "10:30" @("Tuesday","Thursday","Saturday")
+# Lunes: primer slot de alta atencion post fin de semana, con 4 posts maximo.
+Register-FutbolTask "futbol_release_mon" "scripts\windows\editorial_release.ps1" "09:15" @("Monday") "-Limit 4" 3
+# Martes/jueves: continuidad de noche con menor volumen.
+Register-FutbolTask "futbol_release_other" "scripts\windows\editorial_release.ps1" "20:00" @("Tuesday","Thursday") "-Limit 3" 2
+# Miercoles: prime time de noche para piezas conversacionales.
+Register-FutbolTask "futbol_release_wed" "scripts\windows\editorial_release.ps1" "20:00" @("Wednesday") "-Limit 4" 3
+# Viernes: ventana de comida para previas del fin de semana.
+Register-FutbolTask "futbol_release_fri" "scripts\windows\editorial_release.ps1" "13:00" @("Friday") "-Limit 4" 3
+# Sabado: previa ligera del dia.
+Register-FutbolTask "futbol_release_sat" "scripts\windows\editorial_release.ps1" "11:00" @("Saturday") "-Limit 2" 2
+# Domingo: cierre ligero, sin invadir el digest de las 22:00.
+Register-FutbolTask "futbol_release_sun" "scripts\windows\editorial_release.ps1" "21:15" @("Sunday") "-Limit 2" 2
 
 # --- Agenda Telegram de la jornada ---
-Register-FutbolTask "futbol_editorial_day_plan" "scripts\windows\editorial_day_plan.ps1" "09:00" @("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday") "-SendTelegram"
+Register-FutbolTask "futbol_editorial_day_plan" "scripts\windows\editorial_day_plan.ps1" "08:00" @("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday") "-SendTelegram"
 
 # --- Resumen operativo diario ---
-Register-FutbolTask "futbol_summary"            "scripts\windows\daily_summary.ps1"     "21:00" @("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday")
-Register-FutbolTask "futbol_editorial_digest"   "scripts\windows\editorial_daily_digest.ps1" "22:00" @("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday") "-SendTelegram"
+Register-FutbolTask "futbol_summary"          "scripts\windows\daily_summary.ps1"          "21:00" @("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday")
+Register-FutbolTask "futbol_editorial_digest" "scripts\windows\editorial_daily_digest.ps1" "22:00" @("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday") "-SendTelegram"
 
 # --- Engagement diario (like a tweets del timeline) ---
-Register-FutbolTask "futbol_engagement"         "scripts\windows\daily_engagement.ps1"  "12:30" @("Monday","Tuesday","Wednesday","Thursday","Friday")
+Register-FutbolTask "futbol_engagement" "scripts\windows\daily_engagement.ps1" "12:30" @("Monday","Tuesday","Wednesday","Thursday","Friday")
 
 # --- Verificacion de sesion de X browser ---
-# Lunes a las 06:00: antes del scraping (06:30) y del editorial (07:30) para alertar a tiempo
-Register-FutbolTask "futbol_session_check"      "scripts\windows\check_browser_session.ps1" "06:00" @("Monday")
+# Lunes a las 06:00: antes del scraping (06:30) y del editorial (07:30) para alertar a tiempo.
+Register-FutbolTask "futbol_session_check" "scripts\windows\check_browser_session.ps1" "06:00" @("Monday")
 
 # --- Backup de base de datos ---
-Register-FutbolTask "futbol_backup"             "scripts\windows\backup_db.ps1"         "03:00" @("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday")
+Register-FutbolTask "futbol_backup" "scripts\windows\backup_db.ps1" "03:00" @("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday")
 
 # --- Limpieza semanal de logs ---
 Register-FutbolTask "futbol_log_cleanup" "scripts\windows\cleanup_logs.ps1" "04:00" @("Sunday")
 
 Write-Host ""
 Write-Host "=== Tareas registradas ==="
-Get-ScheduledTask | Where-Object { $_.TaskName -like "futbol_*" } | `
+Get-ScheduledTask | Where-Object { $_.TaskName -like "futbol_*" } |
     Select-Object TaskName, State | Format-Table -AutoSize
 
 Write-Host "Listo. El pipeline se ejecutara automaticamente segun el horario optimo por dia."

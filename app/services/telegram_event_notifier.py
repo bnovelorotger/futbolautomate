@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from html import escape
 
+from app.core.config import Settings, get_settings
 from app.services.telegram_notification_service import TelegramNotificationService
 
 SummaryMetricValue = str | int | float | bool | None
@@ -26,9 +27,11 @@ class TelegramEventNotifier:
     def __init__(
         self,
         *,
+        settings: Settings | None = None,
         notification_service: TelegramNotificationService | None = None,
     ) -> None:
-        self._notification_service = notification_service or TelegramNotificationService()
+        self.settings = settings or get_settings()
+        self._notification_service = notification_service or TelegramNotificationService(settings=self.settings)
 
     def is_configured(self) -> bool:
         return self._notification_service.is_configured()
@@ -42,6 +45,8 @@ class TelegramEventNotifier:
         status: str = "started",
         summary_metrics: Mapping[str, SummaryMetricValue] | None = None,
     ) -> bool:
+        if not self.settings.telegram_task_start_finish_enabled:
+            return False
         return self._send_task_event(
             TaskEventPayload(
                 task_name=task_name,
@@ -63,6 +68,8 @@ class TelegramEventNotifier:
         status: str = "ok",
         summary_metrics: Mapping[str, SummaryMetricValue] | None = None,
     ) -> bool:
+        if not self.settings.telegram_task_start_finish_enabled:
+            return False
         return self._send_task_event(
             TaskEventPayload(
                 task_name=task_name,
@@ -86,6 +93,8 @@ class TelegramEventNotifier:
         summary_metrics: Mapping[str, SummaryMetricValue] | None = None,
         error_message: str | None = None,
     ) -> bool:
+        if not self.settings.telegram_task_error_enabled:
+            return False
         return self._send_task_event(
             TaskEventPayload(
                 task_name=task_name,

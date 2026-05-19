@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 
 from app.channels.x_browser.schemas import XBrowserPublishResponse
 from app.db.models import ContentCandidate
+from app.services.telegram_publication_notifier import TelegramPublicationNotifier
 from app.services.x_browser_publication_service import XBrowserPublicationService
 from tests.unit.services.test_x_publication_service import (
     build_preview_payload,
@@ -27,10 +28,12 @@ def test_x_browser_publication_service_lists_and_publishes_with_x_channel() -> N
             published_at=datetime(2026, 3, 15, 10, 5, tzinfo=UTC),
             dry_run=False,
         )
+        publication_notifier = Mock(spec=TelegramPublicationNotifier)
         service = XBrowserPublicationService(
             session,
             publisher=publisher,
             scheduler=build_scheduler(current_time=datetime(2026, 3, 16, 10, 0, tzinfo=ZoneInfo("Europe/Madrid"))),
+            publication_notifier=publication_notifier,
         )
 
         pending = service.list_pending(limit=10)
@@ -47,6 +50,7 @@ def test_x_browser_publication_service_lists_and_publishes_with_x_channel() -> N
         assert candidate.external_publication_ref is not None
         assert candidate.external_publication_ref.startswith("x-browser:")
         assert candidate.external_publication_error is None
+        publication_notifier.publication_succeeded.assert_called_once()
         publisher.publish_text.assert_called_once_with(
             "Torrent CF 1-0 UE Porreres. Final en Segunda RFEF balear.",
             image_path=None,

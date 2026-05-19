@@ -86,7 +86,7 @@ def test_editorial_daily_digest_service_builds_report_and_renders_outputs() -> N
                     status="published",
                     created_at=now - timedelta(hours=2),
                     published_at=now - timedelta(hours=2),
-                    external_publication_ref="browser:123",
+                    external_publication_ref="x-browser:123",
                     rewrite_status="rewritten",
                     rewrite_timestamp=now - timedelta(hours=2),
                 ),

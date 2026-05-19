@@ -1,17 +1,18 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 from app.db.models import ContentCandidate
 from app.services.editorial_approval_policy import (
-    EditorialApprovalPolicyService,
     FRIDAY_AUTOAPPROVABLE_CONTENT_TYPES,
     MONDAY_AUTOAPPROVABLE_CONTENT_TYPES,
+    THURSDAY_AUTOAPPROVABLE_CONTENT_TYPES,
+    EditorialApprovalPolicyService,
 )
-from tests.unit.services.test_editorial_narratives import seed_competition
 from tests.unit.services.service_test_support import build_session, build_settings
+from tests.unit.services.test_editorial_narratives import seed_competition
 
 
 def test_autoapprove_includes_logical_reference_date_even_if_created_next_day() -> None:
@@ -27,7 +28,7 @@ def test_autoapprove_includes_logical_reference_date_even_if_created_next_day() 
                 {
                     "round_name": "Jornada 26",
                     "match_date": date(2026, 3, 16),
-                    "match_time": datetime(2026, 3, 16, 10, 0, tzinfo=timezone.utc).time(),
+                    "match_time": datetime(2026, 3, 16, 10, 0, tzinfo=UTC).time(),
                     "home_team": "CD Llosetense",
                     "away_team": "SD Portmany",
                     "home_score": 2,
@@ -66,8 +67,8 @@ def test_autoapprove_includes_logical_reference_date_even_if_created_next_day() 
                 source_summary_hash="approval-backfill-901",
                 scheduled_at=None,
                 status="draft",
-                created_at=datetime(2026, 3, 17, 8, 30, tzinfo=timezone.utc),
-                updated_at=datetime(2026, 3, 17, 8, 30, tzinfo=timezone.utc),
+                created_at=datetime(2026, 3, 17, 8, 30, tzinfo=UTC),
+                updated_at=datetime(2026, 3, 17, 8, 30, tzinfo=UTC),
             )
         )
         session.commit()
@@ -98,7 +99,7 @@ def test_autoapprove_includes_old_drafts_when_they_enter_release_window() -> Non
                 {
                     "round_name": "Jornada 26",
                     "match_date": date(2026, 3, 16),
-                    "match_time": datetime(2026, 3, 16, 10, 0, tzinfo=timezone.utc).time(),
+                    "match_time": datetime(2026, 3, 16, 10, 0, tzinfo=UTC).time(),
                     "home_team": "CD Llosetense",
                     "away_team": "SD Portmany",
                     "home_score": 2,
@@ -137,8 +138,8 @@ def test_autoapprove_includes_old_drafts_when_they_enter_release_window() -> Non
                 source_summary_hash="approval-backfill-902",
                 scheduled_at=None,
                 status="draft",
-                created_at=datetime(2026, 3, 10, 8, 30, tzinfo=timezone.utc),
-                updated_at=datetime(2026, 3, 10, 8, 30, tzinfo=timezone.utc),
+                created_at=datetime(2026, 3, 10, 8, 30, tzinfo=UTC),
+                updated_at=datetime(2026, 3, 10, 8, 30, tzinfo=UTC),
             )
         )
         session.commit()
@@ -188,8 +189,8 @@ def test_monday_autoapproves_top_scorer_update_when_configured() -> None:
                 },
                 source_summary_hash="approval-top-scorer-903",
                 status="draft",
-                created_at=datetime(2026, 3, 16, 8, 30, tzinfo=timezone.utc),
-                updated_at=datetime(2026, 3, 16, 8, 30, tzinfo=timezone.utc),
+                created_at=datetime(2026, 3, 16, 8, 30, tzinfo=UTC),
+                updated_at=datetime(2026, 3, 16, 8, 30, tzinfo=UTC),
             )
         )
         session.commit()
@@ -203,9 +204,63 @@ def test_monday_autoapproves_top_scorer_update_when_configured() -> None:
         result = service.autoapprove(reference_date=date(2026, 3, 16), dry_run=True)
 
         rows = {row.id: row for row in result.rows}
-        assert MONDAY_AUTOAPPROVABLE_CONTENT_TYPES == (rows[903].content_type,)
+        assert (rows[903].content_type,) == MONDAY_AUTOAPPROVABLE_CONTENT_TYPES
         assert rows[903].autoapprovable is True
         assert rows[903].policy_reason == "policy_autoapprove_safe_type"
+    finally:
+        session.close()
+
+
+def test_thursday_autoapproves_top_scorer_update_when_configured() -> None:
+    session = build_session()
+    try:
+        seed_competition(
+            session,
+            code="tercera_rfef_g11",
+            name="3a RFEF Baleares",
+            teams=["CD Manacor", "CE Mercadal"],
+            standings_rows=[],
+            match_rows=[],
+        )
+        session.add(
+            ContentCandidate(
+                id=904,
+                competition_slug="tercera_rfef_g11",
+                content_type="top_scorer_update",
+                priority=75,
+                text_draft="Pichichi provisional en 3a RFEF Baleares: Joan Serra (CD Manacor) manda con 8 goles.",
+                payload_json={
+                    "reference_date": "2026-03-19",
+                    "competition_name": "3a RFEF Baleares",
+                    "content_key": "top_scorer_update:tercera_rfef_g11:2025-26",
+                    "source_payload": {
+                        "leader": {"player": "Joan Serra", "team": "CD Manacor", "goals": 8},
+                        "rows": [{"player": "Joan Serra", "team": "CD Manacor", "goals": 8}],
+                        "leader_goals": 8,
+                        "teams": ["CD Manacor"],
+                        "season": "2025-26",
+                    },
+                },
+                source_summary_hash="approval-top-scorer-904",
+                status="draft",
+                created_at=datetime(2026, 3, 19, 8, 30, tzinfo=UTC),
+                updated_at=datetime(2026, 3, 19, 8, 30, tzinfo=UTC),
+            )
+        )
+        session.commit()
+
+        service = EditorialApprovalPolicyService(session, settings=build_settings())
+        service.quality_service = Mock()
+        service.quality_service.check_candidates.return_value = SimpleNamespace(
+            rows=[SimpleNamespace(id=904, passed=True, errors=[])]
+        )
+
+        result = service.autoapprove(reference_date=date(2026, 3, 19), dry_run=True)
+
+        rows = {row.id: row for row in result.rows}
+        assert rows[904].content_type in THURSDAY_AUTOAPPROVABLE_CONTENT_TYPES
+        assert rows[904].autoapprovable is True
+        assert rows[904].policy_reason == "policy_autoapprove_safe_type"
     finally:
         session.close()
 
@@ -247,8 +302,8 @@ def test_monday_autoapproves_strongest_race_narrative_per_competition_and_keeps_
                     },
                     source_summary_hash="approval-race-907",
                     status="draft",
-                    created_at=datetime(2026, 3, 16, 8, 30, tzinfo=timezone.utc),
-                    updated_at=datetime(2026, 3, 16, 8, 30, tzinfo=timezone.utc),
+                    created_at=datetime(2026, 3, 16, 8, 30, tzinfo=UTC),
+                    updated_at=datetime(2026, 3, 16, 8, 30, tzinfo=UTC),
                 ),
                 ContentCandidate(
                     id=908,
@@ -275,8 +330,8 @@ def test_monday_autoapproves_strongest_race_narrative_per_competition_and_keeps_
                     },
                     source_summary_hash="approval-race-908",
                     status="draft",
-                    created_at=datetime(2026, 3, 16, 8, 31, tzinfo=timezone.utc),
-                    updated_at=datetime(2026, 3, 16, 8, 31, tzinfo=timezone.utc),
+                    created_at=datetime(2026, 3, 16, 8, 31, tzinfo=UTC),
+                    updated_at=datetime(2026, 3, 16, 8, 31, tzinfo=UTC),
                 ),
                 ContentCandidate(
                     id=909,
@@ -297,8 +352,8 @@ def test_monday_autoapproves_strongest_race_narrative_per_competition_and_keeps_
                     },
                     source_summary_hash="approval-milestone-909",
                     status="draft",
-                    created_at=datetime(2026, 3, 16, 8, 32, tzinfo=timezone.utc),
-                    updated_at=datetime(2026, 3, 16, 8, 32, tzinfo=timezone.utc),
+                    created_at=datetime(2026, 3, 16, 8, 32, tzinfo=UTC),
+                    updated_at=datetime(2026, 3, 16, 8, 32, tzinfo=UTC),
                 ),
             ]
         )
@@ -362,8 +417,8 @@ def test_race_narrative_stays_manual_outside_monday_even_when_quality_passes() -
                 },
                 source_summary_hash="approval-race-910",
                 status="draft",
-                created_at=datetime(2026, 3, 20, 8, 30, tzinfo=timezone.utc),
-                updated_at=datetime(2026, 3, 20, 8, 30, tzinfo=timezone.utc),
+                created_at=datetime(2026, 3, 20, 8, 30, tzinfo=UTC),
+                updated_at=datetime(2026, 3, 20, 8, 30, tzinfo=UTC),
             )
         )
         session.commit()
@@ -419,8 +474,8 @@ def test_quality_precheck_excludes_race_narrative_outside_monday() -> None:
                 },
                 source_summary_hash="approval-race-911",
                 status="draft",
-                created_at=datetime(2026, 3, 20, 8, 30, tzinfo=timezone.utc),
-                updated_at=datetime(2026, 3, 20, 8, 30, tzinfo=timezone.utc),
+                created_at=datetime(2026, 3, 20, 8, 30, tzinfo=UTC),
+                updated_at=datetime(2026, 3, 20, 8, 30, tzinfo=UTC),
             )
         )
         session.commit()
@@ -456,8 +511,8 @@ def test_friday_autoapproves_preview_and_match_impact_and_keeps_race_manual() ->
                     payload_json={"reference_date": "2026-03-20", "source_payload": {}},
                     source_summary_hash="approval-preview-904",
                     status="draft",
-                    created_at=datetime(2026, 3, 20, 8, 30, tzinfo=timezone.utc),
-                    updated_at=datetime(2026, 3, 20, 8, 30, tzinfo=timezone.utc),
+                    created_at=datetime(2026, 3, 20, 8, 30, tzinfo=UTC),
+                    updated_at=datetime(2026, 3, 20, 8, 30, tzinfo=UTC),
                 ),
                 ContentCandidate(
                     id=905,
@@ -468,8 +523,8 @@ def test_friday_autoapproves_preview_and_match_impact_and_keeps_race_manual() ->
                     payload_json={"reference_date": "2026-03-20", "source_payload": {}},
                     source_summary_hash="approval-impact-905",
                     status="draft",
-                    created_at=datetime(2026, 3, 20, 8, 31, tzinfo=timezone.utc),
-                    updated_at=datetime(2026, 3, 20, 8, 31, tzinfo=timezone.utc),
+                    created_at=datetime(2026, 3, 20, 8, 31, tzinfo=UTC),
+                    updated_at=datetime(2026, 3, 20, 8, 31, tzinfo=UTC),
                 ),
                 ContentCandidate(
                     id=906,
@@ -480,8 +535,8 @@ def test_friday_autoapproves_preview_and_match_impact_and_keeps_race_manual() ->
                     payload_json={"reference_date": "2026-03-20", "source_payload": {}},
                     source_summary_hash="approval-race-906",
                     status="draft",
-                    created_at=datetime(2026, 3, 20, 8, 32, tzinfo=timezone.utc),
-                    updated_at=datetime(2026, 3, 20, 8, 32, tzinfo=timezone.utc),
+                    created_at=datetime(2026, 3, 20, 8, 32, tzinfo=UTC),
+                    updated_at=datetime(2026, 3, 20, 8, 32, tzinfo=UTC),
                 ),
             ]
         )

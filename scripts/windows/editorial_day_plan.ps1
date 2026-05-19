@@ -1,5 +1,5 @@
 # Agenda editorial de la jornada para consola y envio opcional a Telegram.
-# Schedule sugerido: diario a las 09:00.
+# Schedule sugerido: diario a las 08:00.
 param(
     [string]$Date,
     [switch]$SendTelegram,
@@ -49,4 +49,3 @@ try {
 } finally {
     Release-Lock
 }
-

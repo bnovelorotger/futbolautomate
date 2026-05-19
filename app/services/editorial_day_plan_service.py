@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from collections import Counter
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
@@ -17,6 +17,8 @@ from app.schemas.editorial_day_plan import (
     EditorialDayPlanStatusSummary,
     EditorialDayPlanTypeItem,
 )
+from app.services.editorial_approval_policy import EditorialApprovalPolicyService
+from app.services.editorial_ops import EditorialOperationsService
 from app.services.x_publication_scheduler import _WEEKDAY_TO_KEY, load_publication_schedule
 
 _DEFAULT_ENTRY_LIMIT = 8
@@ -44,25 +46,43 @@ class EditorialDayPlanService:
         self.entry_limit = entry_limit
         self.lookback_days = lookback_days
         self.schedule = load_publication_schedule()
+        self.editorial_ops = EditorialOperationsService(session)
+        self.approval_policy = EditorialApprovalPolicyService(session, settings=self.settings)
 
     def build_report(self, target_date: date | None = None) -> EditorialDayPlanReport:
         selected_date = target_date or datetime.now(self.timezone).date()
-        rows = self._load_candidate_rows(selected_date)
-        filtered = [row for row in rows if self._matches_target_date(row, selected_date)]
-        filtered.sort(key=self._sort_key)
-
-        type_counter = Counter(row.content_type for row in filtered)
+        scheduled_types = set(self._scheduled_content_types(selected_date))
+        preview_report = self.editorial_ops.preview_day(selected_date)
+        filtered_rows = [
+            row for row in preview_report.rows if row.target_content_type.value in scheduled_types
+        ]
+        published_count = self._published_reference_day_count(selected_date, scheduled_types=scheduled_types)
+        approval_result = self.approval_policy.autoapprove(
+            reference_date=selected_date,
+            limit=500,
+            dry_run=True,
+        )
+        publishable_rows = [
+            row
+            for row in approval_result.rows
+            if row.content_type.value in scheduled_types and row.autoapprovable
+        ]
+        manual_rows = [
+            row
+            for row in approval_result.rows
+            if row.content_type.value in scheduled_types and not row.autoapprovable
+        ]
+        planned_rows = publishable_rows[: max(int(self.settings.x_browser_release_action_limit), 1)]
+        type_counter = Counter(row.content_type.value for row in planned_rows)
+        expected_total = sum(int(row.expected_count) for row in filtered_rows)
+        blocked_tasks = sum(int(bool(row.missing_dependencies)) for row in filtered_rows)
         status_summary = EditorialDayPlanStatusSummary(
-            total_candidates=len(filtered),
-            published_count=sum(1 for row in filtered if row.status == str(ContentCandidateStatus.PUBLISHED)),
-            approved_count=sum(1 for row in filtered if row.status == str(ContentCandidateStatus.APPROVED)),
-            draft_count=sum(1 for row in filtered if row.status == str(ContentCandidateStatus.DRAFT)),
-            rejected_count=sum(1 for row in filtered if row.status == str(ContentCandidateStatus.REJECTED)),
-            pending_count=sum(
-                1
-                for row in filtered
-                if row.status in {str(ContentCandidateStatus.APPROVED), str(ContentCandidateStatus.DRAFT)}
-            ),
+            total_candidates=expected_total,
+            published_count=published_count,
+            approved_count=len(publishable_rows),
+            draft_count=len(manual_rows),
+            rejected_count=blocked_tasks,
+            pending_count=len(planned_rows),
         )
 
         by_type = [
@@ -72,12 +92,12 @@ class EditorialDayPlanService:
         entries = [
             EditorialDayPlanEntry(
                 id=row.id,
-                status=row.status,
-                content_type=row.content_type,
-                competition=self._competition_label(row),
+                status="auto",
+                content_type=row.content_type.value,
+                competition=self._competition_label_for_candidate(row.id, fallback=row.competition_slug),
                 priority=int(row.priority or 0),
             )
-            for row in filtered[: self.entry_limit]
+            for row in planned_rows[: self.entry_limit]
         ]
 
         return EditorialDayPlanReport(
@@ -108,11 +128,12 @@ class EditorialDayPlanService:
             [
                 "",
                 "Estado actual",
-                f"- total previstas: {report.status.total_candidates}",
-                f"- ya publicadas: {report.status.published_count}",
-                f"- pendientes: {report.status.pending_count}",
-                f"- drafts: {report.status.draft_count}",
-                f"- rechazadas: {report.status.rejected_count}",
+                f"- publicadas de la jornada: {report.status.published_count}",
+                f"- publicables hoy: {report.status.approved_count}",
+                f"- salida prevista en este slot: {report.status.pending_count}",
+                f"- pendientes manuales hoy: {report.status.draft_count}",
+                f"- tareas bloqueadas por planner: {report.status.rejected_count}",
+                f"- carga total del planner: {report.status.total_candidates}",
             ]
         )
 
@@ -123,10 +144,10 @@ class EditorialDayPlanService:
         lines.extend(["", "Piezas del dia"])
         if report.entries:
             lines.extend(
-                f"- {entry.status} | {entry.content_type} | {entry.competition} | id={entry.id}"
+                f"- {entry.status} | {entry.content_type} | {entry.competition}"
                 for entry in report.entries
             )
-            remaining = report.status.total_candidates - len(report.entries)
+            remaining = max(report.status.pending_count - len(report.entries), 0)
             if remaining > 0:
                 lines.append(f"- (+{remaining} pieza/s mas)")
         else:
@@ -151,10 +172,11 @@ class EditorialDayPlanService:
             [
                 "",
                 "Estado",
-                f"- total previstas: {report.status.total_candidates}",
-                f"- ya publicadas: {report.status.published_count}",
-                f"- pendientes: {report.status.pending_count}",
-                f"- rechazadas: {report.status.rejected_count}",
+                f"- publicadas de la jornada: {report.status.published_count}",
+                f"- publicables hoy: {report.status.approved_count}",
+                f"- salida prevista en este slot: {report.status.pending_count}",
+                f"- pendientes manuales hoy: {report.status.draft_count}",
+                f"- tareas bloqueadas por planner: {report.status.rejected_count}",
             ]
         )
         if report.by_content_type:
@@ -166,41 +188,13 @@ class EditorialDayPlanService:
         if report.entries:
             for entry in report.entries:
                 lines.append(f"- {entry.status} | {entry.content_type} | {self._truncate(entry.competition, 40)}")
-            remaining = report.status.total_candidates - len(report.entries)
+            remaining = max(report.status.pending_count - len(report.entries), 0)
             if remaining > 0:
-                lines.append(f"- (+{remaining} pieza/s mas)")
+                lines.append(f"- (+{remaining} pieza/s publicable/s mas)")
         else:
-            lines.append("- sin piezas previstas actualmente")
+            lines.append("- sin piezas autoaprobables para este slot")
 
         return "\n".join(lines)
-
-    def _load_candidate_rows(self, target_date: date) -> list[ContentCandidate]:
-        window_start = datetime.combine(
-            target_date - timedelta(days=max(self.lookback_days, 1) - 1),
-            datetime.min.time(),
-            tzinfo=self.timezone,
-        ).astimezone(UTC)
-        query = (
-            select(ContentCandidate)
-            .where(
-                or_(
-                    ContentCandidate.created_at >= window_start,
-                    ContentCandidate.published_at >= window_start,
-                    ContentCandidate.scheduled_at >= window_start,
-                )
-            )
-            .order_by(ContentCandidate.created_at.asc(), ContentCandidate.id.asc())
-        )
-        return self.session.execute(query).scalars().all()
-
-    def _matches_target_date(self, candidate: ContentCandidate, target_date: date) -> bool:
-        reference_date = self._candidate_reference_date(candidate)
-        if reference_date is not None:
-            return reference_date == target_date
-        for timestamp in (candidate.scheduled_at, candidate.published_at, candidate.created_at):
-            if self._local_date(timestamp) == target_date:
-                return True
-        return False
 
     def _schedule_summary(self, target_date: date) -> EditorialDayPlanScheduleSummary:
         day_key = _WEEKDAY_TO_KEY[target_date.weekday()]
@@ -213,25 +207,37 @@ class EditorialDayPlanService:
             scheduled_types=sorted(day_schedule.types),
         )
 
-    def _candidate_reference_date(self, candidate: ContentCandidate) -> date | None:
-        payload_json = candidate.payload_json or {}
-        if not isinstance(payload_json, dict):
-            return None
-        value = payload_json.get("reference_date")
-        if not isinstance(value, str):
-            return None
-        try:
-            return date.fromisoformat(value)
-        except ValueError:
-            return None
+    def _scheduled_content_types(self, target_date: date) -> list[str]:
+        day_key = _WEEKDAY_TO_KEY[target_date.weekday()]
+        day_schedule = self.schedule.day(day_key)
+        if day_schedule is None:
+            return []
+        return list(sorted(day_schedule.types))
 
-    def _competition_label(self, candidate: ContentCandidate) -> str:
-        payload_json = candidate.payload_json or {}
-        if isinstance(payload_json, dict):
-            competition_name = payload_json.get("competition_name")
-            if isinstance(competition_name, str) and competition_name.strip():
-                return competition_name.strip()
-        return candidate.competition_slug
+    def _published_reference_day_count(self, target_date: date, *, scheduled_types: set[str]) -> int:
+        if not scheduled_types:
+            return 0
+        rows = self.session.execute(
+            select(ContentCandidate.content_type, ContentCandidate.payload_json).where(
+                ContentCandidate.status == str(ContentCandidateStatus.PUBLISHED),
+                ContentCandidate.content_type.in_(sorted(scheduled_types)),
+            )
+        ).all()
+        published_count = 0
+        for content_type, payload_json in rows:
+            if content_type not in scheduled_types:
+                continue
+            reference_date = None
+            if isinstance(payload_json, dict):
+                raw_reference_date = payload_json.get("reference_date")
+                if isinstance(raw_reference_date, str):
+                    try:
+                        reference_date = date.fromisoformat(raw_reference_date)
+                    except ValueError:
+                        reference_date = None
+            if reference_date == target_date:
+                published_count += 1
+        return published_count
 
     def _local_date(self, value: datetime | None) -> date | None:
         if value is None:
@@ -249,3 +255,14 @@ class EditorialDayPlanService:
         if len(value) <= limit:
             return value
         return value[: max(limit - 3, 0)].rstrip() + "..."
+
+    def _competition_label_for_candidate(self, candidate_id: int, *, fallback: str) -> str:
+        candidate = self.session.get(ContentCandidate, candidate_id)
+        if candidate is None:
+            return fallback
+        payload_json = candidate.payload_json or {}
+        if isinstance(payload_json, dict):
+            competition_name = payload_json.get("competition_name")
+            if isinstance(competition_name, str) and competition_name.strip():
+                return competition_name.strip()
+        return fallback
