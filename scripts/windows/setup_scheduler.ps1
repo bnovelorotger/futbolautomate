@@ -64,6 +64,16 @@ Write-Host ""
     "futbol_release_other"
 ) | ForEach-Object { Unregister-FutbolTaskIfExists $_ }
 
+# Legacy "uFutbolBalear *" tasks from the previous task naming convention.
+# These shadow the futbol_* tasks and trigger duplicate runs of the same
+# scripts (refresh/editorial day/release/readiness) on Mon/Wed/Fri/Sun.
+Get-ScheduledTask -ErrorAction SilentlyContinue |
+    Where-Object { $_.TaskName -like "uFutbolBalear*" } |
+    ForEach-Object {
+        Unregister-ScheduledTask -TaskName $_.TaskName -Confirm:$false
+        Write-Host "[OK] $($_.TaskName) -> tarea legacy uFutbolBalear eliminada"
+    }
+
 Write-Host ""
 
 # --- Scraping de datos ---

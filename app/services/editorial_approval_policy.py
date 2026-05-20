@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
@@ -9,6 +10,8 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings, get_settings
 from app.core.enums import ContentCandidateStatus, ContentType
 from app.db.models import ContentCandidate
+
+logger = logging.getLogger(__name__)
 from app.schemas.editorial_approval import (
     EditorialApprovalCandidateView,
     EditorialApprovalRunResult,
@@ -517,9 +520,26 @@ class EditorialApprovalPolicyService:
             ContentCandidate.created_at.asc(),
         )
         rows = self.session.execute(query).scalars().all()
-        eligible_rows = [
-            row for row in rows if self.window_service.matches_release_window(row, reference_date=selected_date)
-        ]
+        eligible_rows: list[ContentCandidate] = []
+        filtered_ids: list[tuple[int, str]] = []
+        for row in rows:
+            if self.window_service.matches_release_window(row, reference_date=selected_date):
+                eligible_rows.append(row)
+            else:
+                filtered_ids.append((row.id, row.content_type or "unknown"))
+        logger.info(
+            "editorial_pending_drafts",
+            extra={
+                "event": "editorial_pending_drafts",
+                "reference_date": selected_date.isoformat() if selected_date else None,
+                "rows_total": len(rows),
+                "rows_eligible": len(eligible_rows),
+                "rows_filtered_by_window": len(filtered_ids),
+                "filtered_ids": filtered_ids[:50],
+                "eligible_ids": [row.id for row in eligible_rows[:50]],
+                "limit_applied": limit,
+            },
+        )
         return eligible_rows[:limit]
 
     def _day_bounds(self, target_date: date) -> tuple[datetime, datetime]:

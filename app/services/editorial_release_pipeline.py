@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
 from datetime import date
 
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
 from app.db.models import ContentCandidate
+
+logger = logging.getLogger(__name__)
 from app.schemas.editorial_release import EditorialReleaseResult
 from app.services.editorial_approval_policy import EditorialApprovalPolicyService
 from app.services.editorial_formatter import EditorialFormatterService
@@ -119,6 +122,9 @@ class EditorialReleasePipelineService:
             dry_run=False,
         )
         autoapproved_ids = [row.id for row in approval_result.rows if row.autoapprovable]
+        # Rescue path for orphaned APPROVED candidates: any candidate that was
+        # approved in a previous run but never reached PUBLISHED (e.g. the prior
+        # release crashed between dispatch and commit) is picked up here.
         ready_approved_ids = [
             row.id
             for row in self.dispatch_service.list_ready(
@@ -126,12 +132,39 @@ class EditorialReleasePipelineService:
                 limit=limit,
             )
         ]
+        rescue_only_ids = [cid for cid in ready_approved_ids if cid not in autoapproved_ids]
+        if rescue_only_ids:
+            logger.warning(
+                "editorial_release_rescue",
+                extra={
+                    "event": "editorial_release_rescue",
+                    "rescued_approved_ids": rescue_only_ids,
+                    "note": "approved candidates from a previous run reached dispatch only now",
+                },
+            )
         candidate_ids_to_dispatch = list(dict.fromkeys([*autoapproved_ids, *ready_approved_ids]))
         dispatch_result = self.dispatch_service.dispatch_candidates(
             candidate_ids_to_dispatch,
             dry_run=False,
             only_ready=True,
             include_unscheduled=True,
+        )
+        logger.info(
+            "editorial_release_phase",
+            extra={
+                "event": "editorial_release_phase",
+                "reference_date": reference_date.isoformat() if reference_date else None,
+                "limit": limit,
+                "dry_run": export_dry_run,
+                "quality_precheck_ids": quality_candidate_ids,
+                "drafts_found": approval_result.drafts_found,
+                "autoapprovable_count": approval_result.autoapprovable_count,
+                "autoapproved_ids": autoapproved_ids,
+                "ready_approved_rescue_ids": ready_approved_ids,
+                "ids_to_dispatch": candidate_ids_to_dispatch,
+                "dispatched_count": dispatch_result.dispatched_count,
+                "dispatched_ids": [row.id for row in dispatch_result.rows],
+            },
         )
         self._hydrate_formatted_text(published_ids=[row.id for row in dispatch_result.rows])
         export_base_result = self.export_base_service.generate_export_file(

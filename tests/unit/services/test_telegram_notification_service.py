@@ -2,8 +2,12 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from app.core.config import Settings
 from app.services.telegram_notification_service import TelegramNotificationService
+
+pytestmark = pytest.mark.real_telegram
 
 
 def _settings(**overrides) -> Settings:
