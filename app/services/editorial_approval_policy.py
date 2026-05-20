@@ -105,6 +105,12 @@ class EditorialApprovalPolicyService:
         self.settings = settings or get_settings()
         self.window_service = EditorialCandidateWindowService(session, settings=self.settings)
         self.quality_service = EditorialQualityChecksService(session, settings=self.settings)
+        # Per-instance cache so callers like _run_internal that hit quality_precheck
+        # + autoapprove in sequence don't re-query the DB and re-evaluate
+        # matches_release_window for every row each time. The cached rows are ORM
+        # instances bound to self.session, so any column updates (e.g. quality
+        # check flags) are reflected via the identity map.
+        self._pending_drafts_cache: dict[tuple[date, int], list[ContentCandidate]] = {}
 
     def status(
         self,
@@ -182,6 +188,12 @@ class EditorialApprovalPolicyService:
                     )
                 autoapproved_count += 1
             result_rows.append(view)
+
+        if not dry_run and autoapproved_count:
+            # The cached "pending drafts" list is stale once we've moved rows
+            # to APPROVED. A subsequent autoapprove/status call on the same
+            # service instance must re-query.
+            self._pending_drafts_cache.clear()
 
         return EditorialApprovalRunResult(
             dry_run=dry_run,
@@ -504,6 +516,10 @@ class EditorialApprovalPolicyService:
         limit: int,
     ) -> list[ContentCandidate]:
         selected_date = reference_date or datetime.now(ZoneInfo(self.settings.timezone)).date()
+        cache_key = (selected_date, limit)
+        cached = self._pending_drafts_cache.get(cache_key)
+        if cached is not None:
+            return cached
         query = select(ContentCandidate).where(
             ContentCandidate.status == str(ContentCandidateStatus.DRAFT),
             ContentCandidate.reviewed_at.is_(None),
@@ -522,7 +538,9 @@ class EditorialApprovalPolicyService:
             ContentCandidate.scheduled_at.asc(),
             ContentCandidate.created_at.asc(),
         )
+        sql_started_at = utcnow()
         rows = self.session.execute(query).scalars().all()
+        sql_completed_at = utcnow()
         eligible_rows: list[ContentCandidate] = []
         filtered_ids: list[tuple[int, str]] = []
         for row in rows:
@@ -530,12 +548,20 @@ class EditorialApprovalPolicyService:
                 eligible_rows.append(row)
             else:
                 filtered_ids.append((row.id, row.content_type or "unknown"))
+        # rows_total reports the RAW SQL row count (what the DB had at the moment
+        # of the query); rows_eligible reports what survived matches_release_window.
+        # Comparing the two distinguishes "DB didn't have the candidate yet"
+        # (commit timing issue upstream) from "window filter excluded it"
+        # (window service behaviour to investigate).
         logger.info(
             "editorial_pending_drafts",
             extra={
                 "event": "editorial_pending_drafts",
                 "reference_date": selected_date.isoformat() if selected_date else None,
-                "rows_total": len(rows),
+                "sql_query_at": sql_completed_at.isoformat(),
+                "sql_query_duration_ms": int((sql_completed_at - sql_started_at).total_seconds() * 1000),
+                "rows_total_sql": len(rows),
+                "rows_total_sql_ids": [row.id for row in rows[:100]],
                 "rows_eligible": len(eligible_rows),
                 "rows_filtered_by_window": len(filtered_ids),
                 "filtered_ids": filtered_ids[:50],
@@ -543,7 +569,9 @@ class EditorialApprovalPolicyService:
                 "limit_applied": limit,
             },
         )
-        return eligible_rows[:limit]
+        result = eligible_rows[:limit]
+        self._pending_drafts_cache[cache_key] = result
+        return result
 
     def _day_bounds(self, target_date: date) -> tuple[datetime, datetime]:
         start_local = datetime.combine(target_date, time.min, tzinfo=ZoneInfo(self.settings.timezone))
