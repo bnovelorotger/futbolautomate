@@ -116,6 +116,19 @@ Register-FutbolTask "futbol_release_sat" "scripts\windows\editorial_release.ps1"
 # Domingo: cierre ligero, sin invadir el digest de las 22:00.
 Register-FutbolTask "futbol_release_sun" "scripts\windows\editorial_release.ps1" "21:15" @("Sunday") "-Limit 2" 2
 
+# --- Catch-up de publicacion (T+30min tras cada release) ---
+# Si el release dispatchea una pieza pero el browser publish falla a mitad de batch,
+# la pieza queda con status=published y external_publication_ref=None. Estas tareas
+# rescatan esos casos llamando auto_publish_browser.ps1 dentro de la misma ventana
+# del slot, sin esperar al siguiente dia.
+Register-FutbolTask "futbol_publish_catchup_mon" "scripts\windows\auto_publish_browser.ps1" "09:45" @("Monday") "-Limit 4" 2
+Register-FutbolTask "futbol_publish_catchup_tue" "scripts\windows\auto_publish_browser.ps1" "20:30" @("Tuesday") "-Limit 3" 2
+Register-FutbolTask "futbol_publish_catchup_wed" "scripts\windows\auto_publish_browser.ps1" "20:30" @("Wednesday") "-Limit 4" 2
+Register-FutbolTask "futbol_publish_catchup_thu" "scripts\windows\auto_publish_browser.ps1" "20:30" @("Thursday") "-Limit 3" 2
+Register-FutbolTask "futbol_publish_catchup_fri" "scripts\windows\auto_publish_browser.ps1" "13:30" @("Friday") "-Limit 4" 2
+Register-FutbolTask "futbol_publish_catchup_sat" "scripts\windows\auto_publish_browser.ps1" "11:30" @("Saturday") "-Limit 2" 2
+Register-FutbolTask "futbol_publish_catchup_sun" "scripts\windows\auto_publish_browser.ps1" "21:45" @("Sunday") "-Limit 2" 2
+
 # --- Agenda Telegram de la jornada ---
 Register-FutbolTask "futbol_editorial_day_plan" "scripts\windows\editorial_day_plan.ps1" "08:00" @("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday") "-SendTelegram"
 

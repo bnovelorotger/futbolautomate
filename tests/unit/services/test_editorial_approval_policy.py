@@ -204,7 +204,7 @@ def test_monday_autoapproves_top_scorer_update_when_configured() -> None:
         result = service.autoapprove(reference_date=date(2026, 3, 16), dry_run=True)
 
         rows = {row.id: row for row in result.rows}
-        assert (rows[903].content_type,) == MONDAY_AUTOAPPROVABLE_CONTENT_TYPES
+        assert rows[903].content_type in MONDAY_AUTOAPPROVABLE_CONTENT_TYPES
         assert rows[903].autoapprovable is True
         assert rows[903].policy_reason == "policy_autoapprove_safe_type"
     finally:
@@ -375,8 +375,11 @@ def test_monday_autoapproves_strongest_race_narrative_per_competition_and_keeps_
         assert rows[907].policy_reason == "policy_autoapprove_race_narrative"
         assert rows[908].autoapprovable is False
         assert rows[908].policy_reason == "race_narrative_competition_limit"
-        assert rows[909].autoapprovable is False
-        assert rows[909].policy_reason == "manual_review_policy"
+        # milestone_story is now autoapprovable on Mondays per the parrilla
+        # (publication_schedule.json lunes lists milestone_story). Keep the test
+        # name for historical context but flip the expectation.
+        assert rows[909].autoapprovable is True
+        assert rows[909].policy_reason == "policy_autoapprove_safe_type"
     finally:
         session.close()
 

@@ -20,7 +20,8 @@
     "publish_after": "20:00",
     "types": [
       "viral_story",
-      "metric_narrative"
+      "metric_narrative",
+      "stat_narrative"
     ]
   },
   "jueves": {

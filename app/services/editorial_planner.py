@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 from typing import Any
@@ -9,6 +10,8 @@ from sqlalchemy.orm import Session
 
 from app.core.catalog import load_competition_catalog
 from app.core.config import Settings, get_settings
+
+logger = logging.getLogger(__name__)
 from app.core.editorial_schedule import (
     editorial_weekday_for_date,
     editorial_weekday_label,
@@ -374,6 +377,17 @@ class EditorialPlannerService:
             limit=1,
             relevant_only=True,
         )
+        if not result.rows:
+            # Common at end-of-season (no upcoming matches) or for competitions
+            # whose regular schedule is exhausted while playoffs run separately.
+            logger.info(
+                "match_impact_scenario_no_candidates",
+                extra={
+                    "event": "match_impact_scenario_no_candidates",
+                    "competition_slug": competition_slug,
+                    "reference_date": reference_date.isoformat(),
+                },
+            )
         candidates: list[ContentCandidateDraft] = []
         for row in result.rows:
             source_payload = row.model_dump(mode="json")

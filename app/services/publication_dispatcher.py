@@ -148,7 +148,8 @@ class PublicationDispatcherService:
             for row in rows:
                 validate_candidate_can_publish(row)
                 row.status = str(ContentCandidateStatus.PUBLISHED)
-                row.published_at = dispatch_at
+                if row.published_at is None:
+                    row.published_at = dispatch_at
                 self.session.add(row)
             if rows:
                 self.session.flush()
@@ -197,7 +198,11 @@ class PublicationDispatcherService:
         if not dry_run:
             for row in rows:
                 row.status = str(ContentCandidateStatus.PUBLISHED)
-                row.published_at = dispatch_at
+                # Preserve any existing published_at so rescued candidates keep
+                # their original dispatch timestamp — re-stamping them to "now"
+                # would make stale items pass the 96h browser-publish cutoff.
+                if row.published_at is None:
+                    row.published_at = dispatch_at
                 self.session.add(row)
             self.session.flush()
         return PublicationDispatchResult(

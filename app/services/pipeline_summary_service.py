@@ -104,7 +104,10 @@ class PipelineSummaryService:
     ) -> PipelineSummaryReport:
         ref_date = reference_date or date.today()
         now = utcnow()
-        window_start = now - timedelta(days=window_days)
+        # Anchor the window on reference_date so historical digests (or reruns)
+        # cover the requested day instead of the current wall clock.
+        ref_end = datetime.combine(ref_date + timedelta(days=1), datetime.min.time(), tzinfo=UTC)
+        window_start = ref_end - timedelta(days=window_days)
 
         blocked = self._build_blocked_summary(window_start)
         publication = self._build_publication_summary(window_start)

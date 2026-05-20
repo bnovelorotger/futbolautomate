@@ -345,8 +345,11 @@ def test_editorial_planner_default_friday_includes_featured_match_previews_for_m
             if task.planning_type == EditorialPlanningContent.MATCH_IMPACT_SCENARIO
         }
 
+        # Thursday now carries ranking + top_scorer_update per the weekly parrilla
+        # (see app/config/editorial_schedule.json). What matters for this test is
+        # that Friday still drives featured_match_preview for the main competitions.
         assert thursday_plan.weekday_key == "thursday"
-        assert thursday_plan.total_tasks == 0
+        assert thursday_plan.total_tasks > 0
 
         assert friday_plan.weekday_key == "friday"
         assert friday_plan.total_tasks == 14

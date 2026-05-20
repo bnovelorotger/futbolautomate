@@ -7,15 +7,19 @@ import typer
 
 from app.db.session import init_db, session_scope
 from app.presenters.team_form import (
-    render_team_form_generation,
     render_team_form_ranking,
     render_team_form_show,
 )
 from app.services.team_form import TeamFormService
 
+# `form_event` is a dead content type (not in editorial_schedule.json, not
+# publishable, not autoapprovable). The `generate` subcommand was removed so it
+# stops producing manual-review-only candidates. The form ranking itself is
+# still useful as an input to other content (featured_match_preview, etc.).
+
 app = typer.Typer(
     add_completion=False,
-    help="Analisis de forma reciente por competicion basado en partidos reales.",
+    help="Analisis de forma reciente por competicion (solo lectura).",
     no_args_is_help=True,
 )
 
@@ -69,27 +73,6 @@ def ranking_competition(
             _dump_json(result.model_dump(mode="json"))
         else:
             typer.echo(render_team_form_ranking(result))
-
-
-@app.command("generate")
-def generate_competition(
-    competition_code: str = typer.Option(..., "--competition", help="Codigo interno de competicion"),
-    reference_date: str | None = typer.Option(None, "--date", help="Fecha de referencia YYYY-MM-DD"),
-    window_size: int = typer.Option(5, "--window", help="Numero de partidos recientes"),
-    as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
-) -> None:
-    init_db()
-    parsed_date = date_type.fromisoformat(reference_date) if reference_date else None
-    with session_scope() as session:
-        result = TeamFormService(session).generate_for_competition(
-            competition_code,
-            window_size=window_size,
-            reference_date=parsed_date,
-        )
-        if as_json:
-            _dump_json(result.model_dump(mode="json"))
-        else:
-            typer.echo(render_team_form_generation(result))
 
 
 if __name__ == "__main__":

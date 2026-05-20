@@ -6,15 +6,17 @@ from datetime import date as date_type
 import typer
 
 from app.db.session import init_db, session_scope
-from app.presenters.match_importance import (
-    render_match_importance,
-    render_match_importance_generation,
-)
+from app.presenters.match_importance import render_match_importance
 from app.services.match_importance import MatchImportanceService
+
+# `featured_match_event` is a dead content type. The editorial planner uses
+# MatchImportanceService.build_candidate_drafts for FEATURED_MATCH_PREVIEW; the
+# standalone `generate` subcommand here only produced featured_match_event
+# candidates that died in manual review, so it was removed.
 
 app = typer.Typer(
     add_completion=False,
-    help="Detector editorial de partidos destacados.",
+    help="Detector editorial de partidos destacados (solo lectura).",
     no_args_is_help=True,
 )
 
@@ -68,27 +70,6 @@ def top_competition(
             _dump_json(result.model_dump(mode="json"))
         else:
             typer.echo(render_match_importance(result))
-
-
-@app.command("generate")
-def generate_competition(
-    competition_code: str = typer.Option(..., "--competition", help="Codigo interno de competicion"),
-    reference_date: str | None = typer.Option(None, "--date", help="Fecha de referencia YYYY-MM-DD"),
-    limit: int = typer.Option(3, "--limit", help="Numero maximo de partidos a convertir en drafts"),
-    as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
-) -> None:
-    init_db()
-    parsed_date = date_type.fromisoformat(reference_date) if reference_date else None
-    with session_scope() as session:
-        result = MatchImportanceService(session).generate_for_competition(
-            competition_code,
-            reference_date=parsed_date,
-            limit=limit,
-        )
-        if as_json:
-            _dump_json(result.model_dump(mode="json"))
-        else:
-            typer.echo(render_match_importance_generation(result))
 
 
 if __name__ == "__main__":
