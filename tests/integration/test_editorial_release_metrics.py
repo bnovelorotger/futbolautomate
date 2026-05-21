@@ -85,9 +85,12 @@ def _run_release_cli(factory, tmp_path: Path) -> None:
                         editorial_release_cli.run(
                             reference_date=REFERENCE_DATE.isoformat(),
                             limit=200,
+                            publish_limit=None,
                             use_draft=False,
                             use_rewrite=False,
                             publish_x=False,
+                            publish_typefully=False,
+                            publish_browser=False,
                             as_json=False,
                         )
 

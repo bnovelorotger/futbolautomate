@@ -9,7 +9,12 @@ param(
     [switch]$PublishTypefully,
     [switch]$PublishBrowser,
     [switch]$SkipPublishBrowser,
-    [int]$Limit = 0
+    # Limit caps the EVALUATION pool (max drafts to evaluate). Default 0 = no cap.
+    # Use only for debugging or to test small batches manually.
+    [int]$Limit = 0,
+    # PublishLimit caps the BROWSER PUBLISH batch (per-slot quota). This is the
+    # right knob for Task Scheduler tasks that want to throttle posts per slot.
+    [int]$PublishLimit = 0
 )
 
 Set-StrictMode -Version Latest
@@ -66,8 +71,19 @@ try {
     if ($TargetDate) {
         $arguments += @("--date", $TargetDate)
     }
-    if ($Limit -gt 0) {
-        $arguments += @("--limit", $Limit)
+    # Compat: legacy Task Scheduler entries pass -Limit N intending it as the
+    # per-slot publish quota (that was the historical meaning before the
+    # evaluation/publish split). If -PublishLimit is not given, map -Limit to it.
+    # If both are given, -Limit still caps the evaluation pool.
+    if ($PublishLimit -gt 0) {
+        $arguments += @("--publish-limit", $PublishLimit)
+        if ($Limit -gt 0) {
+            $arguments += @("--limit", $Limit)
+        }
+    }
+    elseif ($Limit -gt 0) {
+        Write-Log -Level "WARN" -Message "PS -Limit $Limit reinterpretado como -PublishLimit (compat tareas legacy). Actualiza la tarea para usar -PublishLimit explicito."
+        $arguments += @("--publish-limit", $Limit)
     }
     if ($UseDraft.IsPresent) {
         $arguments += "--use-draft"

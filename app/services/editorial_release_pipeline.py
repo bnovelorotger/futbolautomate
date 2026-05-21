@@ -69,7 +69,12 @@ class EditorialReleasePipelineService:
         publish_to_x: bool = False,
         publish_via_typefully: bool = False,
         publish_via_browser: bool = False,
+        publish_limit: int | None = None,
     ) -> EditorialReleaseResult:
+        # publish_limit caps the browser publish batch only (per-slot quota from the
+        # Task Scheduler). limit caps the evaluation/approval pool. They must stay
+        # independent — collapsing them caused approval to ignore wed candidates
+        # whenever the scheduler imposed a low publish quota (e.g. -Limit 4).
         if dry_run:
             with self.session.begin_nested() as nested:
                 result = self._run_internal(
@@ -80,6 +85,7 @@ class EditorialReleasePipelineService:
                     publish_to_x=publish_to_x,
                     publish_via_typefully=publish_via_typefully,
                     publish_via_browser=publish_via_browser,
+                    publish_limit=publish_limit,
                 )
                 nested.rollback()
             self.session.expire_all()
@@ -92,6 +98,7 @@ class EditorialReleasePipelineService:
             publish_to_x=publish_to_x,
             publish_via_typefully=publish_via_typefully,
             publish_via_browser=publish_via_browser,
+            publish_limit=publish_limit,
         )
 
     def _run_internal(
@@ -104,6 +111,7 @@ class EditorialReleasePipelineService:
         publish_to_x: bool,
         publish_via_typefully: bool = False,
         publish_via_browser: bool = False,
+        publish_limit: int | None = None,
     ) -> EditorialReleaseResult:
         quality_candidate_ids = self.approval_service.candidate_ids_for_quality_precheck(
             reference_date=reference_date,
@@ -193,9 +201,14 @@ class EditorialReleasePipelineService:
         if browser_publish_enabled and self.x_browser_publication_service is not None:
             if not export_dry_run:
                 self.x_browser_publication_service.mark_pre_browser_published()
+            # The per-slot quota wins when present (Task Scheduler -PublishLimit);
+            # x_browser_release_action_limit acts as the hard ceiling from config.
+            effective_publish_limit = (
+                max(int(publish_limit), 1) if publish_limit is not None else max(int(limit), 1)
+            )
             release_action_limit = min(
                 max(int(self.settings.x_browser_release_action_limit), 1),
-                max(int(limit), 1),
+                effective_publish_limit,
             )
             # Release should publish the current scheduled batch, not rescue old stranded items.
             # Rescue flows belong to the dedicated browser retry path.

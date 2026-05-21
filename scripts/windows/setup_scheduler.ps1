@@ -103,18 +103,20 @@ Register-FutbolTask "futbol_editorial_day_fri" "scripts\windows\run_editorial_da
 Register-FutbolTask "futbol_editorial_day_sun" "scripts\windows\run_editorial_day.ps1" "20:45" @("Sunday")
 
 # --- Release + publicacion ---
+# El cap es POR PUBLICACION via browser, NO por evaluacion. La cola de drafts se evalua
+# completa cada slot; el -PublishLimit solo recorta cuantas piezas se postean en X.
 # Lunes: primer slot de alta atencion post fin de semana, con 4 posts maximo.
-Register-FutbolTask "futbol_release_mon" "scripts\windows\editorial_release.ps1" "09:15" @("Monday") "-Limit 4" 3
+Register-FutbolTask "futbol_release_mon" "scripts\windows\editorial_release.ps1" "09:15" @("Monday") "-PublishLimit 4" 3
 # Martes/jueves: continuidad de noche con menor volumen.
-Register-FutbolTask "futbol_release_other" "scripts\windows\editorial_release.ps1" "20:00" @("Tuesday","Thursday") "-Limit 3" 2
+Register-FutbolTask "futbol_release_other" "scripts\windows\editorial_release.ps1" "20:00" @("Tuesday","Thursday") "-PublishLimit 3" 2
 # Miercoles: prime time de noche para piezas conversacionales.
-Register-FutbolTask "futbol_release_wed" "scripts\windows\editorial_release.ps1" "20:00" @("Wednesday") "-Limit 4" 3
+Register-FutbolTask "futbol_release_wed" "scripts\windows\editorial_release.ps1" "20:00" @("Wednesday") "-PublishLimit 4" 3
 # Viernes: ventana de comida para previas del fin de semana.
-Register-FutbolTask "futbol_release_fri" "scripts\windows\editorial_release.ps1" "13:00" @("Friday") "-Limit 4" 3
+Register-FutbolTask "futbol_release_fri" "scripts\windows\editorial_release.ps1" "13:00" @("Friday") "-PublishLimit 4" 3
 # Sabado: previa ligera del dia.
-Register-FutbolTask "futbol_release_sat" "scripts\windows\editorial_release.ps1" "11:00" @("Saturday") "-Limit 2" 2
+Register-FutbolTask "futbol_release_sat" "scripts\windows\editorial_release.ps1" "11:00" @("Saturday") "-PublishLimit 2" 2
 # Domingo: cierre ligero, sin invadir el digest de las 22:00.
-Register-FutbolTask "futbol_release_sun" "scripts\windows\editorial_release.ps1" "21:15" @("Sunday") "-Limit 2" 2
+Register-FutbolTask "futbol_release_sun" "scripts\windows\editorial_release.ps1" "21:15" @("Sunday") "-PublishLimit 2" 2
 
 # --- Catch-up de publicacion (T+30min tras cada release) ---
 # Si el release dispatchea una pieza pero el browser publish falla a mitad de batch,

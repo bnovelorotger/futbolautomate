@@ -39,6 +39,11 @@ _WEDNESDAY_TYPES = {
     ContentType.TOP_SCORER_UPDATE,
     ContentType.VIRAL_STORY,
 }
+# Number of days backward the release window accepts for a candidate's
+# reference_date. Allows rescue of drafts that didn't process the exact day
+# they were generated. publication_schedule still enforces day-of-week +
+# publish_after at publish time.
+_REFERENCE_DATE_RESCUE_WINDOW_DAYS = 3
 
 
 @dataclass(slots=True)
@@ -205,10 +210,19 @@ class EditorialCandidateWindowService:
         *,
         reference_date: date,
     ) -> bool:
+        # Accept candidates whose reference_date falls within a small backward
+        # window. Strict equality used to strand any draft that wasn't processed
+        # the exact day it was generated (e.g. transient bugs in the release run).
+        # The publication scheduler (XPublicationScheduler) still enforces the
+        # day-of-week parrilla at publish time, so widening this only loosens
+        # approval, not the publishing window.
         candidate_reference_date = self._candidate_reference_date(candidate)
         if candidate_reference_date is not None:
-            return candidate_reference_date == reference_date
-        return self._candidate_local_date(candidate) == reference_date
+            delta_days = (reference_date - candidate_reference_date).days
+            return 0 <= delta_days <= _REFERENCE_DATE_RESCUE_WINDOW_DAYS
+        candidate_local_date = self._candidate_local_date(candidate)
+        delta_days = (reference_date - candidate_local_date).days
+        return 0 <= delta_days <= _REFERENCE_DATE_RESCUE_WINDOW_DAYS
 
     def _group_matches(self, matches: list[Any], *, newest: bool) -> list[Any]:
         if not matches:

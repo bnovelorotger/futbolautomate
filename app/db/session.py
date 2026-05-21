@@ -13,7 +13,18 @@ from app.db.base import Base
 @lru_cache(maxsize=1)
 def build_engine(echo: bool = False):
     settings = get_settings()
-    return create_engine(settings.database_url, future=True, echo=echo)
+    # pool_pre_ping: validates connections before checkout so zombie connections
+    # (left idle in transaction by crashed scripts, killed Python processes,
+    # or PG restarts) are detected and replaced instead of returning stale
+    # snapshots. pool_recycle keeps connections under 5 minutes old, well below
+    # PostgreSQL's typical idle_in_transaction_session_timeout.
+    return create_engine(
+        settings.database_url,
+        future=True,
+        echo=echo,
+        pool_pre_ping=True,
+        pool_recycle=300,
+    )
 
 
 @lru_cache(maxsize=1)

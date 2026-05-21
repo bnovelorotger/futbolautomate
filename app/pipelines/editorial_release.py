@@ -31,7 +31,13 @@ def _dump_json(payload) -> None:
 @app.command("dry-run")
 def dry_run(
     reference_date: str | None = typer.Option(None, "--date", help="Fecha local YYYY-MM-DD sobre created_at"),
-    limit: int = typer.Option(200, min=1, help="Maximo de drafts a evaluar"),
+    limit: int = typer.Option(200, min=1, help="Maximo de drafts a evaluar (NO recorta browser publish)"),
+    publish_limit: int | None = typer.Option(
+        None,
+        "--publish-limit",
+        min=1,
+        help="Cap del batch a publicar via browser. Default: usa x_browser_release_action_limit",
+    ),
     use_draft: bool = typer.Option(False, "--use-draft", help="Fuerza text_draft en la exportacion JSON"),
     use_rewrite: bool = typer.Option(False, "--use-rewrite", help="Prioriza rewritten_text en la exportacion JSON"),
     publish_x: bool = typer.Option(
@@ -62,6 +68,7 @@ def dry_run(
             publish_to_x=publish_x,
             publish_via_typefully=publish_typefully,
             publish_via_browser=publish_browser,
+            publish_limit=publish_limit,
         )
         if as_json:
             _dump_json(result.model_dump(mode="json"))
@@ -72,7 +79,13 @@ def dry_run(
 @app.command("run")
 def run(
     reference_date: str | None = typer.Option(None, "--date", help="Fecha local YYYY-MM-DD sobre created_at"),
-    limit: int = typer.Option(200, min=1, help="Maximo de drafts a evaluar"),
+    limit: int = typer.Option(200, min=1, help="Maximo de drafts a evaluar (NO recorta browser publish)"),
+    publish_limit: int | None = typer.Option(
+        None,
+        "--publish-limit",
+        min=1,
+        help="Cap del batch a publicar via browser. Default: usa x_browser_release_action_limit",
+    ),
     use_draft: bool = typer.Option(False, "--use-draft", help="Fuerza text_draft en la exportacion JSON"),
     use_rewrite: bool = typer.Option(False, "--use-rewrite", help="Prioriza rewritten_text en la exportacion JSON"),
     publish_x: bool = typer.Option(
@@ -104,6 +117,7 @@ def run(
             publish_to_x=publish_x,
             publish_via_typefully=publish_typefully,
             publish_via_browser=publish_browser,
+            publish_limit=publish_limit,
         )
         if as_json:
             _dump_json(result.model_dump(mode="json"))

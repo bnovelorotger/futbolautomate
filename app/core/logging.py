@@ -41,6 +41,37 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, ensure_ascii=True)
 
 
+class TextWithExtrasFormatter(logging.Formatter):
+    """Plain text formatter that appends `extra={...}` fields after the message.
+
+    Keeps logs human-readable while exposing structured fields like
+    `rows_total_sql`, `rows_eligible`, `dispatched_ids` that would otherwise
+    only be visible in JSON mode.
+    """
+
+    BASE_FORMAT = "%(asctime)s | %(levelname)s | [%(run_id)s] | %(name)s | %(message)s"
+    DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+    def __init__(self) -> None:
+        super().__init__(fmt=self.BASE_FORMAT, datefmt=self.DATE_FORMAT)
+
+    def format(self, record: logging.LogRecord) -> str:
+        base = super().format(record)
+        extras = {}
+        for key, value in record.__dict__.items():
+            if key in _STANDARD_RECORD_ATTRS or key in {"run_id"} or key.startswith("_"):
+                continue
+            if isinstance(value, (str, int, float, bool)) or value is None or isinstance(value, (list, dict)):
+                extras[key] = value
+        if not extras:
+            return base
+        try:
+            suffix = json.dumps(extras, ensure_ascii=False, default=str)
+        except (TypeError, ValueError):
+            suffix = str(extras)
+        return f"{base} | {suffix}"
+
+
 def configure_logging(level: str = "INFO", json_output: bool = False) -> None:
     root = logging.getLogger()
     root.setLevel(level.upper())
@@ -53,10 +84,5 @@ def configure_logging(level: str = "INFO", json_output: bool = False) -> None:
     if json_output:
         handler.setFormatter(JsonFormatter())
     else:
-        handler.setFormatter(
-            logging.Formatter(
-                "%(asctime)s | %(levelname)s | [%(run_id)s] | %(name)s | %(message)s",
-                datefmt="%Y-%m-%d %H:%M:%S",
-            )
-        )
+        handler.setFormatter(TextWithExtrasFormatter())
     root.addHandler(handler)
