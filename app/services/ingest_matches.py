@@ -120,6 +120,8 @@ def ingest_matches(session: Session, records: list[MatchRecord], dry_run: bool =
             "venue": record.venue,
             "has_lineups": record.has_lineups,
             "has_scorers": record.has_scorers,
+            "scorer_status": str(record.scorer_status),
+            "scorer_checked_at": record.scorer_checked_at,
             "scraped_at": record.scraped_at or utcnow(),
             "content_hash": match_content_hash(record, home.normalized, away.normalized),
             "extra_data": raw_payload,

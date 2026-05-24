@@ -261,6 +261,37 @@ def test_generate_returns_none_when_insufficient_data() -> None:
         session.close()
 
 
+def test_generate_returns_none_when_scorer_coverage_below_threshold() -> None:
+    session = build_session()
+    try:
+        competition, alpha = _seed_enough_data(session)
+        beta = session.scalar(select(Team).where(Team.normalized_name == "ce-beta"))
+        gamma = session.scalar(select(Team).where(Team.normalized_name == "ce-gamma"))
+        assert beta is not None
+        assert gamma is not None
+        for index in range(8):
+            _seed_match(
+                session,
+                competition.id,
+                beta if index % 2 == 0 else gamma,
+                alpha,
+                external_id=f"uncovered-{index}",
+                has_scorers=False,
+            )
+        session.commit()
+
+        mock_definition = MagicMock()
+        mock_definition.editorial_name = "3a RFEF Baleares"
+        mock_catalog = {"tercera_rfef_g11": mock_definition}
+
+        with patch("app.services.top_scorer_service.load_competition_catalog", return_value=mock_catalog):
+            candidate = TopScorerService(session).generate("tercera_rfef_g11")
+
+        assert candidate is None
+    finally:
+        session.close()
+
+
 def test_generate_dry_run_does_not_persist() -> None:
     session = build_session()
     try:

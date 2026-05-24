@@ -3,11 +3,13 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import date, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
+from app.core.enums import DataCoverageStatus, DataCoverageType, MatchScorerStatus
 from app.db.models import Match
+from app.db.repositories.data_coverage import MatchDataCoverageRepository
 from app.db.repositories.match_events import MatchEventRepository
 from app.schemas.match_event import MatchEventEnrichmentMatchView, MatchEventEnrichmentResult
 from app.scrapers.futbolme.client import FutbolmeClient
@@ -32,6 +34,7 @@ class MatchEventEnricherService:
         self.settings = settings or get_settings()
         self.parser = parser or FutbolmeParser()
         self.repository = MatchEventRepository(session)
+        self.coverage_repository = MatchDataCoverageRepository(session)
         self.fetch_html = fetch_html or self._fetch_html
 
     def enrich_pending(
@@ -39,9 +42,18 @@ class MatchEventEnricherService:
         *,
         limit: int = 25,
         competition_slug: str | None = None,
+        season: str | None = None,
+        include_partial: bool = True,
+        include_errors: bool = False,
         dry_run: bool = False,
     ) -> MatchEventEnrichmentResult:
-        matches = self._pending_matches(limit=limit, competition_slug=competition_slug)
+        matches = self._pending_matches(
+            limit=limit,
+            competition_slug=competition_slug,
+            season=season,
+            include_partial=include_partial,
+            include_errors=include_errors,
+        )
         rows: list[MatchEventEnrichmentMatchView] = []
         total_events_found = 0
         enriched_count = 0
@@ -61,6 +73,7 @@ class MatchEventEnricherService:
                         events_found=0,
                         persisted=False,
                         has_scorers=match.has_scorers,
+                        scorer_status=MatchScorerStatus(match.scorer_status),
                     )
                 else:
                     recovered_match = self.session.get(Match, match.id) or match
@@ -75,6 +88,9 @@ class MatchEventEnricherService:
                         events_found=0,
                         persisted=False,
                         has_scorers=recovered_match.has_scorers if recovered_match is not None else False,
+                        scorer_status=MatchScorerStatus(
+                            recovered_match.scorer_status if recovered_match is not None else MatchScorerStatus.ERROR
+                        ),
                     )
             rows.append(row)
             total_events_found += row.events_found
@@ -105,6 +121,12 @@ class MatchEventEnricherService:
         existing_events = self.repository.list_for_match(match.id)
         existing_count = len(existing_events)
         completed = expected_goal_events == 0 or len(events) >= expected_goal_events
+        scorer_status = self._scorer_status(
+            expected_goal_events=expected_goal_events,
+            events_found=len(events),
+            completed=completed,
+            error_message=None,
+        )
         should_persist_events = self._should_persist_events(
             expected_goal_events=expected_goal_events,
             events_found=len(events),
@@ -145,9 +167,20 @@ class MatchEventEnricherService:
             )
             match.extra_data = extra_data
             match.has_scorers = completed
+            match.scorer_status = str(scorer_status)
+            match.scorer_checked_at = utcnow()
             if ht_home is not None and ht_away is not None:
                 match.halftime_home_score = ht_home
                 match.halftime_away_score = ht_away
+            self._record_data_coverage(
+                match,
+                scorer_status=scorer_status,
+                expected_goal_events=expected_goal_events,
+                events_found=len(events),
+                ht_home=ht_home,
+                ht_away=ht_away,
+                detail_url=detail_url,
+            )
             self.session.add(match)
             self.session.flush()
 
@@ -156,7 +189,8 @@ class MatchEventEnricherService:
             detail_url=detail_url,
             events_found=len(events),
             persisted=not dry_run,
-            has_scorers=completed if not dry_run else match.has_scorers,
+            has_scorers=completed,
+            scorer_status=scorer_status,
         )
 
     def _pending_matches(
@@ -164,15 +198,28 @@ class MatchEventEnricherService:
         *,
         limit: int,
         competition_slug: str | None,
+        season: str | None,
+        include_partial: bool,
+        include_errors: bool,
     ) -> list[Match]:
+        retry_statuses = [str(MatchScorerStatus.PENDING)]
+        if include_partial:
+            retry_statuses.extend([str(MatchScorerStatus.PARTIAL), str(MatchScorerStatus.MISSING_SOURCE)])
+        if include_errors:
+            retry_statuses.append(str(MatchScorerStatus.ERROR))
         query = select(Match).where(
             Match.source_name == "futbolme",
             Match.status == "finished",
             Match.external_id.is_not(None),
-            Match.has_scorers.is_(False),
+            or_(
+                Match.has_scorers.is_(False),
+                Match.scorer_status.in_(retry_statuses),
+            ),
         )
         if competition_slug is not None:
             query = query.where(Match.competition.has(code=competition_slug))
+        if season is not None:
+            query = query.where(Match.season == season)
         candidates = (
             self.session.execute(query.order_by(Match.match_date.desc().nullslast(), Match.id.desc())).scalars().all()
         )
@@ -272,6 +319,9 @@ class MatchEventEnricherService:
         )
         match.extra_data = extra_data
         match.has_scorers = False
+        match.scorer_status = str(MatchScorerStatus.ERROR)
+        match.scorer_checked_at = utcnow()
+        self._record_error_coverage(match, error=error)
         self.session.add(match)
         self.session.flush()
 
@@ -291,20 +341,23 @@ class MatchEventEnricherService:
         metadata = dict(extra_data.get("match_events") or {})
         attempts = self._attempt_count(metadata) + 1
 
-        if error_message:
-            status = "error"
-        elif completed and expected_goal_events == 0:
-            status = "scoreless_complete"
-        elif completed:
-            status = "complete"
-        elif events_found == 0:
-            status = "pending_retry"
-        else:
-            status = "partial_retry"
+        scorer_status = self._scorer_status(
+            expected_goal_events=expected_goal_events,
+            events_found=events_found,
+            completed=completed,
+            error_message=error_message,
+        )
+        status = self._legacy_match_events_status(
+            expected_goal_events=expected_goal_events,
+            events_found=events_found,
+            completed=completed,
+            error_message=error_message,
+        )
 
         metadata.update(
             {
                 "status": status,
+                "scorer_status": str(scorer_status),
                 "expected_goal_events": expected_goal_events,
                 "events_found": events_found,
                 "stored_events_count": max(existing_count, events_found) if retained_existing else events_found,
@@ -324,6 +377,24 @@ class MatchEventEnricherService:
         extra_data["detail_url"] = detail_url
         extra_data["match_events"] = metadata
         return extra_data
+
+    def _legacy_match_events_status(
+        self,
+        *,
+        expected_goal_events: int,
+        events_found: int,
+        completed: bool,
+        error_message: str | None,
+    ) -> str:
+        if error_message:
+            return "error"
+        if completed and expected_goal_events == 0:
+            return "scoreless_complete"
+        if completed:
+            return "complete"
+        if events_found == 0:
+            return "pending_retry"
+        return "partial_retry"
 
     def _match_events_metadata(self, match: Match) -> dict:
         extra_data = match.extra_data if isinstance(match.extra_data, dict) else {}
@@ -362,6 +433,7 @@ class MatchEventEnricherService:
         events_found: int,
         persisted: bool,
         has_scorers: bool,
+        scorer_status: MatchScorerStatus,
     ) -> MatchEventEnrichmentMatchView:
         return MatchEventEnrichmentMatchView(
             match_id=match.id,
@@ -369,10 +441,97 @@ class MatchEventEnricherService:
             detail_url=detail_url,
             home_team=match.home_team_raw,
             away_team=match.away_team_raw,
+            expected_goal_events=self._expected_goal_events(match),
             events_found=events_found,
             persisted=persisted,
             has_scorers=has_scorers,
+            scorer_status=scorer_status,
         )
+
+    def _scorer_status(
+        self,
+        *,
+        expected_goal_events: int,
+        events_found: int,
+        completed: bool,
+        error_message: str | None,
+    ) -> MatchScorerStatus:
+        if error_message:
+            return MatchScorerStatus.ERROR
+        if completed and expected_goal_events == 0:
+            return MatchScorerStatus.NO_GOALS
+        if completed:
+            return MatchScorerStatus.COVERED
+        if events_found == 0:
+            return MatchScorerStatus.MISSING_SOURCE
+        return MatchScorerStatus.PARTIAL
+
+    def _record_data_coverage(
+        self,
+        match: Match,
+        *,
+        scorer_status: MatchScorerStatus,
+        expected_goal_events: int,
+        events_found: int,
+        ht_home: int | None,
+        ht_away: int | None,
+        detail_url: str,
+    ) -> None:
+        self.coverage_repository.upsert_for_match(
+            match_id=match.id,
+            data_type=DataCoverageType.SCORERS,
+            status=self._coverage_status_for_scorers(scorer_status),
+            source_name=match.source_name,
+            expected_count=expected_goal_events,
+            observed_count=events_found,
+            checked_at=utcnow(),
+            details_json={
+                "detail_url": detail_url,
+                "legacy_scorer_status": str(scorer_status),
+            },
+        )
+        halftime_covered = ht_home is not None and ht_away is not None
+        self.coverage_repository.upsert_for_match(
+            match_id=match.id,
+            data_type=DataCoverageType.HALFTIME,
+            status=DataCoverageStatus.COVERED if halftime_covered else DataCoverageStatus.SOURCE_MISSING,
+            source_name=match.source_name,
+            expected_count=1,
+            observed_count=1 if halftime_covered else 0,
+            checked_at=utcnow(),
+            details_json={
+                "detail_url": detail_url,
+                "halftime_home_score": ht_home,
+                "halftime_away_score": ht_away,
+            },
+        )
+
+    def _record_error_coverage(self, match: Match, *, error: Exception) -> None:
+        for data_type in (DataCoverageType.SCORERS, DataCoverageType.HALFTIME):
+            self.coverage_repository.upsert_for_match(
+                match_id=match.id,
+                data_type=data_type,
+                status=DataCoverageStatus.ERROR,
+                source_name=match.source_name,
+                expected_count=self._expected_goal_events(match) if data_type == DataCoverageType.SCORERS else 1,
+                observed_count=0,
+                checked_at=utcnow(),
+                details_json={
+                    "detail_url": self._safe_detail_url(match),
+                    "error": str(error),
+                },
+            )
+
+    def _coverage_status_for_scorers(self, scorer_status: MatchScorerStatus) -> DataCoverageStatus:
+        if scorer_status in {MatchScorerStatus.COVERED, MatchScorerStatus.NO_GOALS}:
+            return DataCoverageStatus.COVERED
+        if scorer_status == MatchScorerStatus.PARTIAL:
+            return DataCoverageStatus.PARTIAL
+        if scorer_status == MatchScorerStatus.ERROR:
+            return DataCoverageStatus.ERROR
+        if scorer_status == MatchScorerStatus.MISSING_SOURCE:
+            return DataCoverageStatus.SOURCE_MISSING
+        return DataCoverageStatus.PENDING
 
     def _safe_detail_url(self, match: Match) -> str:
         try:

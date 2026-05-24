@@ -87,7 +87,35 @@ def test_top_scorer_tracker_aggregates_goals_by_player_and_team() -> None:
             content_hash="m2",
             extra_data={"detail_url": "https://example.com/detail/m2"},
         )
-        session.add_all([match_one, match_two])
+        match_three = Match(
+            external_id="m3",
+            source_name="futbolme",
+            source_url="https://example.com/m3",
+            competition_id=competition.id,
+            season="2025-26",
+            group_name="Grupo test",
+            round_name="Jornada 27",
+            raw_match_date="2026-03-29",
+            raw_match_time="18:00",
+            match_date=date(2026, 3, 29),
+            match_time=time(18, 0),
+            kickoff_datetime=datetime(2026, 3, 29, 18, 0, tzinfo=timezone.utc),
+            home_team_id=beta.id,
+            away_team_id=gamma.id,
+            home_team_raw="CE Beta",
+            away_team_raw="CE Gamma",
+            home_score=0,
+            away_score=0,
+            status="finished",
+            venue=None,
+            has_lineups=False,
+            has_scorers=False,
+            scorer_status="no_goals",
+            scraped_at=datetime(2026, 3, 29, 21, 0, tzinfo=timezone.utc),
+            content_hash="m3",
+            extra_data={"detail_url": "https://example.com/detail/m3"},
+        )
+        session.add_all([match_one, match_two, match_three])
         session.flush()
 
         session.add_all(
@@ -144,6 +172,9 @@ def test_top_scorer_tracker_aggregates_goals_by_player_and_team() -> None:
         result = TopScorerTrackerService(session).top_scorers_for_competition("tercera_rfef_g11")
 
         assert [row.player for row in result.rows[:2]] == ["Nando", "Nico"]
+        assert result.finished_matches_count == 3
+        assert result.scorer_covered_matches_count == 3
+        assert result.scorer_coverage_ratio == 1.0
         assert result.scorer_matches_count == 2
         assert result.goal_events_count == 3
         assert result.distinct_scorers_count == 2
@@ -320,6 +351,9 @@ def test_top_scorer_tracker_filters_to_current_season_and_reference_date() -> No
 
         assert result.season == "2025-26"
         assert result.reference_date == date(2026, 3, 16)
+        assert result.finished_matches_count == 1
+        assert result.scorer_covered_matches_count == 1
+        assert result.scorer_coverage_ratio == 1.0
         assert result.scorer_matches_count == 1
         assert result.goal_events_count == 1
         assert result.distinct_scorers_count == 1
@@ -463,6 +497,9 @@ def test_top_scorer_tracker_ignores_matches_without_closed_scorer_coverage() -> 
 
         result = TopScorerTrackerService(session).top_scorers_for_competition("tercera_rfef_g11")
 
+        assert result.finished_matches_count == 2
+        assert result.scorer_covered_matches_count == 1
+        assert result.scorer_coverage_ratio == 0.5
         assert result.scorer_matches_count == 1
         assert result.goal_events_count == 1
         assert result.distinct_scorers_count == 1

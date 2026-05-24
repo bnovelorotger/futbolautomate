@@ -17,6 +17,7 @@ from app.schemas.editorial_content import ContentCandidateDraft
 from app.schemas.match_event import TopScorerResult
 from app.services.editorial_formatter import EditorialFormatterService
 from app.services.top_scorer_tracker import (
+    MIN_TOP_SCORER_COVERAGE_RATIO,
     MIN_TOP_SCORER_GOAL_EVENTS,
     MIN_TOP_SCORER_LEADER_GOALS,
     MIN_TOP_SCORER_SCORER_MATCHES,
@@ -112,10 +113,25 @@ class TopScorerService:
         source_payload: dict[str, Any] = {
             "season": tracker_result.season,
             "reference_date": tracker_result.reference_date.isoformat() if tracker_result.reference_date else None,
+            "finished_matches_count": tracker_result.finished_matches_count,
+            "scorer_covered_matches_count": tracker_result.scorer_covered_matches_count,
+            "scorer_coverage_ratio": tracker_result.scorer_coverage_ratio,
             "scorer_matches_count": tracker_result.scorer_matches_count,
             "goal_events_count": tracker_result.goal_events_count,
             "distinct_scorers_count": tracker_result.distinct_scorers_count,
+            "leader": {
+                "player": tracker_result.rows[0].player,
+                "team": tracker_result.rows[0].team,
+                "goals": tracker_result.rows[0].goals,
+            }
+            if tracker_result.rows
+            else None,
+            "leader_goals": tracker_result.rows[0].goals if tracker_result.rows else 0,
             "scorers": scorers,
+            "rows": [
+                {"player": row.player, "team": row.team, "goals": row.goals}
+                for row in tracker_result.rows
+            ],
         }
         scorers_signature = stable_hash(scorers)[:12]
         content_key = f"top_scorer_update:{competition_slug}:{tracker_result.season or 'unknown'}:{scorers_signature}"
@@ -187,6 +203,10 @@ class TopScorerService:
         return results
 
     def _has_enough_data(self, result: TopScorerResult) -> bool:
+        if result.finished_matches_count <= 0:
+            return False
+        if result.scorer_coverage_ratio < MIN_TOP_SCORER_COVERAGE_RATIO:
+            return False
         if result.scorer_matches_count < MIN_TOP_SCORER_SCORER_MATCHES:
             return False
         if result.goal_events_count < MIN_TOP_SCORER_GOAL_EVENTS:

@@ -4,7 +4,7 @@ from datetime import date, datetime, time, timezone
 
 from sqlalchemy import select
 
-from app.db.models import Competition, Match, MatchEvent, Team
+from app.db.models import Competition, Match, MatchDataCoverage, MatchEvent, Team
 from app.services.match_event_enricher import MatchEventEnricherService
 from tests.helpers import read_fixture
 from tests.unit.services.test_editorial_narratives import build_session
@@ -91,21 +91,34 @@ def test_match_event_enricher_persists_goal_events_and_marks_match_enriched() ->
         events = session.execute(
             select(MatchEvent).where(MatchEvent.match_id == match.id).order_by(MatchEvent.sort_order.asc())
         ).scalars().all()
+        coverages = {
+            row.data_type: row
+            for row in session.execute(
+                select(MatchDataCoverage).where(MatchDataCoverage.match_id == match.id)
+            ).scalars()
+        }
 
         assert result.checked_count == 1
         assert result.enriched_count == 1
         assert result.total_events_found == 3
         assert stored_match is not None
         assert stored_match.has_scorers is True
+        assert stored_match.scorer_status == "covered"
+        assert stored_match.scorer_checked_at is not None
         assert stored_match.extra_data is not None
         assert stored_match.extra_data["detail_url"] == (
             "https://futbolme.com/resultados-directo/partido/ce-constancia-inter-ibiza-cd/1258230"
         )
         assert stored_match.extra_data["match_events"]["status"] == "complete"
+        assert stored_match.extra_data["match_events"]["scorer_status"] == "covered"
         assert stored_match.extra_data["match_events"]["expected_goal_events"] == 3
         assert stored_match.extra_data["match_events"]["stored_events_count"] == 3
         assert stored_match.extra_data["match_events"]["attempt_count"] == 1
         assert len(events) == 3
+        assert coverages["scorers"].status == "covered"
+        assert coverages["scorers"].expected_count == 3
+        assert coverages["scorers"].observed_count == 3
+        assert coverages["halftime"].status == "covered"
         assert events[0].team_side == "home"
         assert events[0].minute == 38
         assert events[1].player_raw == "Socias"
@@ -134,14 +147,26 @@ def test_match_event_enricher_marks_scoreless_match_without_persisting_events() 
 
         stored_match = session.get(Match, match.id)
         events = session.execute(select(MatchEvent).where(MatchEvent.match_id == match.id)).scalars().all()
+        coverages = {
+            row.data_type: row
+            for row in session.execute(
+                select(MatchDataCoverage).where(MatchDataCoverage.match_id == match.id)
+            ).scalars()
+        }
 
         assert row.events_found == 0
         assert stored_match is not None
         assert stored_match.has_scorers is True
+        assert stored_match.scorer_status == "no_goals"
+        assert row.scorer_status == "no_goals"
         assert stored_match.extra_data is not None
         assert stored_match.extra_data["match_events"]["status"] == "scoreless_complete"
+        assert stored_match.extra_data["match_events"]["scorer_status"] == "no_goals"
         assert stored_match.extra_data["match_events"]["expected_goal_events"] == 0
         assert events == []
+        assert coverages["scorers"].status == "covered"
+        assert coverages["scorers"].expected_count == 0
+        assert coverages["scorers"].observed_count == 0
     finally:
         session.close()
 
@@ -176,6 +201,7 @@ def test_match_event_enricher_is_idempotent_when_events_do_not_change() -> None:
         assert stored_match is not None
         assert stored_match.extra_data["match_events"]["attempt_count"] == 2
         assert stored_match.extra_data["match_events"]["status"] == "complete"
+        assert stored_match.scorer_status == "covered"
     finally:
         session.close()
 
@@ -202,6 +228,12 @@ def test_match_event_enricher_leaves_partial_goal_matches_pending_and_applies_re
         stored_events = session.execute(
             select(MatchEvent).where(MatchEvent.match_id == match.id).order_by(MatchEvent.sort_order.asc())
         ).scalars().all()
+        scorer_coverage = session.scalar(
+            select(MatchDataCoverage).where(
+                MatchDataCoverage.match_id == match.id,
+                MatchDataCoverage.data_type == "scorers",
+            )
+        )
         second_run = service.enrich_pending(limit=10)
 
         assert first_run.checked_count == 1
@@ -209,10 +241,17 @@ def test_match_event_enricher_leaves_partial_goal_matches_pending_and_applies_re
         assert first_run.rows[0].has_scorers is False
         assert stored_match is not None
         assert stored_match.has_scorers is False
+        assert stored_match.scorer_status == "partial"
+        assert first_run.rows[0].scorer_status == "partial"
         assert stored_match.extra_data is not None
         assert stored_match.extra_data["match_events"]["status"] == "partial_retry"
+        assert stored_match.extra_data["match_events"]["scorer_status"] == "partial"
         assert stored_match.extra_data["match_events"]["stored_events_count"] == 2
         assert len(stored_events) == 2
+        assert scorer_coverage is not None
+        assert scorer_coverage.status == "partial"
+        assert scorer_coverage.expected_count == 3
+        assert scorer_coverage.observed_count == 2
         assert second_run.checked_count == 0
     finally:
         session.close()
@@ -305,12 +344,15 @@ def test_match_event_enricher_isolates_failed_match_persistence_and_continues_ba
         assert rows_by_match_id[successful_match.id].persisted is True
         assert failed_stored_match is not None
         assert failed_stored_match.has_scorers is False
+        assert failed_stored_match.scorer_status == "error"
         assert failed_stored_match.extra_data is not None
         assert failed_stored_match.extra_data["match_events"]["status"] == "error"
+        assert failed_stored_match.extra_data["match_events"]["scorer_status"] == "error"
         assert failed_stored_match.extra_data["match_events"]["stored_events_count"] == 1
         assert len(failed_events) == 1
         assert successful_stored_match is not None
         assert successful_stored_match.has_scorers is True
+        assert successful_stored_match.scorer_status == "covered"
         assert len(successful_events) == 3
     finally:
         session.close()

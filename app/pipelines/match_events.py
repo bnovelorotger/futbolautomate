@@ -4,6 +4,8 @@ import json
 
 import typer
 
+from app.core.catalog import load_competition_catalog
+from app.core.enums import CompetitionIntegrationStatus
 from app.db.session import init_db, session_scope
 from app.services.match_event_enricher import MatchEventEnricherService
 from app.services.top_scorer_tracker import TopScorerTrackerService
@@ -26,7 +28,8 @@ def _render_enrichment(result) -> str:
     for row in result.rows:
         lines.append(
             f"- match_id={row.match_id} {row.home_team} vs {row.away_team} "
-            f"events={row.events_found} persisted={row.persisted}"
+            f"expected={row.expected_goal_events} events={row.events_found} "
+            f"status={row.scorer_status} persisted={row.persisted}"
         )
     return "\n".join(lines)
 
@@ -34,7 +37,8 @@ def _render_enrichment(result) -> str:
 def _render_single_match(result) -> str:
     return (
         f"match_id={result.match_id} {result.home_team} vs {result.away_team} "
-        f"events={result.events_found} persisted={result.persisted}"
+        f"expected={result.expected_goal_events} events={result.events_found} "
+        f"status={result.scorer_status} persisted={result.persisted}"
     )
 
 
@@ -53,7 +57,10 @@ def main() -> None:
 @app.command("enrich-pending")
 def enrich_pending(
     competition_code: str | None = typer.Option(None, "--competition", help="Codigo interno de competicion"),
+    season: str | None = typer.Option(None, "--season", help="Temporada a limitar, por ejemplo 2025-26"),
     limit: int = typer.Option(25, "--limit", min=1, help="Maximo de partidos a enriquecer"),
+    include_errors: bool = typer.Option(False, "--include-errors", help="Reintenta partidos en estado error"),
+    exclude_partial: bool = typer.Option(False, "--exclude-partial", help="No reintenta parciales/sin datos"),
     dry_run: bool = typer.Option(False, "--dry-run", help="No persiste cambios"),
     as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
 ) -> None:
@@ -62,6 +69,9 @@ def enrich_pending(
         result = MatchEventEnricherService(session).enrich_pending(
             limit=limit,
             competition_slug=competition_code,
+            season=season,
+            include_partial=not exclude_partial,
+            include_errors=include_errors,
             dry_run=dry_run,
         )
         if as_json:
@@ -98,6 +108,39 @@ def top_scorers(
             _dump_json(result.model_dump(mode="json"))
         else:
             typer.echo(_render_top_scorers(result))
+
+
+@app.command("coverage-report")
+def coverage_report(
+    competition_code: str | None = typer.Option(None, "--competition", help="Codigo interno de competicion"),
+    season: str | None = typer.Option(None, "--season", help="Temporada a revisar, por ejemplo 2025-26"),
+    as_json: bool = typer.Option(False, "--json", help="Salida JSON"),
+) -> None:
+    init_db()
+    with session_scope() as session:
+        if competition_code:
+            codes = [competition_code]
+        else:
+            codes = [
+                definition.code
+                for definition in load_competition_catalog().values()
+                if definition.status == CompetitionIntegrationStatus.INTEGRATED
+            ]
+        tracker = TopScorerTrackerService(session)
+        rows = [
+            tracker.top_scorers_for_competition(code, season=season, limit=10).model_dump(mode="json")
+            for code in codes
+        ]
+        if as_json:
+            _dump_json(rows)
+            return
+        for row in rows:
+            typer.echo(
+                f"{row['competition_slug']} season={row.get('season') or '-'} "
+                f"coverage={row['scorer_covered_matches_count']}/{row['finished_matches_count']} "
+                f"ratio={row['scorer_coverage_ratio']:.3f} "
+                f"scorer_matches={row['scorer_matches_count']} goals={row['goal_events_count']}"
+            )
 
 
 if __name__ == "__main__":

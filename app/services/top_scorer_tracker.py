@@ -3,10 +3,10 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from app.core.enums import MatchEventType, MatchStatus
+from app.core.enums import MatchEventType, MatchScorerStatus, MatchStatus
 from app.db.models import Match, MatchEvent
 from app.schemas.match_event import TopScorerResult, TopScorerRowView
 from app.utils.time import utcnow
@@ -14,6 +14,7 @@ from app.utils.time import utcnow
 MIN_TOP_SCORER_SCORER_MATCHES = 2
 MIN_TOP_SCORER_GOAL_EVENTS = 4
 MIN_TOP_SCORER_LEADER_GOALS = 3
+MIN_TOP_SCORER_COVERAGE_RATIO = 0.8
 
 
 class TopScorerTrackerService:
@@ -25,12 +26,26 @@ class TopScorerTrackerService:
         competition_slug: str,
         *,
         limit: int = 10,
+        season: str | None = None,
         reference_date: date | None = None,
     ) -> TopScorerResult:
         selected_date = reference_date or utcnow().date()
-        season = self._current_season_for_competition(
+        season = season or self._current_season_for_competition(
             competition_slug,
             reference_date=selected_date,
+        )
+        finished_matches_count = self._finished_matches_count(
+            competition_slug,
+            season=season,
+            reference_date=selected_date,
+        )
+        scorer_covered_matches_count = self._scorer_covered_matches_count(
+            competition_slug,
+            season=season,
+            reference_date=selected_date,
+        )
+        scorer_coverage_ratio = (
+            scorer_covered_matches_count / finished_matches_count if finished_matches_count else 0.0
         )
         query = (
             select(MatchEvent, Match)
@@ -38,7 +53,7 @@ class TopScorerTrackerService:
             .where(
                 Match.competition.has(code=competition_slug),
                 Match.status == str(MatchStatus.FINISHED),
-                Match.has_scorers.is_(True),
+                self._closed_scorer_coverage_filter(),
                 Match.match_date.is_not(None),
                 Match.match_date <= selected_date,
                 MatchEvent.event_type == str(MatchEventType.GOAL),
@@ -88,11 +103,60 @@ class TopScorerTrackerService:
             competition_slug=competition_slug,
             season=season,
             reference_date=selected_date,
+            finished_matches_count=finished_matches_count,
+            scorer_covered_matches_count=scorer_covered_matches_count,
+            scorer_coverage_ratio=scorer_coverage_ratio,
             scorer_matches_count=len(scorer_match_ids),
             goal_events_count=len(rows),
             distinct_scorers_count=len(player_rows),
             generated_at=utcnow(),
             rows=ordered,
+        )
+
+    def _finished_matches_count(
+        self,
+        competition_slug: str,
+        *,
+        season: str | None,
+        reference_date: date,
+    ) -> int:
+        query = select(Match.id).where(
+            Match.competition.has(code=competition_slug),
+            Match.status == str(MatchStatus.FINISHED),
+            Match.match_date.is_not(None),
+            Match.match_date <= reference_date,
+        )
+        if season:
+            query = query.where(Match.season == season)
+        return len(self.session.execute(query).scalars().all())
+
+    def _scorer_covered_matches_count(
+        self,
+        competition_slug: str,
+        *,
+        season: str | None,
+        reference_date: date,
+    ) -> int:
+        query = select(Match.id).where(
+            Match.competition.has(code=competition_slug),
+            Match.status == str(MatchStatus.FINISHED),
+            self._closed_scorer_coverage_filter(),
+            Match.match_date.is_not(None),
+            Match.match_date <= reference_date,
+        )
+        if season:
+            query = query.where(Match.season == season)
+        return len(self.session.execute(query).scalars().all())
+
+    def _closed_scorer_coverage_filter(self):
+        return or_(
+            Match.has_scorers.is_(True),
+            Match.scorer_status.in_(
+                [
+                    str(MatchScorerStatus.COVERED),
+                    str(MatchScorerStatus.NO_GOALS),
+                ]
+            ),
         )
 
     def _current_season_for_competition(
