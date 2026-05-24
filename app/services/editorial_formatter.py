@@ -59,6 +59,9 @@ NARRATIVE_TYPES = {
     ContentType.STANDINGS_EVENT,
     ContentType.FEATURED_MATCH_EVENT,
     ContentType.MATCH_IMPACT_SCENARIO,
+    ContentType.SEASON_WRAP_STATS,
+    ContentType.SEASON_WRAP_OUTCOMES,
+    ContentType.PLAYOFF_BRACKET,
 }
 
 

@@ -39,33 +39,45 @@ Todas las tareas usan `-LogonType Interactive`, por lo que requieren una sesion 
 | `futbol_refresh_afternoon` | 14:00 | 14:00 | 14:00 | 14:00 | 14:00 | 14:00 | 14:00 |
 | `futbol_refresh_sunday_evening` | - | - | - | - | - | - | 20:00 |
 | `futbol_editorial_day_mon` | 07:30 | - | - | - | - | - | - |
-| `futbol_editorial_day_other` | - | 18:30 | - | 18:30 | - | - | - |
-| `futbol_editorial_day_wed` | - | - | 18:30 | - | - | - | - |
+| `futbol_editorial_day_other` | - | 08:30 | - | 08:30 | - | - | - |
+| `futbol_editorial_day_wed` | - | - | 08:30 | - | - | - | - |
 | `futbol_editorial_day_fri` | - | - | - | - | 08:00 | - | - |
 | `futbol_editorial_day_sat` | - | - | - | - | - | 09:30 | - |
 | `futbol_editorial_day_sun` | - | - | - | - | - | - | 20:45 |
-| `futbol_release_mon` | 09:15 | - | - | - | - | - | - |
-| `futbol_release_other` | - | 20:00 | - | 20:00 | - | - | - |
-| `futbol_release_wed` | - | - | 20:00 | - | - | - | - |
-| `futbol_release_fri` | - | - | - | - | 13:00 | - | - |
+| `futbol_release_weekday_morning` | 09:30 | 09:30 | 09:30 | 09:30 | 09:30 | - | - |
+| `futbol_release_weekday_evening` | 19:30 | 19:30 | 19:30 | 19:30 | 19:30 | - | - |
 | `futbol_release_sat` | - | - | - | - | - | 11:00 | - |
 | `futbol_release_sun` | - | - | - | - | - | - | 21:15 |
+| `futbol_publish_catchup_weekday_morning` | 10:00 | 10:00 | 10:00 | 10:00 | 10:00 | - | - |
+| `futbol_publish_catchup_weekday_evening` | 20:00 | 20:00 | 20:00 | 20:00 | 20:00 | - | - |
+| `futbol_publish_catchup_sat` | - | - | - | - | - | 11:30 | - |
+| `futbol_publish_catchup_sun` | - | - | - | - | - | - | 21:45 |
 | `futbol_editorial_day_plan` | 08:00 | 08:00 | 08:00 | 08:00 | 08:00 | 08:00 | 08:00 |
 | `futbol_summary` | 21:00 | 21:00 | 21:00 | 21:00 | 21:00 | 21:00 | 21:00 |
 | `futbol_editorial_digest` | 22:00 | 22:00 | 22:00 | 22:00 | 22:00 | 22:00 | 22:00 |
 | `futbol_engagement` | 12:30 | 12:30 | 12:30 | 12:30 | 12:30 | - | - |
 | `futbol_backup` | 03:00 | 03:00 | 03:00 | 03:00 | 03:00 | 03:00 | 03:00 |
 | `futbol_log_cleanup` | - | - | - | - | - | - | 04:00 |
+| `futbol_stats_backfill_weekly` | - | 05:00 | - | - | - | - | - |
 
 ## Secuencia por dia activo
 
-- Lunes: session check 06:00, refresh 06:30, editorial 07:30, plan Telegram 08:00, release 09:15 con `-Limit 4`.
-- Martes: refresh 07:00, editorial 18:30, release 20:00 con `-Limit 3`.
-- Miercoles: refresh 07:00, editorial 18:30, release 20:00 con `-Limit 4`.
-- Jueves: refresh 07:00, editorial 18:30, release 20:00 con `-Limit 3`.
-- Viernes: refresh 07:00, editorial 08:00, release 13:00 con `-Limit 4`.
-- Sabado: refresh 07:00, editorial 09:30, release 11:00 con `-Limit 2`.
-- Domingo: refresh 06:30, refresh 14:00, refresh extra 20:00, editorial 20:45, release 21:15 con `-Limit 2`.
+- Lunes: session check 06:00, refresh 06:30, editorial 07:30, plan Telegram 08:00, releases 09:30 y 19:30 con `-PublishLimit 2`.
+- Martes: refresh 07:00, editorial 08:30, releases 09:30 y 19:30 con `-PublishLimit 2`.
+- Miercoles: refresh 07:00, editorial 08:30, releases 09:30 y 19:30 con `-PublishLimit 2`.
+- Jueves: refresh 07:00, editorial 08:30, releases 09:30 y 19:30 con `-PublishLimit 2`.
+- Viernes: refresh 07:00, editorial 08:00, releases 09:30 y 19:30 con `-PublishLimit 2`.
+- Sabado: refresh 07:00, editorial 09:30, release 11:00 con `-PublishLimit 2`.
+- Domingo: refresh 06:30, refresh 14:00, refresh extra 20:00, editorial 20:45, release 21:15 con `-PublishLimit 2`.
+
+### Backfill semanal de estadisticas
+
+`futbol_stats_backfill_weekly` (martes 05:00) corre
+`scripts/windows/backfill_stats.ps1` con
+`-Season 2025-26 -DataTypes results,standings,scorers,halftime -LimitPerCompetition 250 -IncludeErrors`.
+Reporta cobertura de resultados/clasificacion (`stat_coverage report`) y
+reintenta goleadores pendientes/parciales (`match_events enrich-pending`) en
+todas las competiciones integradas. Detalle en `docs/data_coverage.md`.
 
 ## Publicacion automatica en X via navegador
 
@@ -87,17 +99,17 @@ X_BROWSER_STAGGER_SECONDS=1800
 X_BROWSER_RELEASE_ACTION_LIMIT=4
 ```
 
-`X_BROWSER_RELEASE_ACTION_LIMIT=4` es el techo global. Cada tarea puede bajar ese techo con `-Limit`; por ejemplo el domingo usa `-Limit 2`.
+`X_BROWSER_RELEASE_ACTION_LIMIT=4` es el techo global. Cada tarea puede bajar ese techo con `-PublishLimit`; los slots L-V y fin de semana usan `-PublishLimit 2`.
 
 ## Ventanas de publicacion
 
-`app/config/publication_schedule.json` controla que tipos son publicables por dia:
+`app/config/publication_schedule.json` controla que tipos son publicables por dia y el cupo por slot:
 
-- lunes desde `09:15`: `results_roundup`, `standings_roundup`, `top_scorer_update`, `race_narrative`, `milestone_story`
-- martes desde `20:00`: `ranking`, `standings_roundup`
-- miercoles desde `20:00`: `viral_story`, `metric_narrative`
-- jueves desde `20:00`: `top_scorer_update`, `ranking`
-- viernes desde `13:00`: `featured_match_preview`, `match_impact_scenario`
+- lunes desde `09:30` y `19:30`: `results_roundup`, `standings_roundup`, `top_scorer_update`, `race_narrative`, `milestone_story`
+- martes desde `09:30` y `19:30`: `ranking`, `standings_roundup`
+- miercoles desde `09:30` y `19:30`: `viral_story`, `metric_narrative`, `stat_narrative`
+- jueves desde `09:30` y `19:30`: `top_scorer_update`, `ranking`
+- viernes desde `09:30` y `19:30`: `featured_match_preview`, `match_impact_scenario`
 - sabado desde `11:00`: `preview`
 - domingo desde `21:15`: `results_roundup`, `standings_roundup`
 
@@ -121,17 +133,26 @@ El script elimina tareas legacy ya sustituidas:
 
 - `futbol_editorial_day_mon_sun`
 - `futbol_editorial_day_other`
+- `futbol_release_mon`
 - `futbol_release_mon_sun`
 - `futbol_release_other`
+- `futbol_release_wed`
+- `futbol_release_fri`
+- `futbol_publish_catchup_mon`
+- `futbol_publish_catchup_tue`
+- `futbol_publish_catchup_wed`
+- `futbol_publish_catchup_thu`
+- `futbol_publish_catchup_fri`
 
 ## Parametros de `editorial_release.ps1`
 
 ```powershell
-.\scripts\windows\editorial_release.ps1 [-TargetDate YYYY-MM-DD] [-DryRun] [-Limit N] [-PublishBrowser] [-SkipPublishBrowser] [-PublishX] [-SkipPublishX] [-PublishTypefully]
+.\scripts\windows\editorial_release.ps1 [-TargetDate YYYY-MM-DD] [-DryRun] [-Limit N] [-PublishLimit N] [-PublishBrowser] [-SkipPublishBrowser] [-PublishX] [-SkipPublishX] [-PublishTypefully]
 ```
 
 - Por defecto: `run` + `--publish-browser`.
-- `-Limit N`: baja el maximo de publicacion de este run sin superar `X_BROWSER_RELEASE_ACTION_LIMIT`.
+- `-PublishLimit N`: baja el maximo de publicacion de este run sin superar `X_BROWSER_RELEASE_ACTION_LIMIT`.
+- `-Limit N`: alias legacy que se reinterpreta como `-PublishLimit N` cuando no se pasa `-PublishLimit`.
 - `-DryRun`: simula sin persistir ni publicar.
 - `-SkipPublishBrowser`: omite publicacion via navegador.
 - `-PublishX` y `-SkipPublishX`: aliases legacy.

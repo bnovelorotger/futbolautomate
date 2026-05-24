@@ -37,11 +37,15 @@ from app.services.editorial_viral_stories import EditorialViralStoriesService
 from app.services.match_impact_calculator import MatchImpactCalculatorService
 from app.services.match_importance import MatchImportanceService
 from app.services.milestone_detector import MilestoneDetectorService
+from app.services.editorial_phase import EditorialPhaseService
+from app.services.playoff_editorial import PlayoffEditorialService
 from app.services.race_narrative_generator import RaceNarrativeService
 from app.services.results_roundup import ResultsRoundupService
+from app.services.season_wrap_editorial import SeasonWrapEditorialService
 from app.services.standings_roundup import StandingsRoundupService
 from app.services.team_analytics import TeamAnalyticsService
 from app.services.top_scorer_tracker import (
+    MIN_TOP_SCORER_COVERAGE_RATIO,
     MIN_TOP_SCORER_GOAL_EVENTS,
     MIN_TOP_SCORER_LEADER_GOALS,
     MIN_TOP_SCORER_SCORER_MATCHES,
@@ -64,6 +68,9 @@ _PLANNING_CONTENT_MAP = {
     EditorialPlanningContent.MILESTONE_STORY: ContentType.MILESTONE_STORY,
     EditorialPlanningContent.TOP_SCORER_UPDATE: ContentType.TOP_SCORER_UPDATE,
     EditorialPlanningContent.VIRAL_STORY: ContentType.VIRAL_STORY,
+    EditorialPlanningContent.SEASON_WRAP_STATS: ContentType.SEASON_WRAP_STATS,
+    EditorialPlanningContent.SEASON_WRAP_OUTCOMES: ContentType.SEASON_WRAP_OUTCOMES,
+    EditorialPlanningContent.PLAYOFF_BRACKET: ContentType.PLAYOFF_BRACKET,
 }
 
 
@@ -97,6 +104,9 @@ class EditorialPlannerService:
         self.results_roundup = ResultsRoundupService(session, settings=self.settings)
         self.standings_roundup = StandingsRoundupService(session, settings=self.settings)
         self.match_importance = MatchImportanceService(session, settings=self.settings)
+        self.phase_service = EditorialPhaseService(session, settings=self.settings)
+        self.playoff_editorial = PlayoffEditorialService(session, settings=self.settings)
+        self.season_wrap_editorial = SeasonWrapEditorialService(session, settings=self.settings)
         self.match_impact = MatchImpactCalculatorService(session, settings=self.settings)
         self.narratives = EditorialNarrativesService(session)
         self.race_narratives = RaceNarrativeService()
@@ -121,19 +131,38 @@ class EditorialPlannerService:
             self.schedule.rules_for_weekday(weekday_key),
             key=lambda item: (-item.priority, item.competition_slug, str(item.content_type)),
         )
-        tasks = [
-            EditorialCampaignTask(
-                date=selected_date,
-                weekday_key=weekday_key,
-                weekday_label=weekday_label,
-                competition_slug=rule.competition_slug,
-                competition_name=self._competition_name(rule.competition_slug),
-                planning_type=rule.content_type,
-                target_content_type=_PLANNING_CONTENT_MAP[rule.content_type],
-                priority=rule.priority,
+        tasks: list[EditorialCampaignTask] = []
+        for rule in rules:
+            allowed, phase_state, reason = self.phase_service.planning_content_allowed(
+                rule.competition_slug,
+                rule.content_type,
+                reference_date=selected_date,
             )
-            for rule in rules
-        ]
+            if not allowed:
+                logger.info(
+                    "editorial_planner_phase_skipped",
+                    extra={
+                        "event": "editorial_planner_phase_skipped",
+                        "reference_date": selected_date.isoformat(),
+                        "competition_slug": rule.competition_slug,
+                        "planning_type": str(rule.content_type),
+                        "phase": str(phase_state.phase),
+                        "reason": reason,
+                    },
+                )
+                continue
+            tasks.append(
+                EditorialCampaignTask(
+                    date=selected_date,
+                    weekday_key=weekday_key,
+                    weekday_label=weekday_label,
+                    competition_slug=rule.competition_slug,
+                    competition_name=self._competition_name(rule.competition_slug),
+                    planning_type=rule.content_type,
+                    target_content_type=_PLANNING_CONTENT_MAP[rule.content_type],
+                    priority=rule.priority,
+                )
+            )
         return EditorialCampaignPlan(
             date=selected_date,
             weekday_key=weekday_key,
@@ -170,6 +199,9 @@ class EditorialPlannerService:
         generated_milestone_cache: dict[str, list[ContentCandidateDraft]] = {}
         generated_top_scorer_cache: dict[str, list[ContentCandidateDraft]] = {}
         generated_viral_cache: dict[str, list[ContentCandidateDraft]] = {}
+        generated_season_wrap_stats_cache: dict[str, list[ContentCandidateDraft]] = {}
+        generated_season_wrap_outcomes_cache: dict[str, list[ContentCandidateDraft]] = {}
+        generated_playoff_bracket_cache: dict[str, list[ContentCandidateDraft]] = {}
         for competition_slug in sorted(grouped_tasks):
             for task in grouped_tasks[competition_slug]:
                 if task.planning_type == EditorialPlanningContent.RESULTS_ROUNDUP:
@@ -200,17 +232,29 @@ class EditorialPlannerService:
                     stats = self.standings_roundup.store_candidates(selected_candidates)
                 elif task.planning_type == EditorialPlanningContent.FEATURED_MATCH_PREVIEW:
                     if competition_slug not in generated_featured_cache:
-                        generated_featured_cache[competition_slug] = self.match_importance.build_candidate_drafts(
-                            competition_slug,
-                            reference_date=plan.date,
-                            limit=1,
-                        )
+                        if self.phase_service.is_playoff_competition(competition_slug):
+                            generated_featured_cache[competition_slug] = (
+                                self.playoff_editorial.build_featured_preview_drafts(
+                                    competition_slug,
+                                    reference_date=plan.date,
+                                    limit=1,
+                                )
+                            )
+                        else:
+                            generated_featured_cache[competition_slug] = self.match_importance.build_candidate_drafts(
+                                competition_slug,
+                                reference_date=plan.date,
+                                limit=1,
+                            )
                         self._validate_candidates_for_competition(
                             competition_slug,
                             generated_featured_cache[competition_slug],
                         )
                     selected_candidates = generated_featured_cache[competition_slug]
-                    stats = self.match_importance.store_candidates(selected_candidates)
+                    if self.phase_service.is_playoff_competition(competition_slug):
+                        stats = self.playoff_editorial.store_candidates(selected_candidates)
+                    else:
+                        stats = self.match_importance.store_candidates(selected_candidates)
                 elif task.planning_type == EditorialPlanningContent.MATCH_IMPACT_SCENARIO:
                     if competition_slug not in generated_match_impact_cache:
                         generated_match_impact_cache[competition_slug] = self._build_match_impact_candidates(
@@ -283,6 +327,46 @@ class EditorialPlannerService:
                         )
                     selected_candidates = generated_viral_cache[competition_slug]
                     stats = self.viral_stories.store_candidates(selected_candidates)
+                elif task.planning_type == EditorialPlanningContent.SEASON_WRAP_STATS:
+                    if competition_slug not in generated_season_wrap_stats_cache:
+                        generated_season_wrap_stats_cache[competition_slug] = (
+                            self.season_wrap_editorial.build_stats_drafts(
+                                competition_slug,
+                                reference_date=plan.date,
+                            )
+                        )
+                        self._validate_candidates_for_competition(
+                            competition_slug,
+                            generated_season_wrap_stats_cache[competition_slug],
+                        )
+                    selected_candidates = generated_season_wrap_stats_cache[competition_slug]
+                    stats = self.season_wrap_editorial.store_candidates(selected_candidates)
+                elif task.planning_type == EditorialPlanningContent.SEASON_WRAP_OUTCOMES:
+                    if competition_slug not in generated_season_wrap_outcomes_cache:
+                        generated_season_wrap_outcomes_cache[competition_slug] = (
+                            self.season_wrap_editorial.build_outcome_drafts(
+                                competition_slug,
+                                reference_date=plan.date,
+                            )
+                        )
+                        self._validate_candidates_for_competition(
+                            competition_slug,
+                            generated_season_wrap_outcomes_cache[competition_slug],
+                        )
+                    selected_candidates = generated_season_wrap_outcomes_cache[competition_slug]
+                    stats = self.season_wrap_editorial.store_candidates(selected_candidates)
+                elif task.planning_type == EditorialPlanningContent.PLAYOFF_BRACKET:
+                    if competition_slug not in generated_playoff_bracket_cache:
+                        generated_playoff_bracket_cache[competition_slug] = self.playoff_editorial.build_bracket_drafts(
+                            competition_slug,
+                            reference_date=plan.date,
+                        )
+                        self._validate_candidates_for_competition(
+                            competition_slug,
+                            generated_playoff_bracket_cache[competition_slug],
+                        )
+                    selected_candidates = generated_playoff_bracket_cache[competition_slug]
+                    stats = self.playoff_editorial.store_candidates(selected_candidates)
                 else:
                     if competition_slug not in generated_content_cache:
                         generated_content_cache[competition_slug] = self._generate_competition_candidates(
@@ -516,6 +600,7 @@ class EditorialPlannerService:
             result.scorer_matches_count < MIN_TOP_SCORER_SCORER_MATCHES
             or result.goal_events_count < MIN_TOP_SCORER_GOAL_EVENTS
             or leader.goals < MIN_TOP_SCORER_LEADER_GOALS
+            or result.scorer_coverage_ratio < MIN_TOP_SCORER_COVERAGE_RATIO
         ):
             return []
         gap_to_second = leader.goals - chasers[0].goals if chasers else leader.goals
@@ -529,6 +614,9 @@ class EditorialPlannerService:
             "goal_gap_to_second": gap_to_second,
             "leader_tied": leader_tied,
             "season": result.season,
+            "finished_matches_count": result.finished_matches_count,
+            "scorer_covered_matches_count": result.scorer_covered_matches_count,
+            "scorer_coverage_ratio": result.scorer_coverage_ratio,
             "scorer_matches_count": result.scorer_matches_count,
             "goal_events_count": result.goal_events_count,
             "distinct_scorers_count": result.distinct_scorers_count,
@@ -575,10 +663,14 @@ class EditorialPlannerService:
         gap_to_second: int,
     ) -> str:
         if leader_tied and chasers:
+            tied_leaders = [leader, *[row for row in chasers if row.goals == leader.goals]]
+            tied_names = ", ".join(f"{row.player} ({row.team})" for row in tied_leaders)
+            if len(tied_leaders) == 2:
+                first, second = tied_leaders
+                tied_names = f"{first.player} ({first.team}) y {second.player} ({second.team})"
             text = (
                 f"Pichichi al rojo vivo en {competition_name}: "
-                f"{leader.player} ({leader.team}) y {chasers[0].player} ({chasers[0].team}) "
-                f"comparten el liderato con {leader.goals} goles."
+                f"{tied_names} comparten el liderato con {leader.goals} goles."
             )
         else:
             text = (
@@ -589,7 +681,7 @@ class EditorialPlannerService:
                 text += f", {gap_to_second} mas que {chasers[0].player} ({chasers[0].team})."
             else:
                 text += "."
-        if len(chasers) >= 2:
+        if len(chasers) >= 2 and chasers[1].goals < leader.goals:
             text += f" El tercer registro es {chasers[1].player} ({chasers[1].team}) con {chasers[1].goals}."
         return text
 

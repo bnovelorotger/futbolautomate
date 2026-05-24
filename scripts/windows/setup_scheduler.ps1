@@ -35,7 +35,7 @@ function Register-FutbolTask {
         -LogonType Interactive `
         -RunLevel Highest
     if (Get-ScheduledTask -TaskName $Name -ErrorAction SilentlyContinue) {
-        Unregister-ScheduledTask -TaskName $Name -Confirm:$false
+        Unregister-ScheduledTask -TaskName $Name -Confirm:$false -ErrorAction Stop
     }
     Register-ScheduledTask `
         -TaskName $Name `
@@ -43,14 +43,15 @@ function Register-FutbolTask {
         -Trigger $triggers `
         -Settings $settings `
         -Principal $principal `
-        -Force | Out-Null
+        -Force `
+        -ErrorAction Stop | Out-Null
     Write-Host "[OK] $Name -> $Days @ $TimeStr"
 }
 
 function Unregister-FutbolTaskIfExists {
     param($Name)
     if (Get-ScheduledTask -TaskName $Name -ErrorAction SilentlyContinue) {
-        Unregister-ScheduledTask -TaskName $Name -Confirm:$false
+        Unregister-ScheduledTask -TaskName $Name -Confirm:$false -ErrorAction Stop
         Write-Host "[OK] $Name -> tarea legacy eliminada"
     }
 }
@@ -61,7 +62,16 @@ Write-Host ""
 @(
     "futbol_editorial_day_mon_sun",
     "futbol_release_mon_sun",
-    "futbol_release_other"
+    "futbol_release_mon",
+    "futbol_release_other",
+    "futbol_release_wed",
+    "futbol_release_fri",
+    "futbol_publish_catchup_mon",
+    "futbol_publish_catchup_tue",
+    "futbol_publish_catchup_wed",
+    "futbol_publish_catchup_thu",
+    "futbol_publish_catchup_fri",
+    "futbol_scorer_backfill_weekly"
 ) | ForEach-Object { Unregister-FutbolTaskIfExists $_ }
 
 # Legacy "uFutbolBalear *" tasks from the previous task naming convention.
@@ -70,7 +80,7 @@ Write-Host ""
 Get-ScheduledTask -ErrorAction SilentlyContinue |
     Where-Object { $_.TaskName -like "uFutbolBalear*" } |
     ForEach-Object {
-        Unregister-ScheduledTask -TaskName $_.TaskName -Confirm:$false
+        Unregister-ScheduledTask -TaskName $_.TaskName -Confirm:$false -ErrorAction Stop
         Write-Host "[OK] $($_.TaskName) -> tarea legacy uFutbolBalear eliminada"
     }
 
@@ -87,32 +97,29 @@ Register-FutbolTask "futbol_refresh_other"     "scripts\windows\refresh_data.ps1
 Register-FutbolTask "futbol_refresh_afternoon" "scripts\windows\refresh_data.ps1" "14:00" @("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday")
 # Domingo: refresco extra antes del cierre nocturno.
 Register-FutbolTask "futbol_refresh_sunday_evening" "scripts\windows\refresh_data.ps1" "20:00" @("Sunday")
+# Auditoria/backfill semanal de estadisticas. Mantiene la cobertura 2025-26 al dia
+# sin competir con los slots editoriales ni con el refresco fuerte del domingo.
+Register-FutbolTask "futbol_stats_backfill_weekly" "scripts\windows\backfill_stats.ps1" "05:00" @("Tuesday") "-Season 2025-26 -DataTypes results,standings,scorers,halftime -LimitPerCompetition 250 -IncludeErrors" 4
 
 # --- Generacion de contenido editorial ---
 # Lunes: resultados + clasificaciones post fin de semana antes del primer slot fuerte.
 Register-FutbolTask "futbol_editorial_day_mon" "scripts\windows\run_editorial_day.ps1" "07:30" @("Monday")
-# Martes/jueves/sabado: capa ligera de continuidad editorial.
-Register-FutbolTask "futbol_editorial_day_other" "scripts\windows\run_editorial_day.ps1" "18:30" @("Tuesday","Thursday")
+# Martes/jueves: capa ligera de continuidad editorial antes del primer slot.
+Register-FutbolTask "futbol_editorial_day_other" "scripts\windows\run_editorial_day.ps1" "08:30" @("Tuesday","Thursday")
 # Sabado: previa ligera en la manana.
 Register-FutbolTask "futbol_editorial_day_sat" "scripts\windows\run_editorial_day.ps1" "09:30" @("Saturday")
-# Miercoles: historias y metricas para prime time de noche.
-Register-FutbolTask "futbol_editorial_day_wed" "scripts\windows\run_editorial_day.ps1" "18:30" @("Wednesday")
-# Viernes: previews antes de la ventana de comida.
+# Miercoles: historias y metricas antes del primer slot.
+Register-FutbolTask "futbol_editorial_day_wed" "scripts\windows\run_editorial_day.ps1" "08:30" @("Wednesday")
+# Viernes: previews antes del primer slot del dia.
 Register-FutbolTask "futbol_editorial_day_fri" "scripts\windows\run_editorial_day.ps1" "08:00" @("Friday")
 # Domingo: resultados recientes del tramo final de la jornada.
 Register-FutbolTask "futbol_editorial_day_sun" "scripts\windows\run_editorial_day.ps1" "20:45" @("Sunday")
 
 # --- Release + publicacion ---
-# El cap es POR PUBLICACION via browser, NO por evaluacion. La cola de drafts se evalua
-# completa cada slot; el -PublishLimit solo recorta cuantas piezas se postean en X.
-# Lunes: primer slot de alta atencion post fin de semana, con 4 posts maximo.
-Register-FutbolTask "futbol_release_mon" "scripts\windows\editorial_release.ps1" "09:15" @("Monday") "-PublishLimit 4" 3
-# Martes/jueves: continuidad de noche con menor volumen.
-Register-FutbolTask "futbol_release_other" "scripts\windows\editorial_release.ps1" "20:00" @("Tuesday","Thursday") "-PublishLimit 3" 2
-# Miercoles: prime time de noche para piezas conversacionales.
-Register-FutbolTask "futbol_release_wed" "scripts\windows\editorial_release.ps1" "20:00" @("Wednesday") "-PublishLimit 4" 3
-# Viernes: ventana de comida para previas del fin de semana.
-Register-FutbolTask "futbol_release_fri" "scripts\windows\editorial_release.ps1" "13:00" @("Friday") "-PublishLimit 4" 3
+# El cap es POR PUBLICACION via browser, NO por evaluacion. De lunes a viernes
+# hay dos slots diarios de bajo volumen para repartir la salida entre manana y noche.
+Register-FutbolTask "futbol_release_weekday_morning" "scripts\windows\editorial_release.ps1" "09:30" @("Monday","Tuesday","Wednesday","Thursday","Friday") "-PublishLimit 2" 2
+Register-FutbolTask "futbol_release_weekday_evening" "scripts\windows\editorial_release.ps1" "19:30" @("Monday","Tuesday","Wednesday","Thursday","Friday") "-PublishLimit 2" 2
 # Sabado: previa ligera del dia.
 Register-FutbolTask "futbol_release_sat" "scripts\windows\editorial_release.ps1" "11:00" @("Saturday") "-PublishLimit 2" 2
 # Domingo: cierre ligero, sin invadir el digest de las 22:00.
@@ -123,11 +130,8 @@ Register-FutbolTask "futbol_release_sun" "scripts\windows\editorial_release.ps1"
 # la pieza queda con status=published y external_publication_ref=None. Estas tareas
 # rescatan esos casos llamando auto_publish_browser.ps1 dentro de la misma ventana
 # del slot, sin esperar al siguiente dia.
-Register-FutbolTask "futbol_publish_catchup_mon" "scripts\windows\auto_publish_browser.ps1" "09:45" @("Monday") "-Limit 4" 2
-Register-FutbolTask "futbol_publish_catchup_tue" "scripts\windows\auto_publish_browser.ps1" "20:30" @("Tuesday") "-Limit 3" 2
-Register-FutbolTask "futbol_publish_catchup_wed" "scripts\windows\auto_publish_browser.ps1" "20:30" @("Wednesday") "-Limit 4" 2
-Register-FutbolTask "futbol_publish_catchup_thu" "scripts\windows\auto_publish_browser.ps1" "20:30" @("Thursday") "-Limit 3" 2
-Register-FutbolTask "futbol_publish_catchup_fri" "scripts\windows\auto_publish_browser.ps1" "13:30" @("Friday") "-Limit 4" 2
+Register-FutbolTask "futbol_publish_catchup_weekday_morning" "scripts\windows\auto_publish_browser.ps1" "10:00" @("Monday","Tuesday","Wednesday","Thursday","Friday") "-Limit 2" 2
+Register-FutbolTask "futbol_publish_catchup_weekday_evening" "scripts\windows\auto_publish_browser.ps1" "20:00" @("Monday","Tuesday","Wednesday","Thursday","Friday") "-Limit 2" 2
 Register-FutbolTask "futbol_publish_catchup_sat" "scripts\windows\auto_publish_browser.ps1" "11:30" @("Saturday") "-Limit 2" 2
 Register-FutbolTask "futbol_publish_catchup_sun" "scripts\windows\auto_publish_browser.ps1" "21:45" @("Sunday") "-Limit 2" 2
 

@@ -45,6 +45,9 @@ def seed_top_scorer_events(session, competition_code: str) -> None:
         )
         match.has_scorers = True
         session.add(match)
+    for match in matches:
+        match.has_scorers = True
+        session.add(match)
     session.commit()
 
 
@@ -63,19 +66,24 @@ def test_editorial_ops_preview_and_run_daily_for_real_schedule() -> None:
 
         rows = session.execute(select(ContentCandidate).order_by(ContentCandidate.id.asc())).scalars().all()
 
-        # Counts reflect editorial_schedule.json after the parrilla expansion
-        # (more playoff competitions / extra wed/thu/sat/dom slots).
-        assert preview.total_tasks == 37
-        assert preview.ready_tasks == 5
-        assert preview.blocked_tasks == 32
-        assert preview.expected_total == 5
-        assert run.generated_total == 5
-        assert run.inserted_total == 5
-        assert run.blocked_tasks == 32
-        assert len(rows) == 5
+        # Phase-aware planner filters regular race_narrative tasks once the
+        # fixture data has no future regular matches.
+        assert preview.total_tasks == 50
+        assert preview.ready_tasks == 7
+        assert preview.blocked_tasks == 43
+        assert preview.expected_total == 7
+        assert run.generated_total == 7
+        assert run.inserted_total == 7
+        assert run.blocked_tasks == 43
+        assert len(rows) == 7
         # race_narrative no longer appears for this fixture after the schedule
         # / approval rule expansion — assertion on it removed accordingly.
-        assert {row.content_type for row in rows} == {"results_roundup", "standings_roundup", "top_scorer_update"}
+        assert {row.content_type for row in rows} == {
+            "results_roundup",
+            "standings_roundup",
+            "top_scorer_update",
+            "season_wrap_outcomes",
+        }
         top_scorer_rows = [row for row in rows if row.content_type == "top_scorer_update"]
         assert len(top_scorer_rows) == 1
         assert all("Joan Serra" in row.text_draft for row in top_scorer_rows)
@@ -101,11 +109,12 @@ def test_editorial_ops_run_daily_generates_narrative_duo_for_available_wednesday
             "segunda_rfef_g3_baleares",
         }
 
-        # Wed schedule now includes stat_narrative for the 3 main competitions
-        # on top of viral_story + metric_narrative (3+3+3=9).
-        assert run.total_tasks == 9
+        # Wed schedule includes stat_narrative plus season_wrap_stats backup
+        # slots; phase/readiness keeps unavailable competitions blocked.
+        assert run.total_tasks == 16
         assert metric_rows
         assert viral_rows
+        assert [row for row in rows if row.content_type == "season_wrap_stats"]
         assert {row.competition_slug for row in metric_rows} == generated_competitions
         assert {row.competition_slug for row in viral_rows} == generated_competitions
     finally:
@@ -179,11 +188,11 @@ def test_editorial_ops_preview_and_run_daily_generate_featured_match_drafts_on_f
             if row.planning_type == EditorialPlanningContent.MATCH_IMPACT_SCENARIO
         ]
 
-        # Fri schedule expanded to include playoff competitions for featured_match_preview
-        # + match_impact_scenario, giving 14 tasks total instead of the original 10.
-        assert preview.total_tasks == 14
+        # Fri schedule includes playoff bracket tasks; unseeded playoff brackets
+        # remain blocked by readiness until playoff matches exist.
+        assert preview.total_tasks == 22
         assert preview.ready_tasks == 5
-        assert preview.blocked_tasks == 9
+        assert preview.blocked_tasks == 17
         # featured_preview_rows are filtered from the full 14-row preview that
         # includes playoff variants — the main 5 competitions still appear.
         assert len(featured_preview_rows) >= 5

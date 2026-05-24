@@ -18,6 +18,14 @@ COMPETITION_SHORT_NAMES = {
     "division_honor_mallorca": "DH Mallorca",
     "division_honor_ibiza_form": "DH Ibiza/Form",
     "division_honor_menorca": "DH Menorca",
+    "tercera_rfef_g11_playoff": "PO 3a RFEF",
+    "segunda_rfef_g3_playoff_ascenso": "PO 2a RFEF",
+    "segunda_rfef_g3_playoff_permanencia": "PO Permanencia 2a",
+    "primera_rfef_playoff_ascenso": "PO 1a RFEF",
+    "tercera_femenina_g11_playoff": "PO 3a RFEF Fem",
+    "division_honor_ibiza_playoff": "PO DH Ibiza",
+    "division_honor_menorca_playoff": "PO DH Menorca",
+    "division_honor_mallorca_playoff": "PO DH Mallorca",
 }
 COMPETITION_HASHTAGS = {
     "tercera_rfef_g11": "#3aRFEF",
@@ -27,6 +35,14 @@ COMPETITION_HASHTAGS = {
     "division_honor_mallorca": "#DH",
     "division_honor_ibiza_form": "#DHIbiza",
     "division_honor_menorca": "#DHMenorca",
+    "tercera_rfef_g11_playoff": "#Playoff",
+    "segunda_rfef_g3_playoff_ascenso": "#Playoff",
+    "segunda_rfef_g3_playoff_permanencia": "#Playoff",
+    "primera_rfef_playoff_ascenso": "#Playoff",
+    "tercera_femenina_g11_playoff": "#Playoff",
+    "division_honor_ibiza_playoff": "#Playoff",
+    "division_honor_menorca_playoff": "#Playoff",
+    "division_honor_mallorca_playoff": "#Playoff",
 }
 TITLE_SPECS = {
     ContentType.MATCH_RESULT: ("📋", "Resultado"),
@@ -250,6 +266,12 @@ def build_narrative_label(content_type: ContentType, source_payload: dict[str, A
         return "Dato"
     if content_type == ContentType.TOP_SCORER_UPDATE:
         return "Goleadores"
+    if content_type == ContentType.SEASON_WRAP_STATS:
+        return "Temporada"
+    if content_type == ContentType.SEASON_WRAP_OUTCOMES:
+        return "Cierre"
+    if content_type == ContentType.PLAYOFF_BRACKET:
+        return "Bracket"
     if content_type == ContentType.FEATURED_MATCH_EVENT:
         tags = source_payload.get("tags")
         if isinstance(tags, list):

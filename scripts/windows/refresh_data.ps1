@@ -17,6 +17,16 @@ $competitions = @(
     "division_honor_ibiza_form",
     "division_honor_menorca"
 )
+$playoffCompetitions = @(
+    "tercera_rfef_g11_playoff",
+    "segunda_rfef_g3_playoff_ascenso",
+    "segunda_rfef_g3_playoff_permanencia",
+    "primera_rfef_playoff_ascenso",
+    "tercera_femenina_g11_playoff",
+    "division_honor_ibiza_playoff",
+    "division_honor_menorca_playoff",
+    "division_honor_mallorca_playoff"
+)
 $targets = @("matches", "standings")
 
 Initialize-Runtime -LogName "cron_refresh.log" -SlotName "cron_refresh"
@@ -37,6 +47,14 @@ try {
                 "--target", $target
             )
         }
+    }
+
+    foreach ($competition in $playoffCompetitions) {
+        Invoke-PythonModule -Label "refresh_${competition}_matches" -Module "app.pipelines.run_source" -Arguments @(
+            "--source", $RefreshSource,
+            "--competition", $competition,
+            "--target", "matches"
+        )
     }
 
     Invoke-PythonModule -Label "enrich_match_events" -Module "app.pipelines.runner" -Arguments @(

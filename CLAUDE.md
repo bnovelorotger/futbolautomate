@@ -131,12 +131,15 @@ python -m app.pipelines.x_auth start-auth
 python -m app.pipelines.x_publish publish --id <candidate_id>
 ```
 
-### Runner sub-commands (match_events, pipeline_metrics, pipeline_summary, top_scorer)
+### Runner sub-commands (match_events, pipeline_metrics, pipeline_summary, top_scorer, editorial_phase, stat_coverage)
 ```bash
 python -m app.pipelines.runner match_events enrich --competition tercera_rfef_g11
+python -m app.pipelines.runner match_events coverage-report --season 2025-26
 python -m app.pipelines.runner pipeline_summary show --date 2026-05-12
 python -m app.pipelines.runner pipeline_metrics show --date 2026-05-12
 python -m app.pipelines.runner top_scorer list --competition tercera_rfef_g11
+python -m app.pipelines.runner editorial_phase report --date 2026-05-12
+python -m app.pipelines.runner stat_coverage report --season 2025-26
 ```
 
 ---
@@ -228,6 +231,11 @@ Competition definitions live in `app/config/competitions.json`. Integration stat
 | `stat_narrative` | Statistical narrative | Wednesday |
 | `metric_narrative` | Metric-driven narrative | Wednesday |
 | `viral_story` | Short-form shareable content | Wednesday |
+| `playoff_bracket` | Bracket card + summary for playoff slugs | Monday + Friday (phase=PLAYOFFS or SEASON_WRAP) |
+| `season_wrap_stats` | End-of-season stats roundup | Wednesday (phase=SEASON_WRAP) |
+| `season_wrap_outcomes` | Champion, playoff, relegation summary | Monday (phase=SEASON_WRAP) |
+
+Phase-aware content (`playoff_bracket`, `season_wrap_*`, playoff variants of `featured_match_preview` / `results_roundup`) is gated by `EditorialPhaseService`. See `docs/editorial_phases.md` for the state machine and `docs/data_coverage.md` for the coverage gates that block low-quality publishes.
 
 Legacy types (`match_result`, `standings`, `form_ranking`) are kept for compatibility. Do not generate new content using them.
 
@@ -278,6 +286,8 @@ Migration files are in `migrations/versions/`. Name them with date prefix: `YYYY
 | `scraper_runs` | Ingestion job tracking |
 | `team_socials` | X handles for teams (used in mention enrichment) |
 | `channel_user_tokens` | OAuth tokens for X/Typefully |
+| `match_data_coverage` | Per-match coverage status by data type (scorers, halftime…) — see `docs/data_coverage.md` |
+| `matches.scorer_status` | Per-match scorer ingestion state (`pending` / `covered` / `no_goals` / `partial` / `missing_source` / `error`) |
 
 ---
 

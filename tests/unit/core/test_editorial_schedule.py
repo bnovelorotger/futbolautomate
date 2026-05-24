@@ -15,7 +15,7 @@ def test_default_editorial_schedule_loads_expected_rules() -> None:
     saturday_rules = schedule.rules_for_weekday("saturday")
     sunday_rules = schedule.rules_for_weekday("sunday")
 
-    assert len(monday_rules) == 37
+    assert len(monday_rules) == 52
     assert len(tuesday_rules) == 8
     assert monday_rules[0].competition_slug == "tercera_rfef_g11"
     assert monday_rules[0].content_type == EditorialPlanningContent.RESULTS_ROUNDUP
@@ -42,6 +42,7 @@ def test_default_editorial_schedule_loads_expected_rules() -> None:
     )
     assert any(rule.content_type == EditorialPlanningContent.METRIC_NARRATIVE for rule in wednesday_rules)
     assert any(rule.content_type == EditorialPlanningContent.VIRAL_STORY for rule in wednesday_rules)
+    assert any(rule.content_type == EditorialPlanningContent.SEASON_WRAP_STATS for rule in wednesday_rules)
     assert {rule.content_type for rule in tuesday_rules} == {
         EditorialPlanningContent.RANKING,
         EditorialPlanningContent.STANDINGS_ROUNDUP,
@@ -52,9 +53,10 @@ def test_default_editorial_schedule_loads_expected_rules() -> None:
         EditorialPlanningContent.TOP_SCORER_UPDATE,
     }
     friday_rules = schedule.rules_for_weekday("friday")
-    assert len(friday_rules) == 14
+    assert len(friday_rules) == 22
     assert any(rule.content_type == EditorialPlanningContent.FEATURED_MATCH_PREVIEW for rule in friday_rules)
     assert any(rule.content_type == EditorialPlanningContent.MATCH_IMPACT_SCENARIO for rule in friday_rules)
+    assert any(rule.content_type == EditorialPlanningContent.PLAYOFF_BRACKET for rule in friday_rules)
     friday_slugs = {rule.competition_slug for rule in friday_rules}
     assert {
         "tercera_rfef_g11",
@@ -72,6 +74,7 @@ def test_default_editorial_schedule_loads_expected_rules() -> None:
     } == {
         EditorialPlanningContent.FEATURED_MATCH_PREVIEW,
         EditorialPlanningContent.MATCH_IMPACT_SCENARIO,
+        EditorialPlanningContent.PLAYOFF_BRACKET,
     }
     assert len(saturday_rules) == 5
     assert {rule.content_type for rule in saturday_rules} == {EditorialPlanningContent.PREVIEW}
@@ -134,6 +137,7 @@ def test_monday_schedule_includes_race_and_milestone_slots_for_main_competitions
         ("primera_rfef_baleares", EditorialPlanningContent.RACE_NARRATIVE),
         ("primera_rfef_baleares", EditorialPlanningContent.MILESTONE_STORY),
         ("primera_rfef_baleares", EditorialPlanningContent.TOP_SCORER_UPDATE),
+        ("primera_rfef_baleares", EditorialPlanningContent.SEASON_WRAP_OUTCOMES),
     }
 
     assert expected_pairs.issubset(monday_pairs)

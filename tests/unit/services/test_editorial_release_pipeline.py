@@ -4,15 +4,18 @@ import json
 from datetime import UTC, date, datetime
 from pathlib import Path
 from unittest.mock import Mock
+from zoneinfo import ZoneInfo
 
 from app.db.models import ContentCandidate
 from app.services.editorial_approval_policy import EditorialApprovalPolicyService
 from app.services.editorial_release_pipeline import EditorialReleasePipelineService
-from app.services.x_browser_publication_service import XBrowserBatchResult
+from app.services.x_browser_publication_service import XBrowserBatchResult, XBrowserPublicationService
+from app.services.x_publication_scheduler import XPublicationScheduler
 from tests.unit.services.service_test_support import build_session, build_settings
 from tests.unit.services.test_editorial_narratives import seed_competition
 
 REFERENCE_DATE = date(2026, 3, 17)
+WEDNESDAY_REFERENCE_DATE = date(2026, 3, 18)
 
 
 def seed_release_candidates(session) -> None:
@@ -360,6 +363,84 @@ def add_ready_approved_preview_candidate(session) -> None:
     session.commit()
 
 
+def seed_wednesday_browser_backlog(session, *, valid_count: int = 47, blocked_count: int = 6) -> list[int]:
+    created_at = datetime(2026, 3, 18, 18, 30, tzinfo=UTC)
+    match_date = date(2026, 3, 17)
+    seed_competition(
+        session,
+        code="tercera_rfef_g11",
+        name="3a RFEF Grupo 11",
+        teams=["CD Llosetense", "SD Portmany", "CE Mercadal", "RCD Mallorca B", "CD Manacor"],
+        standings_rows=[
+            {"position": 1, "team": "RCD Mallorca B", "played": 26, "wins": 18, "draws": 4, "losses": 4, "goals_for": 55, "goals_against": 20, "goal_difference": 35, "points": 58},
+            {"position": 2, "team": "CD Llosetense", "played": 26, "wins": 16, "draws": 5, "losses": 5, "goals_for": 44, "goals_against": 21, "goal_difference": 23, "points": 53},
+        ],
+        match_rows=[
+            {"round_name": "Jornada 26", "match_date": match_date, "match_time": created_at.time(), "home_team": "CD Llosetense", "away_team": "SD Portmany", "home_score": 2, "away_score": 0},
+        ],
+    )
+    blocked_candidates = [
+        ContentCandidate(
+            id=1900 + index,
+            competition_slug="tercera_rfef_g11",
+            content_type="results_roundup",
+            priority=999 - index,
+            text_draft=f"Playoff bloqueado {index}\n\nCD Llosetense 2-0 SD Portmany",
+            payload_json={
+                "reference_date": WEDNESDAY_REFERENCE_DATE.isoformat(),
+                "content_key": f"blocked-results-{index}",
+                "source_payload": {
+                    "group_label": "Jornada 26",
+                    "matches": [
+                        {
+                            "round_name": "Jornada 26",
+                            "match_date": match_date.isoformat(),
+                            "home_team": "CD Llosetense",
+                            "away_team": "SD Portmany",
+                            "home_score": 2,
+                            "away_score": 0,
+                        }
+                    ],
+                },
+            },
+            source_summary_hash=f"blocked-results-{index}",
+            scheduled_at=None,
+            status="draft",
+            created_at=created_at,
+            updated_at=created_at,
+        )
+        for index in range(blocked_count)
+    ]
+    valid_ids = [2000 + index for index in range(valid_count)]
+    valid_candidates = [
+        ContentCandidate(
+            id=candidate_id,
+            competition_slug="tercera_rfef_g11",
+            content_type="viral_story",
+            priority=800 - index,
+            text_draft=f"Racha caliente {index}: cinco victorias seguidas en 3a RFEF Baleares.",
+            payload_json={
+                "reference_date": WEDNESDAY_REFERENCE_DATE.isoformat(),
+                "content_key": f"viral-win-streak-{index}",
+                "source_payload": {
+                    "story_type": "win_streak",
+                    "streak_length": 5,
+                    "metric_value": 5,
+                },
+            },
+            source_summary_hash=f"viral-win-streak-{index}",
+            scheduled_at=None,
+            status="draft",
+            created_at=created_at,
+            updated_at=created_at,
+        )
+        for index, candidate_id in enumerate(valid_ids)
+    ]
+    session.add_all([*blocked_candidates, *valid_candidates])
+    session.commit()
+    return valid_ids
+
+
 def build_release_service(session, tmp_path: Path) -> EditorialReleasePipelineService:
     return EditorialReleasePipelineService(
         session,
@@ -597,9 +678,9 @@ def test_editorial_release_pipeline_publish_flags_use_browser_service_once(tmp_p
         seed_release_candidates(session)
         x_publication_service = Mock()
         x_browser_publication_service = Mock()
-        x_browser_publication_service.publish_pending.return_value = XBrowserBatchResult(
+        x_browser_publication_service.publish_selected_pending.return_value = XBrowserBatchResult(
             dry_run=False,
-            published_count=4,
+            published_count=2,
             error_count=0,
             skipped_count=0,
         )
@@ -619,16 +700,109 @@ def test_editorial_release_pipeline_publish_flags_use_browser_service_once(tmp_p
         )
         session.commit()
 
-        assert result.dispatched_count == 4
+        assert result.dispatched_count == 2
         assert result.x_publish_enabled is True
-        assert result.x_published_count == 4
+        assert result.x_published_count == 2
         x_publication_service.publish_candidates.assert_not_called()
-        x_browser_publication_service.publish_pending.assert_called_once_with(
-            limit=4,
+        x_browser_publication_service.publish_selected_pending.assert_called_once_with(
+            [102, 109],
+            limit=2,
             dry_run=False,
             bypass_schedule=False,
         )
         x_browser_publication_service.build_views_from_batch_result.assert_called_once()
+    finally:
+        session.close()
+
+
+def test_browser_release_caps_dispatch_after_wide_autoapproval_pool(tmp_path: Path) -> None:
+    session = build_session()
+    try:
+        valid_ids = seed_wednesday_browser_backlog(session)
+        x_browser_publication_service = Mock()
+        x_browser_publication_service.publish_selected_pending.return_value = XBrowserBatchResult(
+            dry_run=False,
+            published_count=4,
+            error_count=0,
+            skipped_count=0,
+        )
+        x_browser_publication_service.build_views_from_batch_result.return_value = []
+        service = EditorialReleasePipelineService(
+            session,
+            settings=build_settings(app_root=tmp_path),
+            x_browser_publication_service=x_browser_publication_service,
+        )
+
+        result = service.run(
+            reference_date=WEDNESDAY_REFERENCE_DATE,
+            dry_run=False,
+            publish_via_browser=True,
+            publish_limit=4,
+        )
+        session.commit()
+
+        selected_ids = set(valid_ids[:4])
+        deferred_ids = set(valid_ids[4:])
+        assert result.drafts_found == 53
+        assert result.autoapprovable_count == 47
+        assert result.autoapproved_count == 47
+        assert result.dispatched_count == 4
+        assert {row.id for row in result.dispatched_rows} == selected_ids
+        assert {session.get(ContentCandidate, candidate_id).status for candidate_id in selected_ids} == {"published"}
+        assert {session.get(ContentCandidate, candidate_id).status for candidate_id in deferred_ids} == {"approved"}
+        assert {session.get(ContentCandidate, 1900 + index).status for index in range(6)} == {"draft"}
+        assert {session.get(ContentCandidate, 1900 + index).quality_check_passed for index in range(6)} == {False}
+        x_browser_publication_service.publish_selected_pending.assert_called_once_with(
+            valid_ids[:4],
+            limit=4,
+            dry_run=False,
+            bypass_schedule=False,
+        )
+    finally:
+        session.close()
+
+
+def test_browser_release_deferred_approved_candidates_do_not_enter_browser_pending_queue(tmp_path: Path) -> None:
+    session = build_session()
+    try:
+        valid_ids = seed_wednesday_browser_backlog(session)
+        x_browser_publication_service = Mock()
+        x_browser_publication_service.publish_selected_pending.return_value = XBrowserBatchResult(
+            dry_run=False,
+            published_count=0,
+            error_count=0,
+            skipped_count=0,
+        )
+        x_browser_publication_service.build_views_from_batch_result.return_value = []
+        settings = build_settings(app_root=tmp_path)
+        service = EditorialReleasePipelineService(
+            session,
+            settings=settings,
+            x_browser_publication_service=x_browser_publication_service,
+        )
+
+        result = service.run(
+            reference_date=WEDNESDAY_REFERENCE_DATE,
+            dry_run=False,
+            publish_via_browser=True,
+            publish_limit=4,
+        )
+        session.commit()
+
+        scheduler = XPublicationScheduler(
+            settings=settings,
+            now_provider=lambda: datetime(2026, 3, 18, 20, 30, tzinfo=ZoneInfo("Europe/Madrid")),
+        )
+        browser_service = XBrowserPublicationService(
+            session,
+            settings=settings,
+            scheduler=scheduler,
+            publisher=Mock(),
+        )
+
+        assert result.dispatched_count == 4
+        assert {row.id for row in browser_service.list_pending(limit=100)} == set(valid_ids[:4])
+        assert all(session.get(ContentCandidate, candidate_id).status == "approved" for candidate_id in valid_ids[4:])
     finally:
         session.close()
 
@@ -638,9 +812,9 @@ def test_editorial_release_pipeline_caps_browser_publish_by_run_limit(tmp_path: 
     try:
         seed_release_candidates(session)
         x_browser_publication_service = Mock()
-        x_browser_publication_service.publish_pending.return_value = XBrowserBatchResult(
+        x_browser_publication_service.publish_selected_pending.return_value = XBrowserBatchResult(
             dry_run=False,
-            published_count=2,
+            published_count=0,
             error_count=0,
             skipped_count=0,
         )
@@ -659,8 +833,9 @@ def test_editorial_release_pipeline_caps_browser_publish_by_run_limit(tmp_path: 
         )
         session.commit()
 
-        assert result.x_published_count == 2
-        x_browser_publication_service.publish_pending.assert_called_once_with(
+        assert result.x_published_count == 0
+        x_browser_publication_service.publish_selected_pending.assert_called_once_with(
+            [],
             limit=2,
             dry_run=False,
             bypass_schedule=False,

@@ -24,7 +24,9 @@ from app.schemas.x_publication import (
     XPublicationResult,
 )
 from app.services.editorial_candidate_window import EditorialCandidateWindowService
+from app.services.editorial_phase import EditorialPhaseService
 from app.services.editorial_text_selector import EditorialTextSelectorService
+from app.services.playoff_bracket_card_service import generate_playoff_bracket_card
 from app.services.telegram_publication_notifier import TelegramPublicationNotifier
 from app.services.x_publication_scheduler import XPublicationScheduler
 from app.utils.time import utcnow
@@ -89,7 +91,10 @@ class XBrowserPublicationService:
         self.session = session
         self.settings = settings or get_settings()
         self.text_selector = text_selector or EditorialTextSelectorService(session, settings=self.settings)
-        self.scheduler = scheduler or XPublicationScheduler(settings=self.settings)
+        self.scheduler = scheduler or XPublicationScheduler(
+            settings=self.settings,
+            phase_service=EditorialPhaseService(session, settings=self.settings),
+        )
         self.window_service = window_service or EditorialCandidateWindowService(session, settings=self.settings)
         self.publication_notifier = publication_notifier or TelegramPublicationNotifier(settings=self.settings)
         state_file = Path(self.settings.x_browser_state_file)
@@ -105,7 +110,7 @@ class XBrowserPublicationService:
             raise ConfigurationError(f"Content candidate desconocido: {candidate_id}")
         return candidate
 
-    def _find_image_for_candidate(self, candidate: ContentCandidate) -> Path | None:
+    def _find_standings_image_for_candidate(self, candidate: ContentCandidate) -> Path | None:
         try:
             competition_slug = candidate.competition_slug or ""
             exports_root = self.settings.app_root / "exports"
@@ -118,6 +123,36 @@ class XBrowserPublicationService:
             return matches[0] if matches else None
         except Exception:
             return None
+
+    def _find_playoff_bracket_image_for_candidate(self, candidate: ContentCandidate) -> Path | None:
+        try:
+            competition_slug = candidate.competition_slug or ""
+            exports_root = self.settings.app_root / "exports"
+            pattern = f"images/{competition_slug}/**/playoff_bracket_{candidate.id}.png"
+            matches = sorted(
+                exports_root.glob(pattern),
+                key=lambda p: p.stat().st_mtime,
+                reverse=True,
+            )
+            if matches:
+                return matches[0]
+            generated = generate_playoff_bracket_card(candidate, output_root=exports_root)
+            if not generated:
+                return None
+            generated_path = self.settings.app_root / generated
+            return generated_path if generated_path.exists() else None
+        except Exception:
+            return None
+
+    def _image_for_candidate(self, candidate: ContentCandidate) -> Path | None:
+        if candidate.content_type == str(ContentType.STANDINGS_ROUNDUP):
+            return self._find_standings_image_for_candidate(candidate)
+        if candidate.content_type == str(ContentType.PLAYOFF_BRACKET):
+            return self._find_playoff_bracket_image_for_candidate(candidate)
+        return None
+
+    def _find_image_for_candidate(self, candidate: ContentCandidate) -> Path | None:
+        return self._image_for_candidate(candidate)
 
     def _selected_text(self, candidate: ContentCandidate) -> tuple[str, str]:
         selection = self.text_selector.select_text(candidate, prefer_rewrite=True)
@@ -316,8 +351,7 @@ class XBrowserPublicationService:
         excerpt = _excerpt(selected_text)
 
         image_path: Path | None = None
-        if candidate.content_type == str(ContentType.STANDINGS_ROUNDUP):
-            image_path = self._find_image_for_candidate(candidate)
+        image_path = self._image_for_candidate(candidate)
 
         if dry_run:
             self.publisher.publish_text(selected_text, image_path=image_path, dry_run=True)
@@ -417,7 +451,7 @@ class XBrowserPublicationService:
             except InvalidStateTransitionError as exc:
                 logger.warning("Candidato %s sin texto utilizable para thread: %s", candidate.id, exc)
                 continue
-            image_path = self._find_image_for_candidate(candidate)
+            image_path = self._find_standings_image_for_candidate(candidate)
             tweets.append((selected_text, image_path))
             valid_candidates.append(candidate)
 
@@ -523,6 +557,63 @@ class XBrowserPublicationService:
         else:
             candidates = self.scheduler.filter_candidates(self._fresh_candidates(pending))
         candidates = candidates[:limit]
+        return self._publish_candidate_batch(
+            candidates,
+            dry_run=dry_run,
+            stagger_seconds=stagger_seconds,
+        )
+
+    def publish_selected_pending(
+        self,
+        candidate_ids: list[int],
+        *,
+        limit: int = 20,
+        dry_run: bool = False,
+        stagger_seconds: int | None = None,
+        bypass_schedule: bool = False,
+    ) -> XBrowserBatchResult:
+        if stagger_seconds is None:
+            stagger_seconds = self.settings.x_browser_stagger_seconds
+        if bypass_schedule:
+            stagger_seconds = max(stagger_seconds, _MIN_STAGGER_BYPASS_SECONDS)
+        if not candidate_ids:
+            return XBrowserBatchResult(dry_run=dry_run, published_count=0, error_count=0, skipped_count=0)
+        if not dry_run:
+            self.mark_pre_browser_published()
+
+        cutoff = self.scheduler.current_local_time() - timedelta(hours=96)
+        id_order = {candidate_id: index for index, candidate_id in enumerate(candidate_ids)}
+        rows = list(
+            self.session.execute(
+                select(ContentCandidate).where(
+                    ContentCandidate.id.in_(candidate_ids),
+                    ContentCandidate.status == str(ContentCandidateStatus.PUBLISHED),
+                    ContentCandidate.external_publication_ref.is_(None),
+                    func.length(func.trim(ContentCandidate.text_draft)) > 0,
+                    ContentCandidate.published_at >= cutoff,
+                )
+            )
+            .scalars()
+            .all()
+        )
+        rows.sort(key=lambda row: id_order.get(row.id, len(id_order)))
+        if bypass_schedule:
+            candidates = self._candidates_bypassing_schedule(rows)
+        else:
+            candidates = self.scheduler.filter_candidates(self._fresh_candidates(rows))
+        return self._publish_candidate_batch(
+            candidates[:limit],
+            dry_run=dry_run,
+            stagger_seconds=stagger_seconds,
+        )
+
+    def _publish_candidate_batch(
+        self,
+        candidates: list[ContentCandidate],
+        *,
+        dry_run: bool,
+        stagger_seconds: int,
+    ) -> XBrowserBatchResult:
         rows: list[XBrowserPublicationResult] = []
         published_count = 0
         error_count = 0
@@ -553,8 +644,7 @@ class XBrowserPublicationService:
             excerpt = _excerpt(selected_text)
 
             image_path: Path | None = None
-            if candidate.content_type == str(ContentType.STANDINGS_ROUNDUP):
-                image_path = self._find_image_for_candidate(candidate)
+            image_path = self._image_for_candidate(candidate)
 
             if idx > 0 and not dry_run and stagger_seconds > 0:
                 logger.info("Esperando %ss antes del siguiente tweet...", stagger_seconds)

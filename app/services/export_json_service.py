@@ -324,6 +324,7 @@ class ExportJsonService:
             ContentType.PREVIEW,
             ContentType.FEATURED_MATCH_PREVIEW,
             ContentType.FEATURED_MATCH_EVENT,
+            ContentType.PLAYOFF_BRACKET,
         }:
             return 2
         if content_kind in {
@@ -335,6 +336,8 @@ class ExportJsonService:
             ContentType.METRIC_NARRATIVE,
             ContentType.TOP_SCORER_UPDATE,
             ContentType.VIRAL_STORY,
+            ContentType.SEASON_WRAP_STATS,
+            ContentType.SEASON_WRAP_OUTCOMES,
         }:
             return 1
         if match_date is not None and match_date.weekday() == 6:

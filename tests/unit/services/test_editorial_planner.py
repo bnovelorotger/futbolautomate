@@ -111,6 +111,46 @@ def seed_top_scorer_events(session: Session, competition_code: str) -> None:
     session.commit()
 
 
+def seed_triple_tied_top_scorer_events(session: Session, competition_code: str) -> None:
+    matches = session.execute(
+        select(Match)
+        .where(Match.competition.has(code=competition_code))
+        .order_by(Match.match_date.desc().nullslast(), Match.id.desc())
+    ).scalars().all()
+    assert len(matches) >= 4
+
+    payloads = [
+        (matches[0], "home", "Joan Serra", 5),
+        (matches[1], "away", "Joan Serra", 15),
+        (matches[2], "home", "Joan Serra", 25),
+        (matches[0], "away", "Pep Vidal", 10),
+        (matches[3], "home", "Pep Vidal", 20),
+        (matches[3], "home", "Pep Vidal", 30),
+        (matches[2], "away", "Toni Costa", 35),
+        (matches[2], "away", "Toni Costa", 45),
+        (matches[2], "away", "Toni Costa", 55),
+    ]
+    for index, (match, team_side, player, minute) in enumerate(payloads, start=1):
+        team_id = match.home_team_id if team_side == "home" else match.away_team_id
+        session.add(
+            MatchEvent(
+                match_id=match.id,
+                team_id=team_id,
+                team_side=team_side,
+                event_type=str(MatchEventType.GOAL),
+                minute_raw=str(minute),
+                minute=minute,
+                player_raw=player,
+                sort_order=index,
+                source_event_key=f"{match.external_id}:{player}:{index}",
+                raw_payload={"player": player},
+            )
+        )
+        match.has_scorers = True
+        session.add(match)
+    session.commit()
+
+
 def build_schedule() -> EditorialWeeklySchedule:
     return EditorialWeeklySchedule(
         timezone="Europe/Madrid",
@@ -344,6 +384,11 @@ def test_editorial_planner_default_friday_includes_featured_match_previews_for_m
             for task in friday_plan.tasks
             if task.planning_type == EditorialPlanningContent.MATCH_IMPACT_SCENARIO
         }
+        friday_bracket_competitions = {
+            task.competition_slug
+            for task in friday_plan.tasks
+            if task.planning_type == EditorialPlanningContent.PLAYOFF_BRACKET
+        }
 
         # Thursday now carries ranking + top_scorer_update per the weekly parrilla
         # (see app/config/editorial_schedule.json). What matters for this test is
@@ -352,10 +397,11 @@ def test_editorial_planner_default_friday_includes_featured_match_previews_for_m
         assert thursday_plan.total_tasks > 0
 
         assert friday_plan.weekday_key == "friday"
-        assert friday_plan.total_tasks == 14
+        assert friday_plan.total_tasks == 22
         assert friday_preview_competitions == set()
         assert expected_featured_competitions.issubset(friday_featured_competitions)
         assert friday_match_impact_competitions == expected_featured_competitions
+        assert "segunda_rfef_g3_playoff_ascenso" in friday_bracket_competitions
     finally:
         session.close()
 
@@ -573,8 +619,12 @@ def test_editorial_planner_generates_top_scorer_update_when_planned() -> None:
         assert rows[0].content_type == "top_scorer_update"
         assert "Pichichi provisional" in rows[0].text_draft
         assert "Joan Serra" in rows[0].text_draft
-        assert rows[0].payload_json["source_payload"]["scorer_matches_count"] >= 2
-        assert rows[0].payload_json["source_payload"]["goal_events_count"] >= 4
+        source_payload = rows[0].payload_json["source_payload"]
+        assert source_payload["finished_matches_count"] == 4
+        assert source_payload["scorer_covered_matches_count"] == 4
+        assert source_payload["scorer_coverage_ratio"] == 1.0
+        assert source_payload["scorer_matches_count"] >= 2
+        assert source_payload["goal_events_count"] >= 4
     finally:
         session.close()
 
@@ -637,6 +687,46 @@ def test_editorial_planner_skips_top_scorer_update_below_signal_threshold() -> N
         assert result.total_tasks == 1
         assert result.total_generated == 0
         assert rows == []
+    finally:
+        session.close()
+
+
+def test_editorial_planner_triple_tied_top_scorers_do_not_use_third_record_copy() -> None:
+    session = build_session()
+    try:
+        from tests.unit.services.test_editorial_narratives import seed_narratives_data
+
+        seed_narratives_data(session)
+        seed_triple_tied_top_scorer_events(session, "tercera_rfef_g11")
+        schedule = EditorialWeeklySchedule(
+            timezone="Europe/Madrid",
+            weekly_plan={
+                "lunes": [
+                    EditorialScheduleRule(
+                        competition_slug="tercera_rfef_g11",
+                        content_type=EditorialPlanningContent.TOP_SCORER_UPDATE,
+                        priority=70,
+                    )
+                ]
+            },
+        )
+        service = EditorialPlannerService(
+            session,
+            schedule=schedule,
+            settings=build_settings(),
+        )
+
+        result = service.generate_for_date(date(2026, 3, 16))
+        session.commit()
+
+        rows = session.execute(select(ContentCandidate).order_by(ContentCandidate.id.asc())).scalars().all()
+
+        assert result.total_tasks == 1
+        assert result.total_generated == 1
+        assert len(rows) == 1
+        text = rows[0].text_draft.lower()
+        assert "comparten el liderato" in text
+        assert "tercer registro" not in text
     finally:
         session.close()
 

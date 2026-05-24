@@ -15,10 +15,13 @@ from app.schemas.editorial_ops import (
 )
 from app.schemas.editorial_planner import EditorialCampaignTask
 from app.services.editorial_narratives import EditorialNarrativesService
+from app.services.editorial_phase import EditorialPhaseService
 from app.services.editorial_planner import EditorialPlannerService
 from app.services.editorial_viral_stories import EditorialViralStoriesService
 from app.services.match_importance import MatchImportanceService
+from app.services.playoff_editorial import PlayoffEditorialService
 from app.services.results_roundup import ResultsRoundupService
+from app.services.season_wrap_editorial import SeasonWrapEditorialService
 from app.services.standings_roundup import StandingsRoundupService
 from app.services.system_check import SystemCheckService
 
@@ -39,6 +42,9 @@ class EditorialOperationsService:
         self.narratives = EditorialNarrativesService(session)
         self.viral_stories = EditorialViralStoriesService(session)
         self.match_importance = MatchImportanceService(session)
+        self.phase_service = EditorialPhaseService(session)
+        self.playoff_editorial = PlayoffEditorialService(session)
+        self.season_wrap_editorial = SeasonWrapEditorialService(session)
         self.system_check = SystemCheckService(session)
 
     def preview_day(self, target_date: date) -> EditorialOpsPreviewResult:
@@ -118,7 +124,7 @@ class EditorialOperationsService:
 
     def _evaluate_day(self, target_date: date) -> list[_TaskEvaluation]:
         plan = self.planner.plan_for_date(target_date)
-        readiness = {row.code: row for row in self.system_check.editorial_readiness().rows}
+        readiness = {row.code: row for row in self.system_check.editorial_readiness(reference_date=target_date).rows}
         candidate_cache: dict[tuple[str, str], list[ContentCandidateDraft]] = {}
         evaluations: list[_TaskEvaluation] = []
 
@@ -146,11 +152,18 @@ class EditorialOperationsService:
                     )
             elif task.planning_type == EditorialPlanningContent.FEATURED_MATCH_PREVIEW:
                 if not missing:
-                    candidate_cache[key] = self.match_importance.build_candidate_drafts(
-                        task.competition_slug,
-                        reference_date=target_date,
-                        limit=1,
-                    )
+                    if self.phase_service.is_playoff_competition(task.competition_slug):
+                        candidate_cache[key] = self.playoff_editorial.build_featured_preview_drafts(
+                            task.competition_slug,
+                            reference_date=target_date,
+                            limit=1,
+                        )
+                    else:
+                        candidate_cache[key] = self.match_importance.build_candidate_drafts(
+                            task.competition_slug,
+                            reference_date=target_date,
+                            limit=1,
+                        )
             elif task.planning_type == EditorialPlanningContent.MATCH_IMPACT_SCENARIO:
                 if not missing:
                     candidate_cache[key] = self.planner._build_match_impact_candidates(
@@ -178,6 +191,24 @@ class EditorialOperationsService:
             elif task.planning_type == EditorialPlanningContent.VIRAL_STORY:
                 if not missing:
                     candidate_cache[key] = self.viral_stories.build_candidate_drafts(
+                        task.competition_slug,
+                        reference_date=target_date,
+                    )
+            elif task.planning_type == EditorialPlanningContent.SEASON_WRAP_STATS:
+                if not missing:
+                    candidate_cache[key] = self.season_wrap_editorial.build_stats_drafts(
+                        task.competition_slug,
+                        reference_date=target_date,
+                    )
+            elif task.planning_type == EditorialPlanningContent.SEASON_WRAP_OUTCOMES:
+                if not missing:
+                    candidate_cache[key] = self.season_wrap_editorial.build_outcome_drafts(
+                        task.competition_slug,
+                        reference_date=target_date,
+                    )
+            elif task.planning_type == EditorialPlanningContent.PLAYOFF_BRACKET:
+                if not missing:
+                    candidate_cache[key] = self.playoff_editorial.build_bracket_drafts(
                         task.competition_slug,
                         reference_date=target_date,
                     )
@@ -253,6 +284,9 @@ class EditorialOperationsService:
             EditorialPlanningContent.MILESTONE_STORY: ContentType.MILESTONE_STORY,
             EditorialPlanningContent.TOP_SCORER_UPDATE: ContentType.TOP_SCORER_UPDATE,
             EditorialPlanningContent.VIRAL_STORY: ContentType.VIRAL_STORY,
+            EditorialPlanningContent.SEASON_WRAP_STATS: ContentType.SEASON_WRAP_STATS,
+            EditorialPlanningContent.SEASON_WRAP_OUTCOMES: ContentType.SEASON_WRAP_OUTCOMES,
+            EditorialPlanningContent.PLAYOFF_BRACKET: ContentType.PLAYOFF_BRACKET,
         }[planning_type]
 
     def _excerpt(self, text: str, limit: int = 110) -> str:

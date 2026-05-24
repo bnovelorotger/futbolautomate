@@ -288,6 +288,9 @@
         "content_key": "top_scorer:segunda_rfef_g3_baleares:j26",
         "source_payload": {
           "leader_goals": 6,
+          "finished_matches_count": 3,
+          "scorer_covered_matches_count": 3,
+          "scorer_coverage_ratio": 1.0,
           "scorer_matches_count": 3,
           "goal_events_count": 6,
           "leader": {"player": "Joan Serra", "team": "Torrent CF", "goals": 6},

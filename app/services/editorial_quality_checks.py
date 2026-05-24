@@ -24,10 +24,13 @@ from app.schemas.editorial_quality_checks import (
     EditorialQualityCheckResult,
 )
 from app.services.editorial_formatter import normalize_team_identity_value
+from app.services.editorial_phase import EditorialPhaseService
 from app.services.editorial_narratives import METRIC_NARRATIVE_THRESHOLDS
 from app.services.editorial_text_selector import EditorialTextSelectorService
 from app.services.editorial_viral_stories import VIRAL_STORY_THRESHOLDS
+from app.services.stat_coverage import StatCoverageService
 from app.services.top_scorer_tracker import (
+    MIN_TOP_SCORER_COVERAGE_RATIO,
     MIN_TOP_SCORER_GOAL_EVENTS,
     MIN_TOP_SCORER_LEADER_GOALS,
     MIN_TOP_SCORER_SCORER_MATCHES,
@@ -36,7 +39,7 @@ from app.utils.time import utcnow
 
 logger = logging.getLogger(__name__)
 
-_TEAM_KEYS = {"team", "teams", "home_team", "away_team", "runner_up_team"}
+_TEAM_KEYS = {"team", "teams", "home_team", "away_team", "runner_up_team", "winner"}
 _METRIC_VALUE_KEYS = {"metric_value", "recent_points", "recent_goals_for", "delta"}
 _MIN_STAT_NARRATIVE_MATCHES = 4
 _AMBIGUOUS_TEAM_IDENTITY_MARKERS = {"baleares", "mallorca", "menorca", "ibiza"}
@@ -121,6 +124,8 @@ class EditorialQualityChecksService:
         self.settings = settings or get_settings()
         self.policy = policy or EditorialExportPolicy()
         self.text_selector = text_selector or EditorialTextSelectorService(session)
+        self.stat_coverage = StatCoverageService(session)
+        self.phase_service = EditorialPhaseService(session, settings=self.settings)
         self._competition_team_cache: dict[str, set[str]] = {}
 
     def check_candidate(
@@ -373,6 +378,9 @@ class EditorialQualityChecksService:
             ContentType.FORM_EVENT,
             ContentType.STANDINGS_EVENT,
             ContentType.FEATURED_MATCH_EVENT,
+            ContentType.SEASON_WRAP_STATS,
+            ContentType.SEASON_WRAP_OUTCOMES,
+            ContentType.PLAYOFF_BRACKET,
         }:
             max_line_breaks = max(max_line_breaks, 8)
         if content_type in {
@@ -410,6 +418,9 @@ class EditorialQualityChecksService:
         if source_payload and not isinstance(source_payload, dict):
             errors.append("source_payload_invalid")
             return sorted(set(errors)), warnings
+
+        errors.extend(self.stat_coverage.coverage_errors_for_candidate(candidate, source_payload))
+        errors.extend(self.phase_service.candidate_phase_errors(candidate))
 
         if rewritten_text is not None:
             base_text = self._rewrite_base_text(candidate)
@@ -690,6 +701,32 @@ class EditorialQualityChecksService:
                 errors.append("top_scorer_leader_missing")
             if not isinstance(source_payload.get("leader_goals"), int):
                 errors.append("top_scorer_leader_goals_invalid")
+            coverage_errors = self._top_scorer_coverage_errors(source_payload)
+            errors.extend(coverage_errors)
+        if content_type == ContentType.SEASON_WRAP_STATS:
+            if not isinstance(source_payload.get("finished_matches_count"), int):
+                errors.append("season_wrap_finished_matches_missing")
+            if not isinstance(source_payload.get("total_goals"), int):
+                errors.append("season_wrap_total_goals_missing")
+        if content_type == ContentType.SEASON_WRAP_OUTCOMES:
+            if not any(
+                source_payload.get(key)
+                for key in (
+                    "champion",
+                    "playoff_rows",
+                    "relegation_rows",
+                    "playoff_ties",
+                    "child_playoff_outcomes",
+                )
+            ):
+                errors.append("season_wrap_outcomes_missing")
+        if content_type == ContentType.PLAYOFF_BRACKET:
+            matches = source_payload.get("matches")
+            bracket_rounds = source_payload.get("bracket_rounds")
+            if not isinstance(matches, list) or not matches:
+                errors.append("playoff_bracket_matches_missing")
+            if not isinstance(bracket_rounds, list) or not bracket_rounds:
+                errors.append("playoff_bracket_rounds_missing")
         return errors
 
     def _structure_errors(
@@ -703,7 +740,12 @@ class EditorialQualityChecksService:
         first_line = selected_text.splitlines()[0].strip() if selected_text.splitlines() else ""
 
         if content_type == ContentType.RESULTS_ROUNDUP:
-            if not (_RESULTS_TITLE_PATTERN.match(first_line) or _COMPACT_ROUNDUP_TITLE_PATTERN.match(first_line)):
+            title_is_valid = (
+                _RESULTS_TITLE_PATTERN.match(first_line)
+                or _COMPACT_ROUNDUP_TITLE_PATTERN.match(first_line)
+                or (self._is_playoff_candidate(candidate) and self._is_playoff_results_title(first_line))
+            )
+            if not title_is_valid:
                 errors.append("results_roundup_title_invalid")
             matches = source_payload.get("matches")
             if isinstance(matches, list) and source_payload.get("selected_matches_count") != len(matches):
@@ -743,8 +785,12 @@ class EditorialQualityChecksService:
         if content_type in {
             ContentType.PREVIEW,
             ContentType.FEATURED_MATCH_PREVIEW,
-        } and not _PREVIEW_TITLE_PATTERN.match(first_line):
-            errors.append("preview_title_invalid")
+        }:
+            title_is_valid = _PREVIEW_TITLE_PATTERN.match(first_line) or (
+                self._is_playoff_candidate(candidate) and self._is_playoff_preview_title(first_line)
+            )
+            if not title_is_valid:
+                errors.append("preview_title_invalid")
 
         if content_type in {ContentType.RANKING, ContentType.FORM_RANKING}:
             if not _RANKING_TITLE_PATTERN.match(first_line):
@@ -932,6 +978,40 @@ class EditorialQualityChecksService:
             errors.append(f"top_scorer_scorer_matches<{MIN_TOP_SCORER_SCORER_MATCHES}")
         if not isinstance(goal_events, int) or goal_events < MIN_TOP_SCORER_GOAL_EVENTS:
             errors.append(f"top_scorer_goal_events<{MIN_TOP_SCORER_GOAL_EVENTS}")
+        return errors
+
+    def _is_playoff_candidate(self, candidate: ContentCandidate) -> bool:
+        return "playoff" in (candidate.competition_slug or "").lower()
+
+    def _is_playoff_results_title(self, first_line: str) -> bool:
+        normalized = first_line.strip().lower()
+        return bool(normalized) and (
+            "resultado" in normalized
+            or "playoff" in normalized
+            or " po " in f" {normalized} "
+            or "ascenso" in normalized
+            or "permanencia" in normalized
+        )
+
+    def _is_playoff_preview_title(self, first_line: str) -> bool:
+        normalized = first_line.strip().lower()
+        return bool(normalized) and "previa" in normalized and (
+            "playoff" in normalized or " po " in f" {normalized} " or "promocion" in normalized
+        )
+
+    def _top_scorer_coverage_errors(self, source_payload: dict[str, Any]) -> list[str]:
+        errors: list[str] = []
+        finished_matches = source_payload.get("finished_matches_count")
+        covered_matches = source_payload.get("scorer_covered_matches_count")
+        coverage_ratio = source_payload.get("scorer_coverage_ratio")
+        if not isinstance(finished_matches, int) or finished_matches <= 0:
+            errors.append("top_scorer_finished_matches_missing")
+        if not isinstance(covered_matches, int) or covered_matches < 0:
+            errors.append("top_scorer_covered_matches_invalid")
+        if not isinstance(coverage_ratio, (int, float)):
+            errors.append("top_scorer_coverage_ratio_missing")
+        elif float(coverage_ratio) < MIN_TOP_SCORER_COVERAGE_RATIO:
+            errors.append(f"top_scorer_coverage_ratio<{MIN_TOP_SCORER_COVERAGE_RATIO:g}")
         return errors
 
     def _metric_narrative_threshold_errors(

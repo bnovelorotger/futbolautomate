@@ -19,6 +19,7 @@ from app.schemas.editorial_day_plan import (
 )
 from app.services.editorial_approval_policy import EditorialApprovalPolicyService
 from app.services.editorial_ops import EditorialOperationsService
+from app.services.editorial_phase import EditorialPhaseService
 from app.services.x_publication_scheduler import _WEEKDAY_TO_KEY, load_publication_schedule
 
 _DEFAULT_ENTRY_LIMIT = 8
@@ -47,6 +48,7 @@ class EditorialDayPlanService:
         self.lookback_days = lookback_days
         self.schedule = load_publication_schedule()
         self.editorial_ops = EditorialOperationsService(session)
+        self.phase_service = EditorialPhaseService(session, settings=self.settings)
         self.approval_policy = EditorialApprovalPolicyService(session, settings=self.settings)
 
     def build_report(self, target_date: date | None = None) -> EditorialDayPlanReport:
@@ -72,7 +74,7 @@ class EditorialDayPlanService:
             for row in approval_result.rows
             if row.content_type.value in scheduled_types and not row.autoapprovable
         ]
-        planned_rows = publishable_rows[: max(int(self.settings.x_browser_release_action_limit), 1)]
+        planned_rows = publishable_rows[: self._slot_publish_limit(selected_date)]
         type_counter = Counter(row.content_type.value for row in planned_rows)
         expected_total = sum(int(row.expected_count) for row in filtered_rows)
         blocked_tasks = sum(int(bool(row.missing_dependencies)) for row in filtered_rows)
@@ -116,8 +118,11 @@ class EditorialDayPlanService:
             "",
             "Calendario",
             f"- dia: {report.schedule.day_key}",
+            f"- fase: {report.schedule.editorial_phase or '-'}",
         ]
-        if report.schedule.publish_after:
+        if report.schedule.publish_slots:
+            lines.append(f"- slots X: {', '.join(report.schedule.publish_slots)}")
+        elif report.schedule.publish_after:
             lines.append(f"- publicar desde: {report.schedule.publish_after}")
         if report.schedule.scheduled_types:
             lines.append(f"- tipos programados: {', '.join(report.schedule.scheduled_types)}")
@@ -162,8 +167,11 @@ class EditorialDayPlanService:
             "",
             "Calendario",
             f"- dia: {report.schedule.day_key}",
+            f"- fase: {report.schedule.editorial_phase or '-'}",
         ]
-        if report.schedule.publish_after:
+        if report.schedule.publish_slots:
+            lines.append(f"- slots X: {', '.join(report.schedule.publish_slots)}")
+        elif report.schedule.publish_after:
             lines.append(f"- publicar desde: {report.schedule.publish_after}")
         if report.schedule.scheduled_types:
             lines.append(f"- tipos: {', '.join(report.schedule.scheduled_types)}")
@@ -200,10 +208,15 @@ class EditorialDayPlanService:
         day_key = _WEEKDAY_TO_KEY[target_date.weekday()]
         day_schedule = self.schedule.day(day_key)
         if day_schedule is None:
-            return EditorialDayPlanScheduleSummary(day_key=day_key)
+            return EditorialDayPlanScheduleSummary(
+                day_key=day_key,
+                editorial_phase=str(self.phase_service.global_phase(target_date).phase),
+            )
         return EditorialDayPlanScheduleSummary(
             day_key=day_key,
+            editorial_phase=str(self.phase_service.global_phase(target_date).phase),
             publish_after=day_schedule.publish_after.strftime("%H:%M"),
+            publish_slots=[slot.publish_after.strftime("%H:%M") for slot in day_schedule.slots],
             scheduled_types=sorted(day_schedule.types),
         )
 
@@ -213,6 +226,17 @@ class EditorialDayPlanService:
         if day_schedule is None:
             return []
         return list(sorted(day_schedule.types))
+
+    def _slot_publish_limit(self, target_date: date) -> int:
+        global_limit = max(int(self.settings.x_browser_release_action_limit), 1)
+        day_key = _WEEKDAY_TO_KEY[target_date.weekday()]
+        day_schedule = self.schedule.day(day_key)
+        if day_schedule is None:
+            return global_limit
+        first_slot_limit = day_schedule.slots[0].publish_limit
+        if first_slot_limit is None:
+            return global_limit
+        return min(global_limit, max(int(first_slot_limit), 1))
 
     def _published_reference_day_count(self, target_date: date, *, scheduled_types: set[str]) -> int:
         if not scheduled_types:

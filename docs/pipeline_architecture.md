@@ -36,11 +36,11 @@ Fuente: `app/config/publication_schedule.json` + tareas `futbol_release_*` en
 
 | Día | Refresh | Editorial | Release | Catch-up | Tipos publicables | Límite |
 |-----|---------|-----------|---------|----------|-------------------|--------|
-| Lun | 06:30 + 14:00 | 07:30 | 09:15 | 09:45 | results_roundup, standings_roundup, race_narrative, milestone_story, top_scorer_update | 4 |
-| Mar | 07:00 + 14:00 | 18:30 | 20:00 | 20:30 | ranking, standings_roundup | 3 |
-| Mié | 07:00 + 14:00 | 18:30 | 20:00 | 20:30 | viral_story, metric_narrative, stat_narrative | 4 |
-| Jue | 07:00 + 14:00 | 18:30 | 20:00 | 20:30 | top_scorer_update, ranking | 3 |
-| Vie | 07:00 + 14:00 | 08:00 | 13:00 | 13:30 | featured_match_preview, match_impact_scenario | 4 |
+| Lun | 06:30 + 14:00 | 07:30 | 09:30 + 19:30 | 10:00 + 20:00 | results_roundup, standings_roundup, race_narrative, milestone_story, top_scorer_update | 2 por slot |
+| Mar | 07:00 + 14:00 | 08:30 | 09:30 + 19:30 | 10:00 + 20:00 | ranking, standings_roundup | 2 por slot |
+| Mié | 07:00 + 14:00 | 08:30 | 09:30 + 19:30 | 10:00 + 20:00 | viral_story, metric_narrative, stat_narrative | 2 por slot |
+| Jue | 07:00 + 14:00 | 08:30 | 09:30 + 19:30 | 10:00 + 20:00 | top_scorer_update, ranking | 2 por slot |
+| Vie | 07:00 + 14:00 | 08:00 | 09:30 + 19:30 | 10:00 + 20:00 | featured_match_preview, match_impact_scenario | 2 por slot |
 | Sáb | 07:00 + 14:00 | 09:30 | 11:00 | 11:30 | preview | 2 |
 | Dom | 06:30 + 14:00 + 20:00 | 20:45 | 21:15 | 21:45 | results_roundup, standings_roundup | 2 |
 
@@ -70,7 +70,7 @@ Tareas auxiliares diarias: `futbol_editorial_day_plan` (08:00, Telegram),
    (status=PUBLISHED; published_at=now SI estaba NULL — invariante P1.5a)
               |
               v
-   x_browser_publication_service.publish_pending
+   x_browser_publication_service.publish_selected_pending
    (XPublicationScheduler filtra por día/hora/tipo;
     publica en X via Playwright;
     setea external_publication_ref="x-browser:<ts>")
@@ -125,28 +125,58 @@ Tipos **cableados E2E** (generan, autoaprueban, publican):
 
 | Tipo | Genera (días) | Autoaprob (días) | Publica (días) |
 |------|---------------|------------------|----------------|
-| `results_roundup`  | lun, dom | siempre | lun 09:15, dom 21:15 |
-| `standings_roundup`| lun, mar, dom | siempre | lun 09:15, mar 20:00, dom 21:15 |
-| `ranking`          | mar, jue | mar/mié/jue | mar 20:00, jue 20:00 |
-| `top_scorer_update`| lun, jue | lun/jue | lun 09:15, jue 20:00 |
+| `results_roundup`  | lun, dom | siempre | lun 09:30/19:30, dom 21:15 |
+| `standings_roundup`| lun, mar, dom | siempre | lun 09:30/19:30, mar 09:30/19:30, dom 21:15 |
+| `ranking`          | mar, jue | mar/mié/jue | mar 09:30/19:30, jue 09:30/19:30 |
+| `top_scorer_update`| lun, jue | lun/jue | lun 09:30/19:30, jue 09:30/19:30 |
 | `preview`          | sab | sab | sab 11:00 |
-| `featured_match_preview`| vie | vie | vie 13:00 |
-| `match_impact_scenario` | vie | vie | vie 13:00 |
-| `metric_narrative` | mié | mar/mié | mié 20:00 |
-| `viral_story`      | mié | mar/mié | mié 20:00 |
-| `stat_narrative`   | mié | mar/mié | mié 20:00 |
-| `milestone_story`  | lun | lun (P1.5) | lun 09:15 |
+| `featured_match_preview`| vie | vie | vie 09:30/19:30 |
+| `match_impact_scenario` | vie | vie | vie 09:30/19:30 |
+| `metric_narrative` | mié | mar/mié | mié 09:30/19:30 |
+| `viral_story`      | mié | mar/mié | mié 09:30/19:30 |
+| `stat_narrative`   | mié | mar/mié | mié 09:30/19:30 |
+| `milestone_story`  | lun | lun (P1.5) | lun 09:30/19:30 |
 
 Tipos **autoaprob condicional** (reglas estrictas):
 
 - `race_narrative` — lunes, evaluado por `_RACE_NARRATIVE_AUTO_RULES`
   (min_priority, max equipos, max points_span, max rounds_remaining).
 
+Tipos **fin de temporada / playoffs** (cableados, dependientes de fase):
+
+| Tipo | Cuando | Servicio | Fase exigida |
+|------|--------|----------|--------------|
+| `playoff_bracket` | Lun + Vie | `PlayoffEditorialService` | `PLAYOFFS` o `SEASON_WRAP` en slug playoff |
+| `featured_match_preview` (playoff) | Vie | `PlayoffEditorialService` | `PLAYOFFS` |
+| `season_wrap_stats` | Mié | `SeasonWrapEditorialService` | `SEASON_WRAP` |
+| `season_wrap_outcomes` | Lun | `SeasonWrapEditorialService` | `SEASON_WRAP` |
+
+La fase la decide `EditorialPhaseService` por competicion (ver
+`docs/editorial_phases.md`). El planner, los quality checks y el selector
+de slot del release aplican el filtro en cascada para que ninguna pieza
+salga fuera de su fase.
+
 Tipos **eliminados** del flujo automático (P1.6): `featured_match_event`,
 `form_event`, `standings_event`. Los CLI manuales `generate` se eliminaron;
 los servicios permanecen como inputs para otros generadores.
 
 Tipos **legacy** (no se generan): `match_result`, `standings`, `form_ranking`.
+
+## Cobertura de datos como puerta de calidad
+
+Antes de autoaprobar, `EditorialQualityChecksService` consulta
+`StatCoverageService` y agrega errores tipo `result_coverage_ratio<0.95`,
+`standings_coverage_stale>7d` o `top_scorer_coverage_ratio<X`. Estos errores
+bloquean la autoaprobacion sin tocar el draft. Detalle completo en
+`docs/data_coverage.md`.
+
+La tabla `match_data_coverage` (mig `20260524_0019`) y la columna
+`matches.scorer_status` (mig `20260523_0018`) permiten saber, partido a
+partido, si el scrape de goleadores quedo `covered`, `partial`,
+`missing_source` o `error`. Los scripts `backfill_stats.ps1` y
+`backfill_scorers.ps1` (y la tarea semanal `futbol_stats_backfill_weekly`,
+martes 05:00) se encargan de mantener la cobertura sin pelearse con los
+slots editoriales.
 
 ## Observabilidad
 
@@ -172,6 +202,12 @@ Comandos de diagnóstico:
   digest del día (con métricas rewrite).
 - `python -m app.pipelines.x_publish browser-pending --dry-run` — qué
   publicaría el browser si corriera ahora.
+- `python -m app.pipelines.runner editorial_phase report [--date YYYY-MM-DD]` —
+  fase global y por competición (regular_season / playoffs / season_wrap / …).
+- `python -m app.pipelines.runner stat_coverage report [--competition X]` —
+  ratios de cobertura de resultados y clasificación.
+- `python -m app.pipelines.runner match_events coverage-report [--season X]` —
+  cobertura partido-a-partido de goleadores.
 
 ## Failure modes conocidos y respuesta
 

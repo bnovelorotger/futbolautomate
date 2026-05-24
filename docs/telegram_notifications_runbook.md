@@ -59,7 +59,7 @@ Emisor esperado: `EditorialDayPlanService`.
 Contenido minimo recomendado:
 
 - fecha objetivo
-- calendario del dia (`day_key`, `publish_after`, tipos programados)
+- calendario del dia (`day_key`, `publish_slots`, tipos programados)
 - total de piezas previstas
 - estado actual (`published`, `approved`, `draft`, `rejected`)
 - listado corto de piezas del dia

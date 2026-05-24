@@ -38,6 +38,9 @@ _WEDNESDAY_TYPES = {
     ContentType.MILESTONE_STORY,
     ContentType.TOP_SCORER_UPDATE,
     ContentType.VIRAL_STORY,
+    ContentType.SEASON_WRAP_STATS,
+    ContentType.SEASON_WRAP_OUTCOMES,
+    ContentType.PLAYOFF_BRACKET,
 }
 # Number of days backward the release window accepts for a candidate's
 # reference_date. Allows rescue of drafts that didn't process the exact day

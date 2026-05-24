@@ -16,6 +16,7 @@ from app.db.models import ContentCandidate
 from app.schemas.export_base import ExportBaseDocument, ExportBaseItem, ExportBaseResult
 from app.services.editorial_candidate_window import EditorialCandidateWindowService
 from app.services.editorial_text_selector import EditorialTextSelectorService
+from app.services.playoff_bracket_card_service import generate_playoff_bracket_card
 from app.services.standings_card_service import generate_standings_card
 from app.utils.time import utcnow
 
@@ -26,6 +27,7 @@ _PREVIEW_TYPES = {
     ContentType.FEATURED_MATCH_PREVIEW,
     ContentType.FEATURED_MATCH_EVENT,
     ContentType.MATCH_IMPACT_SCENARIO,
+    ContentType.PLAYOFF_BRACKET,
 }
 _POST_MATCHDAY_TYPES = {
     ContentType.RESULTS_ROUNDUP,
@@ -44,6 +46,8 @@ _WEEKLY_TYPES = {
     ContentType.VIRAL_STORY,
     ContentType.FORM_EVENT,
     ContentType.FORM_RANKING,
+    ContentType.SEASON_WRAP_STATS,
+    ContentType.SEASON_WRAP_OUTCOMES,
 }
 
 
@@ -106,6 +110,15 @@ class ExportBaseService:
             if not dry_run and row.content_type == str(ContentType.STANDINGS_ROUNDUP):
                 try:
                     image_path = generate_standings_card(
+                        row,
+                        output_root=self.output_path.parent,
+                        output_date=target_date,
+                    )
+                except Exception:
+                    image_path = None
+            if not dry_run and row.content_type == str(ContentType.PLAYOFF_BRACKET):
+                try:
+                    image_path = generate_playoff_bracket_card(
                         row,
                         output_root=self.output_path.parent,
                         output_date=target_date,

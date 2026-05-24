@@ -141,6 +141,13 @@ def test_editorial_day_plan_groups_today_preview_tasks_and_published_today() -> 
                 competition_slug="slug-2",
             ),
             SimpleNamespace(
+                id=14,
+                content_type=ContentType.STANDINGS_ROUNDUP,
+                autoapprovable=True,
+                priority=79,
+                competition_slug="slug-2",
+            ),
+            SimpleNamespace(
                 id=13,
                 content_type=ContentType.TOP_SCORER_UPDATE,
                 autoapprovable=False,
@@ -167,6 +174,14 @@ def test_editorial_day_plan_groups_today_preview_tasks_and_published_today() -> 
                 competition_name="Tercera RFEF",
                 priority=80,
             ),
+            _candidate(
+                candidate_id=14,
+                content_type="standings_roundup",
+                status="draft",
+                reference_date="2026-05-18",
+                competition_name="Tercera RFEF",
+                priority=79,
+            ),
         ]
     )
     session.commit()
@@ -175,10 +190,11 @@ def test_editorial_day_plan_groups_today_preview_tasks_and_published_today() -> 
     assert isinstance(report, EditorialDayPlanReport)
     assert report.status.total_candidates == 11
     assert report.status.published_count == 1
-    assert report.status.approved_count == 2
+    assert report.status.approved_count == 3
     assert report.status.draft_count == 1
     assert report.status.rejected_count == 1
     assert report.status.pending_count == 2
+    assert report.schedule.publish_slots == ["09:30", "19:30"]
     assert [item.content_type for item in report.by_content_type] == [
         "results_roundup",
         "standings_roundup",
@@ -236,6 +252,7 @@ def test_editorial_day_plan_render_telegram_includes_schedule_and_entries() -> N
 
     assert "agenda editorial 2026-05-18" in message
     assert "dia: lunes" in message
+    assert "slots X: 09:30, 19:30" in message
     assert "publicadas de la jornada: 0" in message
     assert "publicables hoy: 1" in message
     assert "salida prevista en este slot: 1" in message

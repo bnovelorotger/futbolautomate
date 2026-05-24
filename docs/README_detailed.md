@@ -1574,15 +1574,15 @@ La publicacion automatica en X ya no es solo manual. Hoy existe una sola via ope
 
 Horario vigente en `app/config/publication_schedule.json`:
 
-- lunes `09:15`: `results_roundup`, `standings_roundup`, `top_scorer_update`, `race_narrative`, `milestone_story`
-- martes `20:00`: `ranking`, `standings_roundup`
-- miercoles `20:00`: `viral_story`, `metric_narrative`
-- jueves `20:00`: `top_scorer_update`, `ranking`
-- viernes `13:00`: `featured_match_preview`, `match_impact_scenario`
+- lunes `09:30` y `19:30`: `results_roundup`, `standings_roundup`, `top_scorer_update`, `race_narrative`, `milestone_story`
+- martes `09:30` y `19:30`: `ranking`, `standings_roundup`
+- miercoles `09:30` y `19:30`: `viral_story`, `metric_narrative`, `stat_narrative`
+- jueves `09:30` y `19:30`: `top_scorer_update`, `ranking`
+- viernes `09:30` y `19:30`: `featured_match_preview`, `match_impact_scenario`
 - sabado `11:00`: `preview`
 - domingo `21:15`: `results_roundup`, `standings_roundup`
 
-La parrilla semanal completa esta en `docs/x_publication_weekly_grid.md`. La carga del planner no equivale a posts publicados: la salida real queda limitada por calendario, quality checks, autoapproval/manual review, `X_BROWSER_RELEASE_ACTION_LIMIT` y el `-Limit` de cada tarea del scheduler.
+La parrilla semanal completa esta en `docs/x_publication_weekly_grid.md`. La carga del planner no equivale a posts publicados: la salida real queda limitada por calendario, quality checks, autoapproval/manual review, `X_BROWSER_RELEASE_ACTION_LIMIT` y el `-PublishLimit` de cada tarea del scheduler.
 
 `XBrowserPublicationService` filtra por dos capas antes de intentar publicar:
 

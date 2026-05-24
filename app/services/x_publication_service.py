@@ -16,6 +16,7 @@ from app.schemas.x_publication import (
     XPublicationResult,
 )
 from app.services.editorial_candidate_window import EditorialCandidateWindowService
+from app.services.editorial_phase import EditorialPhaseService
 from app.services.editorial_text_selector import EditorialTextSelectorService
 from app.services.x_auth_service import XAuthService
 from app.services.x_publication_scheduler import XPublicationScheduler
@@ -53,7 +54,10 @@ class XPublicationService:
         self.publisher = publisher or XPublisher(XApiClient(settings))
         self.auth_service = auth_service or XAuthService(session, settings=settings)
         self.text_selector = text_selector or EditorialTextSelectorService(session, settings=settings)
-        self.scheduler = scheduler or XPublicationScheduler(settings=settings)
+        self.scheduler = scheduler or XPublicationScheduler(
+            settings=settings,
+            phase_service=EditorialPhaseService(session, settings=settings),
+        )
         self.window_service = window_service or EditorialCandidateWindowService(session, settings=settings)
 
     def _candidate(self, candidate_id: int) -> ContentCandidate:

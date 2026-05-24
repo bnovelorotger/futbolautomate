@@ -78,6 +78,9 @@ STRICT_DATA_CONTENT_TYPES = (
     ContentType.MATCH_IMPACT_SCENARIO,
     ContentType.STAT_NARRATIVE,
     ContentType.TOP_SCORER_UPDATE,
+    ContentType.SEASON_WRAP_STATS,
+    ContentType.SEASON_WRAP_OUTCOMES,
+    ContentType.PLAYOFF_BRACKET,
 )
 HUMANIZED_LOCAL_CONTENT_TYPES = (
     ContentType.PREVIEW,
@@ -163,6 +166,18 @@ TYPE_SPECIFIC_GUIDANCE = {
     ContentType.MATCH_IMPACT_SCENARIO: (
         "Explica escenarios de clasificacion en formato breve y util. "
         "No inventes desempates, porcentajes ni consecuencias fuera de la simulacion."
+    ),
+    ContentType.SEASON_WRAP_STATS: (
+        "Resume el balance estadistico final de temporada con claridad. "
+        "No alteres partidos, goles, medias ni equipos destacados."
+    ),
+    ContentType.SEASON_WRAP_OUTCOMES: (
+        "Resume cierres de temporada, campeon, playoff y descenso solo con los datos del payload. "
+        "No confirmes ascensos si el texto base no los confirma."
+    ),
+    ContentType.PLAYOFF_BRACKET: (
+        "Acompana el bracket de playoff con una lectura breve y verificable. "
+        "No cambies cruces, marcadores, estados ni proximos partidos."
     ),
 }
 

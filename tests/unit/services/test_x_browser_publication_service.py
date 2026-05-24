@@ -90,6 +90,53 @@ def test_x_browser_publication_service_publish_pending_dry_run_does_not_persist_
         session.close()
 
 
+def test_x_browser_publication_service_publish_selected_pending_only_uses_requested_ids() -> None:
+    session = build_session()
+    try:
+        seed_candidates(session)
+        now = datetime(2026, 3, 15, 10, 0, tzinfo=UTC)
+        session.add(
+            ContentCandidate(
+                id=5,
+                competition_slug="segunda_rfef_g3_baleares",
+                content_type="results_roundup",
+                priority=98,
+                text_draft="RESULTADO FINAL\n\nTorrent CF 2-0 UE Porreres",
+                payload_json=build_results_payload(
+                    reference_date="2026-03-16",
+                    match_date="2026-03-15",
+                ),
+                source_summary_hash="hash-5",
+                scheduled_at=now,
+                status="published",
+                reviewed_at=now,
+                approved_at=now,
+                published_at=now,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        session.commit()
+        publisher = Mock()
+        publisher.publish_text.return_value = XBrowserPublishResponse(
+            text="RESULTADO FINAL",
+            dry_run=True,
+        )
+        service = XBrowserPublicationService(
+            session,
+            publisher=publisher,
+            scheduler=build_scheduler(current_time=datetime(2026, 3, 16, 10, 0, tzinfo=ZoneInfo("Europe/Madrid"))),
+        )
+
+        result = service.publish_selected_pending([5], limit=10, dry_run=True, stagger_seconds=0)
+
+        assert result.published_count == 1
+        assert [row.candidate_id for row in result.rows] == [5]
+        publisher.publish_text.assert_called_once()
+    finally:
+        session.close()
+
+
 def test_x_browser_publication_service_publish_pending_respects_schedule_and_retry_budget() -> None:
     session = build_session()
     try:

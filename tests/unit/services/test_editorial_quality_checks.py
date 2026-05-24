@@ -222,6 +222,65 @@ def test_quality_precheck_blocks_weak_race_narrative_thresholds() -> None:
         session.close()
 
 
+def test_quality_precheck_blocks_top_scorer_update_below_coverage_threshold() -> None:
+    session = build_session()
+    try:
+        seed_narratives_data(session)
+        candidate = ContentCandidate(
+            competition_slug="tercera_rfef_g11",
+            content_type="top_scorer_update",
+            priority=80,
+            text_draft=(
+                "Pichichi provisional en 3a RFEF Grupo 11: "
+                "Joan Serra (CD Llosetense) manda con 4 goles, 1 mas que Pep Vidal (SD Portmany)."
+            ),
+            payload_json={
+                "content_key": "top_scorer_update:tercera_rfef_g11:coverage-low",
+                "source_payload": {
+                    "leader": {"player": "Joan Serra", "team": "CD Llosetense", "goals": 4},
+                    "chasers": [
+                        {"player": "Pep Vidal", "team": "SD Portmany", "goals": 3},
+                        {"player": "Toni Costa", "team": "CE Mercadal", "goals": 2},
+                    ],
+                    "rows": [
+                        {"player": "Joan Serra", "team": "CD Llosetense", "goals": 4},
+                        {"player": "Pep Vidal", "team": "SD Portmany", "goals": 3},
+                        {"player": "Toni Costa", "team": "CE Mercadal", "goals": 2},
+                    ],
+                    "teams": ["CD Llosetense", "SD Portmany", "CE Mercadal"],
+                    "leader_goals": 4,
+                    "goal_gap_to_second": 1,
+                    "leader_tied": False,
+                    "season": "2025-26",
+                    "finished_matches_count": 4,
+                    "scorer_covered_matches_count": 3,
+                    "scorer_coverage_ratio": 0.75,
+                    "scorer_matches_count": 3,
+                    "goal_events_count": 9,
+                    "distinct_scorers_count": 3,
+                },
+            },
+            source_summary_hash="quality-top-scorer-low-coverage",
+            status="draft",
+            created_at=datetime(2026, 3, 18, 10, 20, tzinfo=timezone.utc),
+            updated_at=datetime(2026, 3, 18, 10, 20, tzinfo=timezone.utc),
+        )
+        session.add(candidate)
+        session.commit()
+
+        result = EditorialQualityChecksService(
+            session,
+            settings=build_settings(),
+            policy=build_export_policy(),
+        ).check_candidates([candidate.id], dry_run=True, require_published=False)
+
+        assert result.failed_count == 1
+        assert result.rows[0].passed is False
+        assert any("coverage" in error for error in result.rows[0].errors)
+    finally:
+        session.close()
+
+
 def test_quality_checks_block_recent_duplicates() -> None:
     session = build_session()
     try:
@@ -400,6 +459,241 @@ def test_quality_checks_accept_results_roundup_with_normalized_team_names() -> N
 
         assert result.candidate.passed is True
         assert result.candidate.errors == []
+    finally:
+        session.close()
+
+
+def test_quality_checks_accept_playoff_results_roundup_without_jornada() -> None:
+    session = build_session()
+    try:
+        seed_competition(
+            session,
+            code="division_honor_mallorca_playoff",
+            name="Division Honor Mallorca Playoff",
+            teams=["CE Alpha", "CE Beta"],
+            standings_rows=[],
+            match_rows=[
+                {
+                    "round_name": None,
+                    "match_date": date(2026, 5, 17),
+                    "match_time": time(18, 0),
+                    "home_team": "CE Alpha",
+                    "away_team": "CE Beta",
+                    "home_score": 2,
+                    "away_score": 1,
+                },
+            ],
+        )
+        candidate = ContentCandidate(
+            competition_slug="division_honor_mallorca_playoff",
+            content_type="results_roundup",
+            priority=99,
+            text_draft="RESULTADOS | Playoff Ascenso Division Honor Mallorca\n\nCE Alpha 2-1 CE Beta",
+            payload_json={
+                "content_key": "results_roundup:division_honor_mallorca_playoff:final",
+                "source_payload": {
+                    "selected_matches_count": 1,
+                    "omitted_matches_count": 0,
+                    "matches": [
+                        {"home_team": "CE Alpha", "away_team": "CE Beta", "home_score": 2, "away_score": 1},
+                    ],
+                },
+            },
+            source_summary_hash="quality-playoff-roundup-without-jornada",
+            status="published",
+            reviewed_at=datetime(2026, 5, 18, 10, 0, tzinfo=timezone.utc),
+            approved_at=datetime(2026, 5, 18, 10, 0, tzinfo=timezone.utc),
+            published_at=datetime(2026, 5, 18, 10, 0, tzinfo=timezone.utc),
+        )
+        session.add(candidate)
+        session.commit()
+
+        result = EditorialQualityChecksService(
+            session,
+            settings=build_settings(),
+            policy=build_export_policy(),
+        ).check_candidate(candidate.id, dry_run=False)
+
+        assert result.candidate.passed is True
+        assert "results_roundup_title_invalid" not in result.candidate.errors
+    finally:
+        session.close()
+
+
+def test_quality_checks_accept_compact_po_playoff_results_title_without_jornada() -> None:
+    session = build_session()
+    try:
+        seed_competition(
+            session,
+            code="tercera_femenina_g11_playoff",
+            name="Tercera Federacion Femenina Playoff",
+            teams=["CE Alpha", "CE Beta"],
+            standings_rows=[],
+            match_rows=[
+                {
+                    "round_name": None,
+                    "match_date": date(2026, 5, 10),
+                    "match_time": time(18, 0),
+                    "home_team": "CE Alpha",
+                    "away_team": "CE Beta",
+                    "home_score": 2,
+                    "away_score": 1,
+                },
+            ],
+        )
+        candidate = ContentCandidate(
+            competition_slug="tercera_femenina_g11_playoff",
+            content_type="results_roundup",
+            priority=99,
+            text_draft="PO 3a RFEF Fem - 2026-05-10\n\nCE Alpha 2-1 CE Beta",
+            payload_json={
+                "content_key": "results_roundup:tercera_femenina_g11_playoff:compact",
+                "source_payload": {
+                    "selected_matches_count": 1,
+                    "omitted_matches_count": 0,
+                    "matches": [
+                        {"home_team": "CE Alpha", "away_team": "CE Beta", "home_score": 2, "away_score": 1},
+                    ],
+                },
+            },
+            source_summary_hash="quality-playoff-compact-po-title",
+            status="published",
+            reviewed_at=datetime(2026, 5, 11, 10, 0, tzinfo=timezone.utc),
+            approved_at=datetime(2026, 5, 11, 10, 0, tzinfo=timezone.utc),
+            published_at=datetime(2026, 5, 11, 10, 0, tzinfo=timezone.utc),
+        )
+        session.add(candidate)
+        session.commit()
+
+        result = EditorialQualityChecksService(
+            session,
+            settings=build_settings(),
+            policy=build_export_policy(),
+        ).check_candidate(candidate.id, dry_run=False, prefer_rewrite=False)
+
+        assert "results_roundup_title_invalid" not in result.candidate.errors
+    finally:
+        session.close()
+
+
+def test_quality_checks_block_regular_results_roundup_without_jornada() -> None:
+    session = build_session()
+    try:
+        seed_narratives_data(session)
+        candidate = ContentCandidate(
+            competition_slug="tercera_rfef_g11",
+            content_type="results_roundup",
+            priority=99,
+            text_draft="RESULTADOS | 3a RFEF Baleares\n\nCD Llosetense 2-0 SD Portmany",
+            payload_json={
+                "content_key": "results_roundup:tercera_rfef_g11:no-round",
+                "source_payload": {
+                    "selected_matches_count": 1,
+                    "omitted_matches_count": 0,
+                    "matches": [
+                        {"home_team": "CD Llosetense", "away_team": "SD Portmany", "home_score": 2, "away_score": 0},
+                    ],
+                },
+            },
+            source_summary_hash="quality-regular-roundup-without-jornada",
+            status="published",
+            reviewed_at=datetime(2026, 5, 18, 10, 0, tzinfo=timezone.utc),
+            approved_at=datetime(2026, 5, 18, 10, 0, tzinfo=timezone.utc),
+            published_at=datetime(2026, 5, 18, 10, 0, tzinfo=timezone.utc),
+        )
+        session.add(candidate)
+        session.commit()
+
+        result = EditorialQualityChecksService(
+            session,
+            settings=build_settings(),
+            policy=build_export_policy(),
+        ).check_candidate(candidate.id, dry_run=False)
+
+        assert result.candidate.passed is False
+        assert "results_roundup_title_invalid" in result.candidate.errors
+    finally:
+        session.close()
+
+
+def test_quality_checks_block_regular_ranking_during_active_playoffs() -> None:
+    session = build_session()
+    try:
+        seed_competition(
+            session,
+            code="segunda_rfef_g3_baleares",
+            name="2a RFEF Grupo 3",
+            teams=["UD Poblense", "CE Beta"],
+            standings_rows=[
+                {
+                    "position": 1,
+                    "team": "UD Poblense",
+                    "played": 30,
+                    "wins": 20,
+                    "draws": 5,
+                    "losses": 5,
+                    "goals_for": 50,
+                    "goals_against": 20,
+                    "goal_difference": 30,
+                    "points": 65,
+                }
+            ],
+            match_rows=[
+                {
+                    "round_name": "Jornada 30",
+                    "match_date": date(2026, 5, 18),
+                    "match_time": time(18, 0),
+                    "home_team": "UD Poblense",
+                    "away_team": "CE Beta",
+                    "home_score": 2,
+                    "away_score": 0,
+                }
+            ],
+        )
+        seed_competition(
+            session,
+            code="segunda_rfef_g3_playoff_ascenso",
+            name="2a RFEF Playoff Ascenso",
+            teams=["UD Poblense", "CE Beta"],
+            standings_rows=[],
+            match_rows=[],
+        )
+        from tests.unit.services.test_match_importance import add_scheduled_match
+
+        add_scheduled_match(
+            session,
+            competition_code="segunda_rfef_g3_playoff_ascenso",
+            external_id="po-future-quality",
+            match_date=date(2026, 5, 24),
+            match_time=time(19, 0),
+            home_team="UD Poblense",
+            away_team="CE Beta",
+        )
+        candidate = ContentCandidate(
+            competition_slug="segunda_rfef_g3_baleares",
+            content_type="ranking",
+            priority=80,
+            text_draft="RANKING\n\nUD Poblense lidera con 50 goles.",
+            payload_json={
+                "reference_date": "2026-05-24",
+                "source_payload": {
+                    "best_attack": {"team": "UD Poblense", "value": 50},
+                    "teams": ["UD Poblense"],
+                },
+            },
+            source_summary_hash="quality-phase-ranking-block",
+            status="draft",
+        )
+        session.add(candidate)
+        session.commit()
+
+        result = EditorialQualityChecksService(
+            session,
+            settings=build_settings(),
+            policy=build_export_policy(),
+        ).check_candidates([candidate.id], dry_run=True, require_published=False)
+
+        assert "phase_content_type_blocked:playoffs:ranking" in result.rows[0].errors
     finally:
         session.close()
 
