@@ -15,9 +15,11 @@ from app.db.repositories.scraper_runs import ScraperRunRepository
 from app.db.session import init_db, session_scope
 from app.pipelines.editorial_daily_digest import app as editorial_daily_digest_app
 from app.pipelines.editorial_day_plan import app as editorial_day_plan_app
+from app.pipelines.editorial_phase import app as editorial_phase_app
 from app.pipelines.match_events import app as match_events_app
 from app.pipelines.pipeline_metrics import app as pipeline_metrics_app
 from app.pipelines.pipeline_summary import app as pipeline_summary_app
+from app.pipelines.stat_coverage import app as stat_coverage_app
 from app.pipelines.top_scorer import app as top_scorer_app
 from app.schemas.common import ScrapeContext
 from app.scrapers.registry import build_scraper
@@ -37,9 +39,11 @@ app = typer.Typer(
 )
 app.add_typer(match_events_app, name="match_events")
 app.add_typer(editorial_day_plan_app, name="editorial_day_plan")
+app.add_typer(editorial_phase_app, name="editorial_phase")
 app.add_typer(editorial_daily_digest_app, name="editorial_daily_digest")
 app.add_typer(pipeline_metrics_app, name="pipeline_metrics")
 app.add_typer(pipeline_summary_app, name="pipeline_summary")
+app.add_typer(stat_coverage_app, name="stat_coverage")
 app.add_typer(top_scorer_app, name="top_scorer")
 
 
