@@ -37,6 +37,32 @@ class MatchEventType(StrEnum):
     UNKNOWN = "unknown"
 
 
+class MatchScorerStatus(StrEnum):
+    PENDING = "pending"
+    COVERED = "covered"
+    NO_GOALS = "no_goals"
+    MISSING_SOURCE = "missing_source"
+    PARTIAL = "partial"
+    ERROR = "error"
+
+
+class DataCoverageType(StrEnum):
+    RESULT = "result"
+    STANDINGS = "standings"
+    SCORERS = "scorers"
+    HALFTIME = "halftime"
+
+
+class DataCoverageStatus(StrEnum):
+    PENDING = "pending"
+    COVERED = "covered"
+    NO_DATA = "no_data"
+    PARTIAL = "partial"
+    SOURCE_MISSING = "source_missing"
+    STALE = "stale"
+    ERROR = "error"
+
+
 class Gender(StrEnum):
     MALE = "male"
     FEMALE = "female"
@@ -68,6 +94,14 @@ class MatchWindow(StrEnum):
     TODAY = "today"
     TOMORROW = "tomorrow"
     NEXT_WEEKEND = "next_weekend"
+
+
+class EditorialSeasonPhase(StrEnum):
+    OFFSEASON = "offseason"
+    PRESEASON = "preseason"
+    REGULAR_SEASON = "regular_season"
+    PLAYOFFS = "playoffs"
+    SEASON_WRAP = "season_wrap"
 
 
 class OutputFormat(StrEnum):
@@ -110,6 +144,9 @@ class ContentType(StrEnum):
     MILESTONE_STORY = "milestone_story"
     TOP_SCORER_UPDATE = "top_scorer_update"
     VIRAL_STORY = "viral_story"
+    SEASON_WRAP_STATS = "season_wrap_stats"
+    SEASON_WRAP_OUTCOMES = "season_wrap_outcomes"
+    PLAYOFF_BRACKET = "playoff_bracket"
 
 
 class EditorialPlanningContent(StrEnum):
@@ -127,6 +164,9 @@ class EditorialPlanningContent(StrEnum):
     MILESTONE_STORY = "milestone_story"
     TOP_SCORER_UPDATE = "top_scorer_update"
     VIRAL_STORY = "viral_story"
+    SEASON_WRAP_STATS = "season_wrap_stats"
+    SEASON_WRAP_OUTCOMES = "season_wrap_outcomes"
+    PLAYOFF_BRACKET = "playoff_bracket"
 
 
 class NarrativeMetricType(StrEnum):

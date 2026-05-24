@@ -4,11 +4,12 @@ import json
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import delete, func, or_, select, text
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.exc import IntegrityError
 
+from app.core.enums import MatchScorerStatus
 from app.db.models import Match, MatchEvent
 from app.db.repositories.base import BaseRepository
 
@@ -56,7 +57,7 @@ class MatchEventRepository(BaseRepository[MatchEvent]):
             .join(Match, Match.id == MatchEvent.match_id)
             .where(
                 Match.competition.has(code=competition_slug),
-                Match.has_scorers.is_(True),
+                self._closed_scorer_coverage_filter(),
                 MatchEvent.event_type == "goal",
             )
         )
@@ -101,7 +102,7 @@ class MatchEventRepository(BaseRepository[MatchEvent]):
             .join(Match, Match.id == MatchEvent.match_id)
             .where(
                 Match.competition.has(code=competition_slug),
-                Match.has_scorers.is_(True),
+                self._closed_scorer_coverage_filter(),
                 MatchEvent.event_type.in_(goal_event_types),
                 MatchEvent.player_raw.is_not(None),
                 func.trim(MatchEvent.player_raw) != "",
@@ -116,6 +117,17 @@ class MatchEventRepository(BaseRepository[MatchEvent]):
         return [
             (str(player_raw).strip().title(), goal_count) for player_raw, goal_count in rows if str(player_raw).strip()
         ]
+
+    def _closed_scorer_coverage_filter(self):
+        return or_(
+            Match.has_scorers.is_(True),
+            Match.scorer_status.in_(
+                [
+                    str(MatchScorerStatus.COVERED),
+                    str(MatchScorerStatus.NO_GOALS),
+                ]
+            ),
+        )
 
     def replace_for_match(self, match_id: int, payloads: Sequence[dict]) -> tuple[int, int]:
         existing = self.session.scalars(select(MatchEvent).where(MatchEvent.match_id == match_id)).all()

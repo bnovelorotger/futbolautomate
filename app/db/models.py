@@ -101,12 +101,18 @@ class Match(Base, TimestampMixin):
     venue: Mapped[str | None] = mapped_column(String(255), nullable=True)
     has_lineups: Mapped[bool] = mapped_column(Boolean, default=False)
     has_scorers: Mapped[bool] = mapped_column(Boolean, default=False)
+    scorer_status: Mapped[str] = mapped_column(String(30), default="pending", index=True)
+    scorer_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     scraped_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     content_hash: Mapped[str] = mapped_column(String(64), index=True)
     extra_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     competition: Mapped[Competition] = relationship(back_populates="matches")
     events: Mapped[list[MatchEvent]] = relationship(
+        back_populates="match",
+        cascade="all, delete-orphan",
+    )
+    data_coverages: Mapped[list[MatchDataCoverage]] = relationship(
         back_populates="match",
         cascade="all, delete-orphan",
     )
@@ -136,6 +142,26 @@ class MatchEvent(Base, TimestampMixin):
     raw_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     match: Mapped[Match] = relationship(back_populates="events")
+
+
+class MatchDataCoverage(Base, TimestampMixin):
+    __tablename__ = "match_data_coverage"
+    __table_args__ = (
+        UniqueConstraint("match_id", "data_type", name="uq_match_data_coverage_match_type"),
+        Index("ix_match_data_coverage_type_status", "data_type", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    match_id: Mapped[int] = mapped_column(ForeignKey("matches.id"), index=True)
+    data_type: Mapped[str] = mapped_column(String(40), index=True)
+    status: Mapped[str] = mapped_column(String(40), index=True, default="pending")
+    source_name: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    expected_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    observed_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    details_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    match: Mapped[Match] = relationship(back_populates="data_coverages")
 
 
 class Standing(Base, TimestampMixin):

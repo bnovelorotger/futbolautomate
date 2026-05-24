@@ -7,7 +7,9 @@ from pydantic import BaseModel, Field
 
 class EditorialDayPlanScheduleSummary(BaseModel):
     day_key: str
+    editorial_phase: str | None = None
     publish_after: str | None = None
+    publish_slots: list[str] = Field(default_factory=list)
     scheduled_types: list[str] = Field(default_factory=list)
 
 

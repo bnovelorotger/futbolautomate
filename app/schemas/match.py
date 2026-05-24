@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.enums import MatchStatus, SourceName
+from app.core.enums import MatchScorerStatus, MatchStatus, SourceName
 
 
 class MatchRecord(BaseModel):
@@ -32,5 +32,7 @@ class MatchRecord(BaseModel):
     venue: str | None = None
     has_lineups: bool = False
     has_scorers: bool = False
+    scorer_status: MatchScorerStatus = MatchScorerStatus.PENDING
+    scorer_checked_at: datetime | None = None
     scraped_at: datetime
     raw_payload: dict[str, Any] = Field(default_factory=dict)

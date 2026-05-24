@@ -5,7 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.enums import MatchEventType
+from app.core.enums import MatchEventType, MatchScorerStatus
 
 TeamSide = Literal["home", "away"]
 
@@ -49,9 +49,11 @@ class MatchEventEnrichmentMatchView(BaseModel):
     detail_url: str
     home_team: str
     away_team: str
+    expected_goal_events: int = 0
     events_found: int = 0
     persisted: bool = False
     has_scorers: bool = False
+    scorer_status: MatchScorerStatus = MatchScorerStatus.PENDING
 
 
 class MatchEventEnrichmentResult(BaseModel):
@@ -72,6 +74,9 @@ class TopScorerResult(BaseModel):
     competition_slug: str
     season: str | None = None
     reference_date: date | None = None
+    finished_matches_count: int = 0
+    scorer_covered_matches_count: int = 0
+    scorer_coverage_ratio: float = 0.0
     scorer_matches_count: int = 0
     goal_events_count: int = 0
     distinct_scorers_count: int = 0

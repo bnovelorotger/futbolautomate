@@ -57,6 +57,9 @@ class CompetitionDefinition(BaseModel):
     code: str
     name: str
     editorial_name: str | None = None
+    competition_type: str | None = None
+    playoff_type: str | None = None
+    parent_competition: str | None = None
     aliases: list[str] = Field(default_factory=list)
     historical_backlog_names: list[str] = Field(default_factory=list)
     category_level: int | None = None
