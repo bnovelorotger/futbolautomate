@@ -50,6 +50,14 @@ def test_ingest_matches_is_idempotent_and_updates_content() -> None:
         assert stats_2.inserted == 0
         assert stats_2.updated == 0
 
+        stored = session.scalars(select(Match)).one()
+        stored.has_scorers = True
+        stored.scorer_status = "covered"
+        stored.scorer_checked_at = utcnow()
+        stored.extra_data = {"detail_url": "https://example.com/detail/1", "match_events": {"status": "complete"}}
+        session.add(stored)
+        session.commit()
+
         changed = first.model_copy(update={"home_score": 2})
         stats_3 = ingest_matches(session, [changed], dry_run=False)
         session.commit()
@@ -59,6 +67,11 @@ def test_ingest_matches_is_idempotent_and_updates_content() -> None:
         matches = session.scalars(select(Match)).all()
         assert len(matches) == 1
         assert matches[0].home_score == 2
+        assert matches[0].has_scorers is True
+        assert matches[0].scorer_status == "covered"
+        assert matches[0].scorer_checked_at is not None
+        assert matches[0].extra_data is not None
+        assert matches[0].extra_data["match_events"]["status"] == "complete"
     finally:
         session.close()
 

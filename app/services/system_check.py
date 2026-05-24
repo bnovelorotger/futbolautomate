@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.catalog import load_competition_catalog
@@ -13,12 +15,14 @@ from app.core.enums import (
     ContentCandidateStatus,
     EditorialPlanningContent,
     MatchEventType,
+    MatchScorerStatus,
     MatchStatus,
 )
 from app.db.models import ContentCandidate, Match, MatchEvent
 from app.db.repositories.scraper_runs import ScraperRunRepository
 from app.schemas.system_check import EditorialCompetitionReadinessRow, EditorialReadinessReport, ZeroRecordScraperRun
 from app.services.competition_catalog_service import CompetitionCatalogService
+from app.services.editorial_phase import EditorialPhaseService
 from app.services.top_scorer_tracker import MIN_TOP_SCORER_SCORER_MATCHES
 from app.utils.time import utcnow
 
@@ -30,8 +34,9 @@ class SystemCheckService:
         self.catalog = load_competition_catalog()
         self.schedule = load_editorial_schedule()
         self.competitions = CompetitionCatalogService(session)
+        self.phase_service = EditorialPhaseService(session, settings=self.settings)
 
-    def editorial_readiness(self) -> EditorialReadinessReport:
+    def editorial_readiness(self, *, reference_date=None) -> EditorialReadinessReport:
         integrated_codes = [
             definition.code
             for definition in self.catalog.values()
@@ -56,6 +61,7 @@ class SystemCheckService:
                 matches_count=catalog_row.matches_count,
                 finished_matches_count=catalog_row.finished_matches_count,
                 scheduled_matches_count=catalog_row.scheduled_matches_count,
+                future_scheduled_matches_count=self._future_scheduled_matches_count(code, reference_date=reference_date),
                 standings_count=catalog_row.standings_count,
                 scorer_season=scorer_coverage_summary or scorer_season,
                 scorer_matches_count=scorer_matches_count,
@@ -173,6 +179,8 @@ class SystemCheckService:
                 EditorialPlanningContent.METRIC_NARRATIVE,
                 EditorialPlanningContent.MILESTONE_STORY,
                 EditorialPlanningContent.VIRAL_STORY,
+                EditorialPlanningContent.SEASON_WRAP_STATS,
+                EditorialPlanningContent.SEASON_WRAP_OUTCOMES,
             }
             and catalog_row.finished_matches_count == 0
         ):
@@ -190,14 +198,16 @@ class SystemCheckService:
                 EditorialPlanningContent.PREVIEW,
                 EditorialPlanningContent.MATCH_IMPACT_SCENARIO,
             }
-            and catalog_row.scheduled_matches_count == 0
+            and getattr(catalog_row, "future_scheduled_matches_count", catalog_row.scheduled_matches_count) == 0
         ):
             missing_dependencies.append("scheduled_matches")
         if content_type == EditorialPlanningContent.FEATURED_MATCH_PREVIEW:
-            if catalog_row.scheduled_matches_count == 0:
+            if getattr(catalog_row, "future_scheduled_matches_count", catalog_row.scheduled_matches_count) == 0:
                 missing_dependencies.append("scheduled_matches")
-            if catalog_row.standings_count == 0:
+            if catalog_row.standings_count == 0 and not self.phase_service.is_playoff_competition(catalog_row.code):
                 missing_dependencies.append("standings")
+        if content_type == EditorialPlanningContent.PLAYOFF_BRACKET and catalog_row.matches_count == 0:
+            missing_dependencies.append("matches")
         if (
             content_type
             in {
@@ -207,8 +217,10 @@ class SystemCheckService:
                 EditorialPlanningContent.METRIC_NARRATIVE,
                 EditorialPlanningContent.MATCH_IMPACT_SCENARIO,
                 EditorialPlanningContent.RACE_NARRATIVE,
+                EditorialPlanningContent.SEASON_WRAP_OUTCOMES,
             }
             and catalog_row.standings_count == 0
+            and not self.phase_service.is_playoff_competition(catalog_row.code)
         ):
             missing_dependencies.append("standings")
         return missing_dependencies
@@ -254,7 +266,7 @@ class SystemCheckService:
                     Match.competition.has(code=competition_code),
                     Match.status == str(MatchStatus.FINISHED),
                     Match.season == season,
-                    Match.has_scorers.is_(True),
+                    self._closed_scorer_coverage_filter(),
                 )
             )
             or 0
@@ -268,7 +280,7 @@ class SystemCheckService:
                     Match.competition.has(code=competition_code),
                     Match.status == str(MatchStatus.FINISHED),
                     Match.season == season,
-                    Match.has_scorers.is_(True),
+                    self._closed_scorer_coverage_filter(),
                     MatchEvent.event_type == str(MatchEventType.GOAL),
                 )
             )
@@ -293,3 +305,30 @@ class SystemCheckService:
             f"{season} ({covered_matches_count}/{finished_matches_count} covered, backlog={scorer_backlog_count})"
         )
         return season, scorer_matches_count, goal_events_count, scorer_coverage_summary
+
+    def _closed_scorer_coverage_filter(self):
+        return or_(
+            Match.has_scorers.is_(True),
+            Match.scorer_status.in_(
+                [
+                    str(MatchScorerStatus.COVERED),
+                    str(MatchScorerStatus.NO_GOALS),
+                ]
+            ),
+        )
+
+    def _future_scheduled_matches_count(self, competition_code: str, *, reference_date=None) -> int:
+        selected_date = reference_date or datetime.now(ZoneInfo(self.settings.timezone)).date()
+        return (
+            self.session.scalar(
+                select(func.count())
+                .select_from(Match)
+                .where(
+                    Match.competition.has(code=competition_code),
+                    Match.status.in_([str(MatchStatus.SCHEDULED), str(MatchStatus.LIVE)]),
+                    Match.match_date.is_not(None),
+                    Match.match_date >= selected_date,
+                )
+            )
+            or 0
+        )

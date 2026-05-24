@@ -9,6 +9,7 @@ from playwright.sync_api import sync_playwright
 
 _TEMPLATES_PATH = Path(__file__).resolve().parents[1] / "templates"
 _STANDINGS_TEMPLATE = "standings_card.html"
+_PLAYOFF_BRACKET_TEMPLATE = "playoff_bracket_card.html"
 
 
 @lru_cache(maxsize=1)
@@ -23,6 +24,13 @@ def _environment() -> Environment:
 
 def render_standings_html(context: dict[str, Any], output_html_path: Path) -> Path:
     template = _environment().get_template(_STANDINGS_TEMPLATE)
+    output_html_path.parent.mkdir(parents=True, exist_ok=True)
+    output_html_path.write_text(template.render(**context), encoding="utf-8")
+    return output_html_path
+
+
+def render_playoff_bracket_html(context: dict[str, Any], output_html_path: Path) -> Path:
+    template = _environment().get_template(_PLAYOFF_BRACKET_TEMPLATE)
     output_html_path.parent.mkdir(parents=True, exist_ok=True)
     output_html_path.write_text(template.render(**context), encoding="utf-8")
     return output_html_path

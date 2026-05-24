@@ -1,0 +1,89 @@
+from __future__ import annotations
+
+import logging
+import re
+from datetime import date, datetime
+from pathlib import Path
+
+from app.core.config import get_settings
+from app.db.models import ContentCandidate
+from app.services.image_renderer import html_to_png, render_playoff_bracket_html
+from app.services.playoff_bracket_image_mapper import build_playoff_bracket_image_context
+
+logger = logging.getLogger(__name__)
+
+
+def generate_playoff_bracket_card(
+    candidate: ContentCandidate,
+    output_root: Path | None = None,
+    width: int = 1200,
+    height: int | None = None,
+    output_date: date | None = None,
+) -> str | None:
+    step = "build_context"
+    try:
+        export_root = output_root or (get_settings().app_root / "exports")
+        context = build_playoff_bracket_image_context(candidate)
+        layout = dict(context.get("layout") or {})
+        resolved_height = height or int(layout.get("height") or 1500)
+        context["layout"] = {
+            **layout,
+            "width": width,
+            "height": resolved_height,
+        }
+
+        competition_slug = _safe_path_segment(context.get("competition_slug") or candidate.competition_slug)
+        date_segment = _date_segment(str(context.get("updated_at") or ""), candidate, output_date=output_date)
+        filename = f"playoff_bracket_{candidate.id}.png"
+        html_filename = f"playoff_bracket_{candidate.id}.html"
+
+        png_relative = Path("images") / competition_slug / date_segment / filename
+        html_relative = Path("tmp") / "images" / competition_slug / date_segment / html_filename
+
+        html_path = export_root / html_relative
+        png_path = export_root / png_relative
+
+        step = "render_html"
+        render_playoff_bracket_html(context, html_path)
+        step = "html_to_png"
+        html_to_png(html_path, png_path, width=width, height=resolved_height)
+
+        return (Path("exports") / png_relative).as_posix()
+    except Exception:
+        logger.exception(
+            "playoff_bracket_card_generation_failed candidate_id=%s competition_slug=%s step=%s",
+            getattr(candidate, "id", None),
+            getattr(candidate, "competition_slug", None),
+            step,
+        )
+        return None
+
+
+def _date_segment(value: str, candidate: ContentCandidate, *, output_date: date | None = None) -> str:
+    if output_date is not None:
+        return output_date.isoformat()
+    parsed = _parse_date(value)
+    if parsed is not None:
+        return parsed.isoformat()
+    fallback = candidate.published_at or candidate.created_at or candidate.updated_at
+    if fallback is not None:
+        return fallback.date().isoformat()
+    return datetime.now().date().isoformat()
+
+
+def _parse_date(value: str) -> date | None:
+    normalized = value.strip()
+    if not normalized:
+        return None
+    for parser in (date.fromisoformat, lambda item: datetime.fromisoformat(item).date()):
+        try:
+            return parser(normalized)
+        except ValueError:
+            continue
+    return None
+
+
+def _safe_path_segment(value: str) -> str:
+    normalized = re.sub(r"[^A-Za-z0-9._-]+", "-", value.strip())
+    normalized = normalized.strip("-._")
+    return normalized or "playoff-bracket"
